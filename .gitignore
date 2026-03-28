@@ -1,0 +1,41 @@
+# ==========================================
+# TrustRent Backend - .NET GitIgnore
+# ==========================================
+
+# Ficheiros de Build e Temporários
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+TestResults/
+*.log
+
+# Pastas do Visual Studio e IDEs
+.vs/
+.vscode/
+*.user
+*.userprefs
+*.suo
+*.ide/
+.idea/
+
+# Ficheiros de Configuração Locais e Segredos (MUITO IMPORTANTE)
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+*_secrets.json
+*google-credentials*.json
+*.pem
+*.key
+
+# Bases de Dados Locais (SQLite, LocalDB)
+*.db
+*.db-shm
+*.db-wal
+*.mdf
+*.ldf
+*.ndf
+
+# Caches e Pacotes NuGet
+.nuget/
+packages/
+*.nupkg

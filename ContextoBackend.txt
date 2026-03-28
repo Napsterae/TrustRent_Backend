@@ -1,0 +1,1045 @@
+======================================================
+ESTRUTURA DO PROJETO
+======================================================
+TrustRent.Api
+TrustRent.Modules.Catalog
+TrustRent.Modules.Identity
+TrustRent.Modules.Leasing
+TrustRent.Shared
+ContextoBackend.txt
+GerarContexto.ps1
+TrustRent.sln
+TrustRent.Api\Endpoints
+TrustRent.Api\Properties
+TrustRent.Api\wwwroot
+TrustRent.Api\appsettings.Development.json
+TrustRent.Api\appsettings.json
+TrustRent.Api\Program.cs
+TrustRent.Api\TrustRent.Api.csproj
+TrustRent.Api\TrustRent.Api.csproj.Backup.tmp
+TrustRent.Api\TrustRent.Api.csproj.user
+TrustRent.Api\TrustRent.Api.http
+TrustRent.Api\Endpoints\AuthEndpoints.cs
+TrustRent.Api\Endpoints\UserEndpoints.cs
+TrustRent.Api\Properties\launchSettings.json
+TrustRent.Api\wwwroot\uploads
+TrustRent.Api\wwwroot\uploads\profiles
+TrustRent.Api\wwwroot\uploads\profiles\12232557-7de5-493a-84d5-e9b8291a58ca_1774486198.png
+TrustRent.Api\wwwroot\uploads\profiles\12232557-7de5-493a-84d5-e9b8291a58ca_1774486214.png
+TrustRent.Modules.Catalog\Contracts
+TrustRent.Modules.Catalog\Models
+TrustRent.Modules.Catalog\Repositories
+TrustRent.Modules.Catalog\Services
+TrustRent.Modules.Catalog\TrustRent.Modules.Catalog.csproj
+TrustRent.Modules.Catalog\Contracts\Database
+TrustRent.Modules.Catalog\Contracts\Database\CatalogDbContext.cs
+TrustRent.Modules.Catalog\Models\Property.cs
+TrustRent.Modules.Identity\Contracts
+TrustRent.Modules.Identity\Models
+TrustRent.Modules.Identity\Repositories
+TrustRent.Modules.Identity\Services
+TrustRent.Modules.Identity\TrustRent.Modules.Identity.csproj
+TrustRent.Modules.Identity\Contracts\Database
+TrustRent.Modules.Identity\Contracts\Interfaces
+TrustRent.Modules.Identity\Contracts\Database\IdentityDbContext.cs
+TrustRent.Modules.Identity\Contracts\Interfaces\IAuthService.cs
+TrustRent.Modules.Identity\Contracts\Interfaces\IUnitOfWork.cs
+TrustRent.Modules.Identity\Contracts\Interfaces\IUserRepository.cs
+TrustRent.Modules.Identity\Models\User.cs
+TrustRent.Modules.Identity\Repositories\UnitOfWork.cs
+TrustRent.Modules.Identity\Repositories\UserRepository.cs
+TrustRent.Modules.Identity\Services\AuthService.cs
+TrustRent.Modules.Leasing\Class1.cs
+TrustRent.Modules.Leasing\TrustRent.Modules.Leasing.csproj
+TrustRent.Shared\Security
+TrustRent.Shared\Class1.cs
+TrustRent.Shared\TrustRent.Shared.csproj
+TrustRent.Shared\Security\EncryptionHelper.cs
+
+
+
+======================================================
+CONTEÃšDO DOS FICHEIROS
+======================================================
+
+
+================================================
+FICHEIRO: .\TrustRent.sln
+================================================
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TrustRent.Api", "TrustRent.Api\TrustRent.Api.csproj", "{07C32E9E-7A80-404D-A9A9-AF63F7ACAABF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TrustRent.Shared", "TrustRent.Shared\TrustRent.Shared.csproj", "{8346865A-2669-4ED1-AF4C-DBB704DAB7E0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TrustRent.Modules.Catalog", "TrustRent.Modules.Catalog\TrustRent.Modules.Catalog.csproj", "{29A9C2A1-3918-43C4-9B66-C918DB06F9EB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TrustRent.Modules.Identity", "TrustRent.Modules.Identity\TrustRent.Modules.Identity.csproj", "{94811437-284A-4E50-8875-95ED6072D594}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TrustRent.Modules.Leasing", "TrustRent.Modules.Leasing\TrustRent.Modules.Leasing.csproj", "{7773D8A0-F727-4CF7-9714-1FF13450441D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{07C32E9E-7A80-404D-A9A9-AF63F7ACAABF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{07C32E9E-7A80-404D-A9A9-AF63F7ACAABF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{07C32E9E-7A80-404D-A9A9-AF63F7ACAABF}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{07C32E9E-7A80-404D-A9A9-AF63F7ACAABF}.Debug|x64.Build.0 = Debug|Any CPU
+		{07C32E9E-7A80-404D-A9A9-AF63F7ACAABF}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{07C32E9E-7A80-404D-A9A9-AF63F7ACAABF}.Debug|x86.Build.0 = Debug|Any CPU
+		{07C32E9E-7A80-404D-A9A9-AF63F7ACAABF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{07C32E9E-7A80-404D-A9A9-AF63F7ACAABF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{07C32E9E-7A80-404D-A9A9-AF63F7ACAABF}.Release|x64.ActiveCfg = Release|Any CPU
+		{07C32E9E-7A80-404D-A9A9-AF63F7ACAABF}.Release|x64.Build.0 = Release|Any CPU
+		{07C32E9E-7A80-404D-A9A9-AF63F7ACAABF}.Release|x86.ActiveCfg = Release|Any CPU
+		{07C32E9E-7A80-404D-A9A9-AF63F7ACAABF}.Release|x86.Build.0 = Release|Any CPU
+		{8346865A-2669-4ED1-AF4C-DBB704DAB7E0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8346865A-2669-4ED1-AF4C-DBB704DAB7E0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8346865A-2669-4ED1-AF4C-DBB704DAB7E0}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8346865A-2669-4ED1-AF4C-DBB704DAB7E0}.Debug|x64.Build.0 = Debug|Any CPU
+		{8346865A-2669-4ED1-AF4C-DBB704DAB7E0}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8346865A-2669-4ED1-AF4C-DBB704DAB7E0}.Debug|x86.Build.0 = Debug|Any CPU
+		{8346865A-2669-4ED1-AF4C-DBB704DAB7E0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8346865A-2669-4ED1-AF4C-DBB704DAB7E0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8346865A-2669-4ED1-AF4C-DBB704DAB7E0}.Release|x64.ActiveCfg = Release|Any CPU
+		{8346865A-2669-4ED1-AF4C-DBB704DAB7E0}.Release|x64.Build.0 = Release|Any CPU
+		{8346865A-2669-4ED1-AF4C-DBB704DAB7E0}.Release|x86.ActiveCfg = Release|Any CPU
+		{8346865A-2669-4ED1-AF4C-DBB704DAB7E0}.Release|x86.Build.0 = Release|Any CPU
+		{29A9C2A1-3918-43C4-9B66-C918DB06F9EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{29A9C2A1-3918-43C4-9B66-C918DB06F9EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{29A9C2A1-3918-43C4-9B66-C918DB06F9EB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{29A9C2A1-3918-43C4-9B66-C918DB06F9EB}.Debug|x64.Build.0 = Debug|Any CPU
+		{29A9C2A1-3918-43C4-9B66-C918DB06F9EB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{29A9C2A1-3918-43C4-9B66-C918DB06F9EB}.Debug|x86.Build.0 = Debug|Any CPU
+		{29A9C2A1-3918-43C4-9B66-C918DB06F9EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{29A9C2A1-3918-43C4-9B66-C918DB06F9EB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{29A9C2A1-3918-43C4-9B66-C918DB06F9EB}.Release|x64.ActiveCfg = Release|Any CPU
+		{29A9C2A1-3918-43C4-9B66-C918DB06F9EB}.Release|x64.Build.0 = Release|Any CPU
+		{29A9C2A1-3918-43C4-9B66-C918DB06F9EB}.Release|x86.ActiveCfg = Release|Any CPU
+		{29A9C2A1-3918-43C4-9B66-C918DB06F9EB}.Release|x86.Build.0 = Release|Any CPU
+		{94811437-284A-4E50-8875-95ED6072D594}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{94811437-284A-4E50-8875-95ED6072D594}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{94811437-284A-4E50-8875-95ED6072D594}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{94811437-284A-4E50-8875-95ED6072D594}.Debug|x64.Build.0 = Debug|Any CPU
+		{94811437-284A-4E50-8875-95ED6072D594}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{94811437-284A-4E50-8875-95ED6072D594}.Debug|x86.Build.0 = Debug|Any CPU
+		{94811437-284A-4E50-8875-95ED6072D594}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{94811437-284A-4E50-8875-95ED6072D594}.Release|Any CPU.Build.0 = Release|Any CPU
+		{94811437-284A-4E50-8875-95ED6072D594}.Release|x64.ActiveCfg = Release|Any CPU
+		{94811437-284A-4E50-8875-95ED6072D594}.Release|x64.Build.0 = Release|Any CPU
+		{94811437-284A-4E50-8875-95ED6072D594}.Release|x86.ActiveCfg = Release|Any CPU
+		{94811437-284A-4E50-8875-95ED6072D594}.Release|x86.Build.0 = Release|Any CPU
+		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Debug|x64.Build.0 = Debug|Any CPU
+		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Debug|x86.Build.0 = Debug|Any CPU
+		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Release|x64.ActiveCfg = Release|Any CPU
+		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Release|x64.Build.0 = Release|Any CPU
+		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Release|x86.ActiveCfg = Release|Any CPU
+		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Api\appsettings.Development.json
+================================================
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  }
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Api\appsettings.json
+================================================
+{
+  "ConnectionStrings": {
+    "PostgresConnection": "Host=localhost;Database=trustrent_db;Username=trustrent_admin;Password=TrustRentPassword123!"
+  },
+  "JwtSettings": {
+    "SecretKey": "TrustRent_Super_Secret_Key_Para_O_JWT_2026_Tem_De_Ser_Longa",
+    "Issuer": "TrustRentApi",
+    "Audience": "TrustRentFrontend"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Api\Program.cs
+================================================
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using TrustRent.Api.Endpoints;
+using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Identity.Contracts.Database;
+using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Modules.Identity.Repositories;
+using TrustRent.Modules.Identity.Services;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "TrustRent API",
+        Version = "v1"
+    });
+
+    // CORREÇÃO AQUI: Usar OpenApiSecurityScheme em vez de OpenApiInfo
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "Insere apenas o Token JWT (sem a palavra 'Bearer')"
+    });
+
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
+    });
+});
+
+// 1. Obter a connection string
+var connectionString = builder.Configuration.GetConnectionString("PostgresConnection");
+
+// 2. Registar o Contexto do Identity
+builder.Services.AddDbContext<IdentityDbContext>(options =>
+    options.UseNpgsql(connectionString));
+
+// 3. Registar o Contexto do Catalog
+builder.Services.AddDbContext<CatalogDbContext>(options =>
+    options.UseNpgsql(connectionString));
+
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
+            ValidAudience = builder.Configuration["JwtSettings:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"]!))
+        };
+    });
+builder.Services.AddAuthorization();
+
+builder.Services.AddControllers();
+
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowViteFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173") 
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
+var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseStaticFiles();
+app.UseCors("AllowViteFrontend");
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapAuthEndpoints();
+app.MapAuthUserEndpoints();
+
+app.Run();
+
+
+================================================
+FICHEIRO: .\TrustRent.Api\TrustRent.Api.csproj
+================================================
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.*" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.*" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.*">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TrustRent.Shared\TrustRent.Shared.csproj" />
+    <ProjectReference Include="..\TrustRent.Modules.Catalog\TrustRent.Modules.Catalog.csproj" />
+    <ProjectReference Include="..\TrustRent.Modules.Identity\TrustRent.Modules.Identity.csproj" />
+    <ProjectReference Include="..\TrustRent.Modules.Leasing\TrustRent.Modules.Leasing.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Endpoints\" />
+  </ItemGroup>
+
+</Project>
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Api\Endpoints\AuthEndpoints.cs
+================================================
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Modules.Identity.Services;
+
+namespace TrustRent.Api.Endpoints;
+
+public static class AuthEndpoints
+{
+    // Método de extensão para mapear as rotas no Program.cs
+    public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
+    {
+        // Agrupamos todas as rotas sob "/api/auth"
+        var group = app.MapGroup("/api/auth");
+
+        // Endpoint de Registo
+        group.MapPost("/register", async ([FromBody] RegisterRequest request, IAuthService authService) =>
+        {
+            try
+            {
+                var token = await authService.RegisterAsync(request.Name, request.Email, request.Password);
+                return Results.Ok(new { Token = token });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        // Endpoint de Login
+        group.MapPost("/login", async ([FromBody] LoginRequest request, IAuthService authService) =>
+        {
+            try
+            {
+                var token = await authService.LoginAsync(request.Email, request.Password);
+                return Results.Ok(new { Token = token });
+            }
+            catch (Exception ex)
+            {
+                return Results.Json(new { Error = ex.Message }, statusCode: 401);
+            }
+        });     
+    }
+}
+
+
+
+// Os teus DTOs (Data Transfer Objects) continuam a existir aqui no fundo, de forma simples
+public record RegisterRequest(string Name, string Email, string Password);
+public record LoginRequest(string Email, string Password);
+
+
+================================================
+FICHEIRO: .\TrustRent.Api\Endpoints\UserEndpoints.cs
+================================================
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+using TrustRent.Modules.Identity.Contracts.Interfaces;
+
+namespace TrustRent.Api.Endpoints;
+
+public static class UserEndpoints
+{
+    public static void MapAuthUserEndpoints(this IEndpointRouteBuilder app)
+    {
+        // Agrupamos todas as rotas sob "/api/auth"
+        var userGroup = app.MapGroup("/api/user").RequireAuthorization();
+
+        userGroup.MapGet("/profile", async (ClaimsPrincipal userClaims, IUnitOfWork uow) =>
+        {
+            var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var user = await uow.Users.GetByIdAsync(userId);
+            if (user == null) return Results.NotFound();
+
+            return Results.Ok(new
+            {
+                user.Name,
+                user.Email,
+                user.Nif,
+                user.CitizenCardNumber,
+                user.Address,
+                user.PostalCode,
+                user.ProfilePictureUrl,
+                user.TrustScore,
+                user.IsIdentityVerified,
+                user.IsNoDebtVerified
+            });
+        });
+
+        // 2. ATUALIZAR PERFIL (COM VALIDAÇÃO DE UNICIDADE)
+        userGroup.MapPut("/profile", async (ClaimsPrincipal userClaims, [FromBody] UpdateProfileRequest request, IUnitOfWork uow) =>
+        {
+            var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var user = await uow.Users.GetByIdAsync(userId);
+            if (user == null) return Results.NotFound();
+
+            // Validar Unicidade do NIF
+            if (!string.IsNullOrWhiteSpace(request.Nif) && !await uow.Users.IsNifUniqueAsync(request.Nif, userId))
+                return Results.BadRequest(new { Error = "Este NIF já está registado noutra conta." });
+
+            // Validar Unicidade do CC
+            if (!string.IsNullOrWhiteSpace(request.CitizenCardNumber) && !await uow.Users.IsCcUniqueAsync(request.CitizenCardNumber, userId))
+                return Results.BadRequest(new { Error = "Este Cartão de Cidadão já está registado noutra conta." });
+
+            user.Name = request.Name;
+            user.Email = request.Email;
+            user.Nif = request.Nif;
+            user.CitizenCardNumber = request.CitizenCardNumber;
+            user.Address = request.Address;
+            user.PostalCode = request.PostalCode;
+
+            await uow.SaveChangesAsync();
+            return Results.Ok(new { Message = "Perfil atualizado com sucesso." });
+        });
+
+        // 3. UPLOAD FOTO DE PERFIL (AVATAR)
+        userGroup.MapPost("/avatar", async (ClaimsPrincipal userClaims, IFormFile file, IUnitOfWork uow, IWebHostEnvironment env) =>
+        {
+            if (file == null || file.Length == 0) return Results.BadRequest(new { Error = "Nenhuma imagem enviada." });
+
+            var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var user = await uow.Users.GetByIdAsync(userId);
+            if (user == null) return Results.NotFound();
+
+            var extension = Path.GetExtension(file.FileName).ToLower();
+            var uploadsFolder = Path.Combine(env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "uploads", "profiles");
+            if (!Directory.Exists(uploadsFolder)) Directory.CreateDirectory(uploadsFolder);
+
+            var uniqueFileName = $"{userId}_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}{extension}";
+            var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+                await file.CopyToAsync(stream);
+
+            user.ProfilePictureUrl = $"/uploads/profiles/{uniqueFileName}";
+            await uow.SaveChangesAsync();
+
+            return Results.Ok(new { Message = "Foto atualizada.", ProfilePictureUrl = user.ProfilePictureUrl });
+        }).DisableAntiforgery();
+
+        userGroup.MapPut("/security", async (ClaimsPrincipal userClaims, [FromBody] UpdatePasswordRequest request, IUnitOfWork uow) =>
+        {
+            var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var user = await uow.Users.GetByIdAsync(userId);
+
+            if (user == null) return Results.NotFound();
+
+            if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+                return Results.BadRequest(new { Error = "Password atual incorreta." });
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            await uow.SaveChangesAsync();
+
+            return Results.Ok(new { Message = "Password atualizada com sucesso." });
+        });
+
+        userGroup.MapPost("/verify-documents", async (ClaimsPrincipal userClaims, IFormFile? ccDocument, IFormFile? noDebtDocument, IUnitOfWork uow) =>
+        {
+            var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var user = await uow.Users.GetByIdAsync(userId);
+
+            if (ccDocument != null && ccDocument.Length > 0)
+            {
+                await Task.Delay(1500); // Simula leitura IA
+                user.IsIdentityVerified = true;
+                user.TrustScore += 20;
+            }
+            if (noDebtDocument != null && noDebtDocument.Length > 0)
+            {
+                await Task.Delay(1500);
+                user.IsNoDebtVerified = true;
+                user.TrustScore += 15;
+            }
+
+            await uow.SaveChangesAsync();
+            return Results.Ok(new { user.IsIdentityVerified, user.IsNoDebtVerified, user.TrustScore });
+        }).DisableAntiforgery();
+    }
+}
+
+public record UpdateProfileRequest(string Name, string Email, string? Nif, string? CitizenCardNumber, string? Address, string? PostalCode);
+public record UpdatePasswordRequest(string CurrentPassword, string NewPassword);
+
+
+================================================
+FICHEIRO: .\TrustRent.Api\Properties\launchSettings.json
+================================================
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5281",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "https://localhost:7163;http://localhost:5281",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\TrustRent.Modules.Catalog.csproj
+================================================
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TrustRent.Modules.Identity\TrustRent.Modules.Identity.csproj" />
+    <ProjectReference Include="..\TrustRent.Shared\TrustRent.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Repositories\" />
+    <Folder Include="Services\" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\Database\CatalogDbContext.cs
+================================================
+
+using Microsoft.EntityFrameworkCore;
+using TrustRent.Modules.Catalog.Models;
+
+namespace TrustRent.Modules.Catalog.Contracts.Database;
+
+public class CatalogDbContext : DbContext
+{
+    public CatalogDbContext(DbContextOptions<CatalogDbContext> options) : base(options) { }
+
+    public DbSet<Property> Properties { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // MAGIA AQUI: Colocar as tabelas de imóveis no schema "catalog"
+        modelBuilder.HasDefaultSchema("catalog");
+
+        base.OnModelCreating(modelBuilder);
+    }
+}
+
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Models\Property.cs
+================================================
+namespace TrustRent.Modules.Catalog.Models;
+
+public class Property
+{
+    public Guid Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public string Typology { get; set; } = string.Empty;
+}
+
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Identity\TrustRent.Modules.Identity.csproj
+================================================
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TrustRent.Shared\TrustRent.Shared.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Identity\Contracts\Database\IdentityDbContext.cs
+================================================
+using Microsoft.EntityFrameworkCore;
+using TrustRent.Modules.Identity.Models;
+using TrustRent.Shared.Security;
+
+namespace TrustRent.Modules.Identity.Contracts.Database;
+
+public class IdentityDbContext : DbContext
+{
+    public IdentityDbContext(DbContextOptions<IdentityDbContext> options) : base(options) { }
+
+    public DbSet<User> Users { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasDefaultSchema("identity");
+
+        modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique();
+        modelBuilder.Entity<User>().HasIndex(u => u.Nif).IsUnique();
+        modelBuilder.Entity<User>().HasIndex(u => u.CitizenCardNumber).IsUnique();
+
+        modelBuilder.Entity<User>()
+        .Property(u => u.CitizenCardNumber)
+        .HasConversion(
+            v => v == null ? null : EncryptionHelper.Encrypt(v),
+            v => v == null ? null : EncryptionHelper.Decrypt(v)
+        );
+
+
+        // SEED: Criar um utilizador de teste quando a base de dados for gerada
+        var adminId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        modelBuilder.Entity<User>().HasData(new User
+        {
+            Id = adminId,
+            Name = "João Silva",
+            Email = "joao.silva@email.pt",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("TrustRent2026!"),
+            TrustScore = 85
+        });
+
+        base.OnModelCreating(modelBuilder);
+    }
+}
+
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Identity\Contracts\Interfaces\IAuthService.cs
+================================================
+namespace TrustRent.Modules.Identity.Contracts.Interfaces;
+
+public interface IAuthService
+{
+    Task<string> RegisterAsync(string name, string email, string password);
+    Task<string> LoginAsync(string email, string password);
+}
+
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Identity\Contracts\Interfaces\IUnitOfWork.cs
+================================================
+namespace TrustRent.Modules.Identity.Contracts.Interfaces;
+
+public interface IUnitOfWork
+{
+    IUserRepository Users { get; }
+    Task<int> SaveChangesAsync();
+}
+
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Identity\Contracts\Interfaces\IUserRepository.cs
+================================================
+using TrustRent.Modules.Identity.Models;
+
+namespace TrustRent.Modules.Identity.Contracts.Interfaces;
+
+public interface IUserRepository
+{
+    Task<User?> GetByIdAsync(Guid id);
+    Task<User?> GetByEmailAsync(string email);
+    Task AddAsync(User user);
+    Task<bool> IsNifUniqueAsync(string nif, Guid excludeUserId);
+    Task<bool> IsCcUniqueAsync(string cc, Guid excludeUserId);
+}
+
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Identity\Models\User.cs
+================================================
+namespace TrustRent.Modules.Identity.Models;
+
+public class User
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
+
+    // Dados Pessoais
+    public string? Nif { get; set; }
+    public string? CitizenCardNumber { get; set; }
+    public string? Address { get; set; }
+    public string? PostalCode { get; set; }
+    public string? ProfilePictureUrl { get; set; }
+
+    // Validações de Confiança (Read-Only no Frontend)
+    public bool IsIdentityVerified { get; set; } = false;
+    public bool IsNoDebtVerified { get; set; } = false;
+    public int TrustScore { get; set; } = 50;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Identity\Repositories\UnitOfWork.cs
+================================================
+using TrustRent.Modules.Identity.Contracts.Database;
+using TrustRent.Modules.Identity.Contracts.Interfaces;
+
+namespace TrustRent.Modules.Identity.Repositories;
+
+public class UnitOfWork : IUnitOfWork
+{
+    private readonly IdentityDbContext _context;
+    private IUserRepository? _userRepository;
+
+    public UnitOfWork(IdentityDbContext context) => _context = context;
+
+    public IUserRepository Users => _userRepository ??= new UserRepository(_context);
+
+    public async Task<int> SaveChangesAsync()
+    {
+        return await _context.SaveChangesAsync();
+    }
+
+    public void Dispose()
+    {
+        _context.Dispose();
+    }
+}
+
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Identity\Repositories\UserRepository.cs
+================================================
+using Microsoft.EntityFrameworkCore;
+using TrustRent.Modules.Identity.Contracts.Database;
+using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Modules.Identity.Models;
+
+namespace TrustRent.Modules.Identity.Repositories;
+
+public class UserRepository : IUserRepository
+{
+    private readonly IdentityDbContext _context;
+    public UserRepository(IdentityDbContext context) => _context = context;
+
+    public async Task<User?> GetByIdAsync(Guid id)
+    {
+        return await _context.Users.SingleOrDefaultAsync(u => u.Id == id);
+    }
+
+    public async Task<User?> GetByEmailAsync(string email)
+    {
+        return await _context.Users.SingleOrDefaultAsync(u => u.Email == email);
+    }
+
+    public async Task AddAsync(User user)
+    {
+        await _context.Users.AddAsync(user);
+    }
+
+    public async Task<bool> IsNifUniqueAsync(string nif, Guid excludeUserId)
+    {
+        return !await _context.Users.AnyAsync(u => u.Nif == nif && u.Id != excludeUserId);
+    }
+
+    public async Task<bool> IsCcUniqueAsync(string cc, Guid excludeUserId)
+    {
+        return !await _context.Users.AnyAsync(u => u.CitizenCardNumber == cc && u.Id != excludeUserId);
+    }
+}
+
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Identity\Services\AuthService.cs
+================================================
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Modules.Identity.Models;
+
+namespace TrustRent.Modules.Identity.Services;
+
+public class AuthService : IAuthService
+{
+    private readonly IUnitOfWork _uow;
+    private readonly IConfiguration _config;
+
+    public AuthService(IUnitOfWork unitOfWork, IConfiguration config)
+    {
+        _uow = unitOfWork;
+        _config = config;
+    }
+
+    public async Task<string> RegisterAsync(string name, string email, string password)
+    {
+        var existingUser = await _uow.Users.GetByEmailAsync(email);
+        if (existingUser != null) throw new Exception("Email já está em uso.");
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            Email = email,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password)
+        };
+
+        await _uow.Users.AddAsync(user);
+        await _uow.SaveChangesAsync(); // Commit na BD
+
+        return GenerateJwtToken(user);
+    }
+
+    public async Task<string> LoginAsync(string email, string password)
+    {
+        var user = await _uow.Users.GetByEmailAsync(email);
+        if (user == null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+        {
+            throw new Exception("Credenciais inválidas.");
+        }
+
+        return GenerateJwtToken(user);
+    }
+
+    private string GenerateJwtToken(User user)
+    {
+        // Esta chave secreta vai estar no teu appsettings.json da API
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["JwtSettings:SecretKey"]!));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var claims = new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new Claim(JwtRegisteredClaimNames.Email, user.Email),
+            new Claim("name", user.Name),
+            new Claim("trust_score", user.TrustScore.ToString())
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: _config["JwtSettings:Issuer"],
+            audience: _config["JwtSettings:Audience"],
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(2),
+            signingCredentials: creds
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+}
+
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Leasing\Class1.cs
+================================================
+namespace TrustRent.Modules.Leasing;
+
+public class Class1
+{
+
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Leasing\TrustRent.Modules.Leasing.csproj
+================================================
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\TrustRent.Shared\TrustRent.Shared.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Shared\Class1.cs
+================================================
+namespace TrustRent.Shared;
+
+public class Class1
+{
+
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Shared\TrustRent.Shared.csproj
+================================================
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Shared\Security\EncryptionHelper.cs
+================================================
+using System.Security.Cryptography;
+using System.Text;
+
+namespace TrustRent.Shared.Security;
+
+public static class EncryptionHelper
+{
+    // AVISO: Num ambiente real, estas chaves devem vir do appsettings.json ou do Azure KeyVault!
+    // Chave de 32 bytes (AES-256)
+    private static readonly byte[] Key = Encoding.UTF8.GetBytes("MinhaChaveSuperSecretaDe32Bytes!");
+    // IV de 16 bytes fixo (Necessário para a encriptação ser determinística e permitir o IsUnique na Base de Dados)
+    private static readonly byte[] IV = Encoding.UTF8.GetBytes("VetorFixoDe16Bts");
+
+    public static string Encrypt(string plainText)
+    {
+        if (string.IsNullOrEmpty(plainText)) return plainText;
+        using var aes = Aes.Create();
+        aes.Key = Key;
+        aes.IV = IV;
+        var encryptor = aes.CreateEncryptor(aes.Key, aes.IV);
+        var plainBytes = Encoding.UTF8.GetBytes(plainText);
+        var encryptedBytes = encryptor.TransformFinalBlock(plainBytes, 0, plainBytes.Length);
+        return Convert.ToBase64String(encryptedBytes);
+    }
+
+    public static string Decrypt(string cipherText)
+    {
+        if (string.IsNullOrEmpty(cipherText)) return cipherText;
+        using var aes = Aes.Create();
+        aes.Key = Key;
+        aes.IV = IV;
+        var decryptor = aes.CreateDecryptor(aes.Key, aes.IV);
+        var cipherBytes = Convert.FromBase64String(cipherText);
+        var decryptedBytes = decryptor.TransformFinalBlock(cipherBytes, 0, cipherBytes.Length);
+        return Encoding.UTF8.GetString(decryptedBytes);
+    }
+}
