@@ -4,18 +4,19 @@ using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Shared.Contracts.Interfaces;
+using Hangfire;
 
 namespace TrustRent.Modules.Catalog.Services;
 
 public class PropertyService : IPropertyService
 {
     private readonly CatalogDbContext _context;
-    private readonly IImageService _imageService;
+    private readonly IBackgroundJobClient _backgroundJobs;
 
-    public PropertyService(CatalogDbContext context, IImageService imageService)
+    public PropertyService(CatalogDbContext context, IBackgroundJobClient backgroundJobs)
     {
         _context = context;
-        _imageService = imageService;
+        _backgroundJobs = backgroundJobs;
     }
 
     public async Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IList<string> imageCategories, IEnumerable<FileDto> documents)
@@ -45,9 +46,32 @@ public class PropertyService : IPropertyService
             City = dto.City,
             Latitude = dto.Latitude,
             Longitude = dto.Longitude,
-            IsAvailable = false // Por defeito, fica como rascunho/em análise
+            IsAvailable = false
         };
 
+        var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", property.Id.ToString());
+        Directory.CreateDirectory(tempFolder);
+
+        var savedFilePaths = new List<string>();
+
+        foreach (var img in images)
+        {
+            if (img.Content.Length > 0)
+            {
+                var tempPath = Path.Combine(tempFolder, Guid.NewGuid() + Path.GetExtension(img.FileName));
+                using (var stream = new FileStream(tempPath, FileMode.Create))
+                {
+                    await img.Content.CopyToAsync(stream);
+                }
+                savedFilePaths.Add(tempPath);
+            }
+        }
+
+        _backgroundJobs.Enqueue<Jobs.IPropertyUploadJob>(job =>
+            job.ProcessCreationAsync(property.Id, landlordId, savedFilePaths, imageCategories.ToList())
+        );
+
+        /*
         // 2. Processar e fazer Upload das Imagens
         var newImagesList = images.ToList();
         for (int i = 0; i < newImagesList.Count; i++)
@@ -94,6 +118,7 @@ public class PropertyService : IPropertyService
         // 4. Guardar tudo na Base de Dados
         _context.Properties.Add(property);
         await _context.SaveChangesAsync();
+        */
 
         return property.Id; // Devolvemos o ID para o Frontend poder redirecionar o utilizador
     }
@@ -123,7 +148,6 @@ public class PropertyService : IPropertyService
     {
         return await _context.Properties
             .Include(p => p.Images)
-            .Include(p => p.Documents)
             .FirstOrDefaultAsync(p => p.Id == propertyId);
     }
 
@@ -141,16 +165,6 @@ public class PropertyService : IPropertyService
             .FirstOrDefaultAsync(p => p.Id == propertyId && p.LandlordId == landlordId);
 
         if (property == null) throw new Exception("Imóvel não encontrado ou não te pertence.");
-
-        var imagesToRemove = property.Images.Where(img => !retainedImageIds.Contains(img.Id)).ToList();
-        foreach (var img in imagesToRemove)
-        {
-            // 1.1 Apagar fisicamente da Cloud (O serviço ativo resolve)
-            await _imageService.DeleteImageAsync(img.Url);
-
-            // 1.2 Remover da Base de Dados
-            _context.Set<PropertyImage>().Remove(img);
-        }
 
         // Atualizar campos de texto
         property.Title = dto.Title;
@@ -174,31 +188,45 @@ public class PropertyService : IPropertyService
         property.Latitude = dto.Latitude;
         property.Longitude = dto.Longitude;
 
-        // Fazer upload de NOVAS imagens (se o senhorio tiver adicionado mais)
-        var newImagesList = newImages.ToList();
-        for (int i = 0; i < newImagesList.Count; i++)
+        var imagesToRemove = property.Images.Where(img => !retainedImageIds.Contains(img.Id)).ToList();
+        var urlsToDeleteFromCloud = new List<string>();
+
+        foreach (var img in imagesToRemove)
         {
-            var img = newImagesList[i];
+            urlsToDeleteFromCloud.Add(img.Url);
+            property.Images.Remove(img);
+        }
 
-            // Garante que apanhamos a categoria certa, ou "Geral" se falhar
-            var category = (imageCategories != null && i < imageCategories.Count)
-                ? imageCategories[i]
-                : "Geral";
+        if (property.Images.Any() && !property.Images.Any(img => img.IsMain))
+        {
+            property.Images.First().IsMain = true;
+        }
 
+        var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", property.Id.ToString());
+        Directory.CreateDirectory(tempFolder);
+        var savedFilePaths = new List<string>();
+
+        var newImagesList = newImages.ToList();
+        foreach (var img in newImagesList)
+        {
             if (img.Content.Length > 0)
             {
-                var imageUrl = await _imageService.UploadImageAsync(img.Content, img.FileName, $"properties/{property.Id}");
-                property.Images.Add(new PropertyImage
+                var tempPath = Path.Combine(tempFolder, Guid.NewGuid() + Path.GetExtension(img.FileName));
+                using (var stream = new FileStream(tempPath, FileMode.Create))
                 {
-                    Id = Guid.NewGuid(),
-                    PropertyId = property.Id,
-                    Url = imageUrl,
-                    Category = category,
-                    IsMain = false
-                });
+                    await img.Content.CopyToAsync(stream);
+                }
+                savedFilePaths.Add(tempPath);
             }
         }
 
         await _context.SaveChangesAsync();
+
+        if (urlsToDeleteFromCloud.Any() || savedFilePaths.Any())
+        {
+            _backgroundJobs.Enqueue<Jobs.IPropertyUploadJob>(job =>
+                job.ProcessEditAsync(propertyId, landlordId, savedFilePaths, imageCategories.ToList(), urlsToDeleteFromCloud)
+            );
+        }
     }
 }

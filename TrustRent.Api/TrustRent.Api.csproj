@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="CloudinaryDotNet" Version="1.28.0" />
+    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />
+    <PackageReference Include="Hangfire.PostgreSql" Version="1.21.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.*" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.*" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.*">

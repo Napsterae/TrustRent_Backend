@@ -10,24 +10,32 @@ public class CatalogDbContext : DbContext
 
     public DbSet<Property> Properties { get; set; }
     public DbSet<PropertyImage> PropertyImages { get; set; }
-    public DbSet<PropertyDocument> PropertyDocuments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("catalog");
 
-        // Configurar as relações (1 Imóvel tem N Imagens/Documentos)
-        modelBuilder.Entity<Property>()
-            .HasMany(p => p.Images)
-            .WithOne()
-            .HasForeignKey(img => img.PropertyId)
-            .OnDelete(DeleteBehavior.Cascade); // Se apagar a casa, apaga as referências das fotos
+        modelBuilder.Entity<Property>(builder =>
+        {
+            builder.HasKey(p => p.Id);
 
-        modelBuilder.Entity<Property>()
-            .HasMany(p => p.Documents)
-            .WithOne()
-            .HasForeignKey(doc => doc.PropertyId)
-            .OnDelete(DeleteBehavior.Cascade);
+            builder.HasMany(p => p.Images)
+                   .WithOne()
+                   .HasForeignKey(i => i.PropertyId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Property(p => p.MatrixArticle).HasMaxLength(100);
+            builder.Property(p => p.PropertyFraction).HasMaxLength(10);
+            builder.Property(p => p.EnergyClass).HasMaxLength(5);
+            builder.Property(p => p.EnergyCertificateNumber).HasMaxLength(100);
+            builder.Property(p => p.AtRegistrationNumber).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<PropertyImage>(builder =>
+        {
+            builder.HasKey(i => i.Id);
+            builder.Property(i => i.Url).IsRequired();
+        });
 
         base.OnModelCreating(modelBuilder);
     }

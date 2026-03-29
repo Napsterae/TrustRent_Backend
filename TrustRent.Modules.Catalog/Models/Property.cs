@@ -38,9 +38,21 @@ public class Property
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
-    // Relacionamentos (As listas de imagens e documentos)
+    // Relacionamentos (As listas de imagens)
     public List<PropertyImage> Images { get; set; } = new();
-    public List<PropertyDocument> Documents { get; set; } = new();
+
+
+    // Caderneta
+    public string? MatrixArticle { get; set; }
+    public string? PropertyFraction { get; set; }
+
+    // Certificado Energético
+    public string? EnergyClass { get; set; }
+    public string? EnergyCertificateNumber { get; set; }
+    public DateTime? EnergyCertificateExpiryDate { get; set; }
+
+    // Registo AT
+    public string? AtRegistrationNumber { get; set; }
 }
 
 // Classe para guardar a Galeria de Imagens
@@ -51,14 +63,5 @@ public class PropertyImage
     public string Url { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public bool IsMain { get; set; } // Diz se é a foto de Capa
-}
-
-// Classe para guardar os Documentos (Caderneta, etc)
-public class PropertyDocument
-{
-    public Guid Id { get; set; }
-    public Guid PropertyId { get; set; }
-    public string DocumentType { get; set; } = string.Empty; // Ex: CadernetaPredial, CertificadoEnergetico
-    public string Url { get; set; } = string.Empty;
 }
 

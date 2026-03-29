@@ -26,6 +26,18 @@ public class CreatePropertyDto
     public string City { get; set; } = string.Empty;
     public double Latitude { get; set; }
     public double Longitude { get; set; }
+
+    // Caderneta
+    public string? MatrixArticle { get; set; }
+    public string? PropertyFraction { get; set; }
+
+    // Certificado Energético
+    public string? EnergyClass { get; set; }
+    public string? EnergyCertificateNumber { get; set; }
+    public string? EnergyCertificateExpiryDate { get; set; }
+
+    // Registo AT
+    public string? AtRegistrationNumber { get; set; }
 }
 
 // Pequeno record para transportar os ficheiros do Endpoint para o Serviço sem quebrar o Clean Architecture

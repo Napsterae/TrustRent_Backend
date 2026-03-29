@@ -538,7 +538,10 @@ public static class PropertyEndpoints
                 var documentFiles = form.Files.GetFiles("documents")
                     .Select(f => new FileDto(f.OpenReadStream(), f.FileName)).ToList();
 
-                var imageCategories = form["imageCategories"].Where(c => !string.IsNullOrEmpty(c)).ToList();
+                var imageCategories = form["imageCategories"]
+                    .Where(c => !string.IsNullOrEmpty(c))
+                    .Select(c => c!)
+                    .ToList();
 
                 // 5. Chamar a nossa lógica de negócio (O motor que criámos no Passo 2)
                 var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, documentFiles);
@@ -616,9 +619,18 @@ public static class PropertyEndpoints
                 var newImageFiles = form.Files.GetFiles("images")
                     .Select(f => new FileDto(f.OpenReadStream(), f.FileName)).ToList();
 
-                var imageCategories = form["imageCategories"].Where(c => !string.IsNullOrEmpty(c)).ToList();
+                var imageCategories = form["imageCategories"]
+                    .Where(c => !string.IsNullOrEmpty(c))
+                    .Select(c => c!)
+                    .ToList();
 
-                await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories);
+                var retainedImageIds = new List<Guid>();
+                if (form.TryGetValue("retainedImageIds", out var ids))
+                {
+                    retainedImageIds = ids.Select(id => Guid.Parse(id!.ToString())).ToList();
+                }
+
+                await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories, retainedImageIds);
 
                 return Results.Ok(new { Message = "Imóvel atualizado com sucesso!" });
             }
@@ -894,7 +906,7 @@ public interface IPropertyService
     Task<IEnumerable<PropertySummaryDto>> GetPropertiesByLandlordAsync(Guid landlordId);
 
     Task<Property?> GetPropertyByIdAsync(Guid propertyId);
-    Task UpdatePropertyAsync(Guid propertyId, Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> newImages, IList<string> imageCategories);
+    Task UpdatePropertyAsync(Guid propertyId, Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> newImages, IList<string> imageCategories, IList<Guid> retainedImageIds);
 }
 
 
@@ -1101,13 +1113,29 @@ public class PropertyService : IPropertyService
     }
 
     // Atualiza os dados de texto e adiciona novas imagens se existirem
-    public async Task UpdatePropertyAsync(Guid propertyId, Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> newImages, IList<string> imageCategories)
+    public async Task UpdatePropertyAsync(
+        Guid propertyId, 
+        Guid landlordId, 
+        CreatePropertyDto dto, 
+        IEnumerable<FileDto> newImages, 
+        IList<string> imageCategories,
+        IList<Guid> retainedImageIds)
     {
         var property = await _context.Properties
             .Include(p => p.Images)
             .FirstOrDefaultAsync(p => p.Id == propertyId && p.LandlordId == landlordId);
 
         if (property == null) throw new Exception("Imóvel não encontrado ou não te pertence.");
+
+        var imagesToRemove = property.Images.Where(img => !retainedImageIds.Contains(img.Id)).ToList();
+        foreach (var img in imagesToRemove)
+        {
+            // 1.1 Apagar fisicamente da Cloud (O serviço ativo resolve)
+            await _imageService.DeleteImageAsync(img.Url);
+
+            // 1.2 Remover da Base de Dados
+            _context.Set<PropertyImage>().Remove(img);
+        }
 
         // Atualizar campos de texto
         property.Title = dto.Title;
@@ -1780,6 +1808,8 @@ public interface IImageService
 {
     // Recebe o stream, o nome original e a pasta de destino (ex: "profiles" ou "properties")
     Task<string> UploadImageAsync(Stream fileStream, string fileName, string folder);
+
+    Task DeleteImageAsync(string imageUrl);
 }
 
 
@@ -1891,6 +1921,31 @@ public class CloudinaryImageService : IImageService
         // Devolve o URL final, limpo e público!
         return uploadResult.SecureUrl.ToString();
     }
+
+    public async Task DeleteImageAsync(string imageUrl)
+    {
+        try
+        {
+            // O URL do Cloudinary costuma ser: https://res.cloudinary.com/xyz/image/upload/v123/TrustRent/properties/id/foto.webp
+            // Precisamos extrair apenas "TrustRent/properties/id/foto"
+            var startIndex = imageUrl.IndexOf("TrustRent/");
+            if (startIndex != -1)
+            {
+                var publicIdWithExt = imageUrl.Substring(startIndex);
+
+                // Remover a extensão (.webp)
+                var lastDotIndex = publicIdWithExt.LastIndexOf('.');
+                var publicId = lastDotIndex != -1 ? publicIdWithExt.Substring(0, lastDotIndex) : publicIdWithExt;
+
+                var deletionParams = new DeletionParams(publicId);
+                await _cloudinary.DestroyAsync(deletionParams);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro ao apagar imagem do Cloudinary: {ex.Message}");
+        }
+    }
 }
 
 
@@ -1915,6 +1970,14 @@ public class GoogleVisionOcrService : IOcrService
 
         if (!string.IsNullOrEmpty(credentialsPath) && File.Exists(credentialsPath))
         {
+            Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", credentialsPath);
+        }
+
+        _client = ImageAnnotatorClient.Create();
+
+        /*
+        if (!string.IsNullOrEmpty(credentialsPath) && File.Exists(credentialsPath))
+        {
             // Lê o ficheiro JSON de credenciais
             var credential = GoogleCredential.FromFile(credentialsPath);
             var builder = new ImageAnnotatorClientBuilder
@@ -1928,7 +1991,7 @@ public class GoogleVisionOcrService : IOcrService
             // Se não houver ficheiro, tenta usar a variável de ambiente GOOGLE_APPLICATION_CREDENTIALS
             // (Isto é útil para quando publicares o projeto na Cloud/Azure/AWS)
             _client = ImageAnnotatorClient.Create();
-        }
+        }*/
     }
 
     public async Task<string> ExtractTextAsync(Stream fileStream, string fileName)
@@ -2070,6 +2133,28 @@ public class R2ImageService : IImageService
 
         // Devolve o URL público que o React vai ler (ex: https://pub-dummy.r2.dev/profiles/1234-5678.jpg)
         return $"{_publicDomain}/{objectKey}";
+    }
+
+    public async Task DeleteImageAsync(string imageUrl)
+    {
+        try
+        {
+            // Extrair a "Key" (caminho interno) a partir do URL público
+            // Ex: "https://pub-dummy.r2.dev/properties/123/foto.webp" -> "properties/123/foto.webp"
+            var objectKey = imageUrl.Replace($"{_publicDomain}/", "");
+
+            var deleteRequest = new DeleteObjectRequest
+            {
+                BucketName = _bucketName,
+                Key = objectKey
+            };
+
+            await _s3Client.DeleteObjectAsync(deleteRequest);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro ao apagar imagem da Cloudflare R2: {ex.Message}");
+        }
     }
 
     // Helper para descobrir o Content-Type

@@ -13,6 +13,10 @@ using TrustRent.Modules.Identity.Services;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Services;
 using Microsoft.AspNetCore.Http.Features;
+using Hangfire;
+using Hangfire.PostgreSql;
+using TrustRent.Modules.Catalog.Jobs;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -81,7 +85,18 @@ builder.Services.AddScoped<IPropertyService, PropertyService>();
 
 builder.Services.AddScoped<IOcrService, GoogleVisionOcrService>();
 builder.Services.AddScoped<IImageService, CloudinaryImageService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IPropertyUploadJob, PropertyUploadJob>();
 //builder.Services.AddScoped<IImageService, R2ImageService>();
+
+builder.Services.AddHangfire(config => config
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UsePostgreSqlStorage(c => c.UseNpgsqlConnection(connectionString)));
+
+builder.Services.AddHangfireServer();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -118,6 +133,7 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.UseHangfireDashboard();
 }
 
 app.UseStaticFiles();

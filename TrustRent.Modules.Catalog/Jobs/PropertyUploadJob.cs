@@ -1,0 +1,161 @@
+﻿using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Models;
+using TrustRent.Shared.Contracts.Interfaces;
+
+namespace TrustRent.Modules.Catalog.Jobs;
+
+public interface IPropertyUploadJob
+{
+    Task ProcessCreationAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories);
+    Task ProcessEditAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, List<string> imageUrlsToDelete);
+}
+
+public class PropertyUploadJob : IPropertyUploadJob
+{
+    private readonly CatalogDbContext _context;
+    private readonly IImageService _imageService;
+    private readonly INotificationService _notificationService;
+
+    public PropertyUploadJob(CatalogDbContext context, IImageService imageService, INotificationService notificationService)
+    {
+        _context = context;
+        _imageService = imageService;
+        _notificationService = notificationService;
+    }
+
+    public async Task ProcessCreationAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories)
+    {
+        var property = await _context.Properties.FindAsync(propertyId);
+        if (property == null) return;
+
+        try
+        {
+            // 1. Processar cada imagem pendente
+            for (int i = 0; i < tempFilePaths.Count; i++)
+            {
+                var filePath = tempFilePaths[i];
+                var category = (categories != null && i < categories.Count) ? categories[i] : "Geral";
+
+                if (File.Exists(filePath))
+                {
+                    using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                    {
+                        // Upload pesado para a Cloud (demora o tempo que for preciso sem bloquear ninguém)
+                        var imageUrl = await _imageService.UploadImageAsync(stream, Path.GetFileName(filePath), $"properties/{propertyId}");
+
+                        property.Images.Add(new PropertyImage
+                        {
+                            Id = Guid.NewGuid(),
+                            PropertyId = propertyId,
+                            Url = imageUrl,
+                            Category = category,
+                            IsMain = (i == 0) // A primeira é a capa
+                        });
+                    }
+
+                    // Limpar o ficheiro temporário do disco do nosso servidor após upload
+                    File.Delete(filePath);
+                }
+            }
+
+            // 2. Marcar o imóvel como público/processado
+            property.IsAvailable = true;
+            await _context.SaveChangesAsync();
+
+            // 3. Notificar o Senhorio que o anúncio já está online!
+            await _notificationService.SendNotificationAsync(
+                landlordId,
+                "application", // Ícone
+                $"As imagens do teu anúncio '{property.Title}' foram processadas e o imóvel já está público!"
+            );
+        }
+        catch (Exception ex)
+        {
+            // O Hangfire tenta novamente de forma automática caso haja falhas de rede com a Cloud!
+            Console.WriteLine($"Erro no Job de Upload: {ex.Message}");
+            throw;
+        }
+        finally
+        {
+            // Limpar a pasta temporária do imóvel (caso tenha ficado vazia)
+            var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", propertyId.ToString());
+            if (Directory.Exists(tempFolder) && !Directory.EnumerateFileSystemEntries(tempFolder).Any())
+            {
+                Directory.Delete(tempFolder);
+            }
+        }
+    }
+
+    public async Task ProcessEditAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, List<string> imageUrlsToDelete)
+    {
+        // 1. APAGAR AS IMAGENS VELHAS DA CLOUD (Em background)
+        foreach (var urlToDelete in imageUrlsToDelete)
+        {
+            try
+            {
+                await _imageService.DeleteImageAsync(urlToDelete);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erro ao apagar imagem órfã {urlToDelete}: {ex.Message}");
+                // Não atiramos throw aqui para não interromper os uploads novos se falhar a apagar uma velha
+            }
+        }
+
+        // 2. FAZER UPLOAD DAS NOVAS IMAGENS (Se existirem)
+        if (tempFilePaths.Any())
+        {
+            var property = await _context.Properties.FindAsync(propertyId);
+            if (property == null) return;
+
+            try
+            {
+                for (int i = 0; i < tempFilePaths.Count; i++)
+                {
+                    var filePath = tempFilePaths[i];
+                    var category = (categories != null && i < categories.Count) ? categories[i] : "Geral";
+
+                    if (File.Exists(filePath))
+                    {
+                        using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                        {
+                            var imageUrl = await _imageService.UploadImageAsync(stream, Path.GetFileName(filePath), $"properties/{propertyId}");
+
+                            _context.PropertyImages.Add(new PropertyImage
+                            {
+                                Id = Guid.NewGuid(),
+                                PropertyId = propertyId,
+                                Url = imageUrl,
+                                Category = category,
+                                IsMain = false
+                            });
+                        }
+                        File.Delete(filePath);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                // Notificar que a atualização das fotos terminou
+                await _notificationService.SendNotificationAsync(
+                    landlordId,
+                    "application",
+                    $"A galeria do teu imóvel '{property.Title}' acabou de ser atualizada!"
+                );
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erro no Job de Edição: {ex.Message}");
+                throw;
+            }
+            finally
+            {
+                var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", propertyId.ToString());
+                if (Directory.Exists(tempFolder) && !Directory.EnumerateFileSystemEntries(tempFolder).Any())
+                {
+                    Directory.Delete(tempFolder);
+                }
+            }
+        }
+    }
+}
