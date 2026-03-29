@@ -1,14 +1,18 @@
 ======================================================
 ESTRUTURA DO PROJETO
 ======================================================
+.github
 TrustRent.Api
 TrustRent.Modules.Catalog
 TrustRent.Modules.Identity
 TrustRent.Modules.Leasing
 TrustRent.Shared
+.gitignore
 ContextoBackend.txt
 GerarContexto.ps1
+README.md
 TrustRent.sln
+.github\workflows
 TrustRent.Api\Endpoints
 TrustRent.Api\Properties
 TrustRent.Api\wwwroot
@@ -20,6 +24,7 @@ TrustRent.Api\TrustRent.Api.csproj.Backup.tmp
 TrustRent.Api\TrustRent.Api.csproj.user
 TrustRent.Api\TrustRent.Api.http
 TrustRent.Api\Endpoints\AuthEndpoints.cs
+TrustRent.Api\Endpoints\PropertyEndpoints.cs
 TrustRent.Api\Endpoints\UserEndpoints.cs
 TrustRent.Api\Properties\launchSettings.json
 TrustRent.Api\wwwroot\uploads
@@ -32,8 +37,13 @@ TrustRent.Modules.Catalog\Repositories
 TrustRent.Modules.Catalog\Services
 TrustRent.Modules.Catalog\TrustRent.Modules.Catalog.csproj
 TrustRent.Modules.Catalog\Contracts\Database
+TrustRent.Modules.Catalog\Contracts\DTOs
+TrustRent.Modules.Catalog\Contracts\Interfaces
 TrustRent.Modules.Catalog\Contracts\Database\CatalogDbContext.cs
+TrustRent.Modules.Catalog\Contracts\DTOs\CreatePropertyDto.cs
+TrustRent.Modules.Catalog\Contracts\Interfaces\IPropertyService.cs
 TrustRent.Modules.Catalog\Models\Property.cs
+TrustRent.Modules.Catalog\Services\PropertyService.cs
 TrustRent.Modules.Identity\Contracts
 TrustRent.Modules.Identity\Models
 TrustRent.Modules.Identity\Repositories
@@ -45,16 +55,26 @@ TrustRent.Modules.Identity\Contracts\Database\IdentityDbContext.cs
 TrustRent.Modules.Identity\Contracts\Interfaces\IAuthService.cs
 TrustRent.Modules.Identity\Contracts\Interfaces\IUnitOfWork.cs
 TrustRent.Modules.Identity\Contracts\Interfaces\IUserRepository.cs
+TrustRent.Modules.Identity\Contracts\Interfaces\IUserService.cs
 TrustRent.Modules.Identity\Models\User.cs
 TrustRent.Modules.Identity\Repositories\UnitOfWork.cs
 TrustRent.Modules.Identity\Repositories\UserRepository.cs
 TrustRent.Modules.Identity\Services\AuthService.cs
+TrustRent.Modules.Identity\Services\UserService.cs
 TrustRent.Modules.Leasing\Class1.cs
 TrustRent.Modules.Leasing\TrustRent.Modules.Leasing.csproj
+TrustRent.Shared\Contracts
 TrustRent.Shared\Security
-TrustRent.Shared\Class1.cs
+TrustRent.Shared\Services
 TrustRent.Shared\TrustRent.Shared.csproj
+TrustRent.Shared\Contracts\Interfaces
+TrustRent.Shared\Contracts\Interfaces\IImageService.cs
+TrustRent.Shared\Contracts\Interfaces\IOcrService.cs
 TrustRent.Shared\Security\EncryptionHelper.cs
+TrustRent.Shared\Services\CloudinaryImageService.cs
+TrustRent.Shared\Services\GoogleVisionOcrService.cs
+TrustRent.Shared\Services\ImageOptimizer.cs
+TrustRent.Shared\Services\R2ImageService.cs
 
 
 
@@ -163,20 +183,6 @@ EndGlobal
 FICHEIRO: .\TrustRent.Api\appsettings.Development.json
 ================================================
 {
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
-  }
-}
-
-
-
-================================================
-FICHEIRO: .\TrustRent.Api\appsettings.json
-================================================
-{
   "ConnectionStrings": {
     "PostgresConnection": "Host=localhost;Database=trustrent_db;Username=trustrent_admin;Password=TrustRentPassword123!"
   },
@@ -191,9 +197,52 @@ FICHEIRO: .\TrustRent.Api\appsettings.json
       "Microsoft.AspNetCore": "Warning"
     }
   },
+  "CloudinarySettings": {
+    "CloudName": "douftkpev",
+    "ApiKey": "949568488654957",
+    "ApiSecret": "e3aojn53LvmL0dZJzqteXLzB6zc"
+  },
+  "CloudflareR2Settings": {
+    "BucketName": "trustrent-assets",
+    "AccessKey": "DUMMY_ACCESS_KEY_AQUI",
+    "SecretKey": "DUMMY_SECRET_KEY_AQUI",
+    "ServiceUrl": "https://<ACCOUNT_ID>.r2.cloudflarestorage.com",
+    "PublicDomain": "https://pub-dummy.r2.dev"
+  },
+  "GoogleCloud": {
+    "CredentialsPath": "C:\\DEV\\TrustRent\\trustrent-dev-0fb6d52758b1.json"
+  },
   "AllowedHosts": "*"
 }
 
+
+
+================================================
+FICHEIRO: .\TrustRent.Api\appsettings.json
+================================================
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Database=TrustRentDB;Trusted_Connection=True;TrustServerCertificate=True;"
+  },
+  "JwtSettings": {
+    "Secret": "COLOCA_A_TUA_CHAVE_AQUI_NO_FICHEIRO_DEVELOPMENT"
+  },
+  "GoogleCloud": {
+    "CredentialsPath": "CAMINHO_PARA_O_JSON_DA_GOOGLE"
+  },
+  "CloudinarySettings": {
+    "CloudName": "NOME_AQUI",
+    "ApiKey": "API_KEY_AQUI",
+    "ApiSecret": "API_SECRET_AQUI"
+  }
+}
 
 
 ================================================
@@ -205,10 +254,14 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TrustRent.Api.Endpoints;
 using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Modules.Catalog.Services;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Repositories;
 using TrustRent.Modules.Identity.Services;
+using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Shared.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -262,7 +315,12 @@ builder.Services.AddDbContext<CatalogDbContext>(options =>
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IPropertyService, PropertyService>();
 
+builder.Services.AddScoped<IOcrService, GoogleVisionOcrService>();
+builder.Services.AddScoped<IImageService, CloudinaryImageService>();
+//builder.Services.AddScoped<IImageService, R2ImageService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -308,6 +366,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapAuthUserEndpoints();
+app.MapPropertyEndpoints();
 
 app.Run();
 
@@ -324,6 +383,7 @@ FICHEIRO: .\TrustRent.Api\TrustRent.Api.csproj
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CloudinaryDotNet" Version="1.28.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.*" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.*" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.*">
@@ -404,6 +464,88 @@ public record LoginRequest(string Email, string Password);
 
 
 ================================================
+FICHEIRO: .\TrustRent.Api\Endpoints\PropertyEndpoints.cs
+================================================
+using System.Security.Claims;
+using TrustRent.Modules.Catalog.Contracts.DTOs;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
+
+namespace TrustRent.Api.Endpoints;
+
+public static class PropertyEndpoints
+{
+    public static void MapPropertyEndpoints(this IEndpointRouteBuilder app)
+    {
+        // Agrupamos os endpoints e exigimos que o utilizador esteja autenticado (Token JWT válido)
+        var propertyGroup = app.MapGroup("/api/properties").RequireAuthorization();
+
+        propertyGroup.MapPost("/", async (HttpRequest request, ClaimsPrincipal userClaims, IPropertyService propertyService) =>
+        {
+            try
+            {
+                // 1. Identificar quem está a fazer o pedido
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+                // 2. Ler o FormData enviado pelo React
+                var form = await request.ReadFormAsync();
+
+                // 3. Mapear os dados de texto para o nosso DTO
+                // Usamos form["chave"] porque foi assim que fizeste o formData.append("chave", valor) no React
+                var dto = new CreatePropertyDto
+                {
+                    Title = form["title"].ToString(),
+                    Description = form["description"].ToString(),
+                    PropertyType = form["propertyType"].ToString(),
+                    Typology = form["typology"].ToString(),
+                    Floor = form["floor"].ToString(),
+                    Street = form["street"].ToString(),
+                    PostalCode = form["postalCode"].ToString(),
+                    City = form["city"].ToString(),
+                    FurnishedDescription = form["furnishedDescription"].ToString(),
+
+                    // Conversões seguras de números (se falhar, mete 0)
+                    Price = decimal.TryParse(form["price"], out var p) ? p : 0,
+                    Area = decimal.TryParse(form["area"], out var a) ? a : 0,
+                    Rooms = int.TryParse(form["rooms"], out var r) ? r : 0,
+                    Bathrooms = int.TryParse(form["bathrooms"], out var b) ? b : 0,
+                    Latitude = double.TryParse(form["latitude"], out var lat) ? lat : 0,
+                    Longitude = double.TryParse(form["longitude"], out var lon) ? lon : 0,
+
+                    // Conversões de booleanos (o React envia como strings "true" ou "false")
+                    HasElevator = form["hasElevator"] == "true",
+                    HasAirConditioning = form["hasAirConditioning"] == "true",
+                    HasGarage = form["hasGarage"] == "true",
+                    AllowsPets = form["allowsPets"] == "true",
+                    IsFurnished = form["isFurnished"] == "true",
+                };
+
+                // 4. Apanhar as listas de ficheiros (Imagens e Documentos)
+                var imageFiles = form.Files.GetFiles("images")
+                    .Select(f => new FileDto(f.OpenReadStream(), f.FileName)).ToList();
+
+                var documentFiles = form.Files.GetFiles("documents")
+                    .Select(f => new FileDto(f.OpenReadStream(), f.FileName)).ToList();
+
+                // 5. Chamar a nossa lógica de negócio (O motor que criámos no Passo 2)
+                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, documentFiles);
+
+                return Results.Ok(new
+                {
+                    Message = "Imóvel criado com sucesso!",
+                    PropertyId = propertyId
+                });
+            }
+            catch (Exception ex)
+            {
+                // Se algo falhar (ex: erro na conversão ou no upload da Cloud), devolvemos o erro ao React
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        }).DisableAntiforgery(); // Necessário para aceitar multipart/form-data nas Minimal APIs
+    }
+}
+
+
+================================================
 FICHEIRO: .\TrustRent.Api\Endpoints\UserEndpoints.cs
 ================================================
 using Microsoft.AspNetCore.Mvc;
@@ -419,119 +561,86 @@ public static class UserEndpoints
         // Agrupamos todas as rotas sob "/api/auth"
         var userGroup = app.MapGroup("/api/user").RequireAuthorization();
 
-        userGroup.MapGet("/profile", async (ClaimsPrincipal userClaims, IUnitOfWork uow) =>
+        userGroup.MapGet("/profile", async (ClaimsPrincipal userClaims, IUserService userService) =>
         {
             var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var user = await uow.Users.GetByIdAsync(userId);
-            if (user == null) return Results.NotFound();
+            var user = await userService.GetProfileAsync(userId);
+            return user is not null ? Results.Ok(user) : Results.NotFound();
+        });
 
-            return Results.Ok(new
+        userGroup.MapPut("/profile", async (ClaimsPrincipal userClaims, [FromBody] UpdateProfileDto request, IUserService userService) =>
+        {
+            try
             {
-                user.Name,
-                user.Email,
-                user.Nif,
-                user.CitizenCardNumber,
-                user.Address,
-                user.PostalCode,
-                user.ProfilePictureUrl,
-                user.TrustScore,
-                user.IsIdentityVerified,
-                user.IsNoDebtVerified
-            });
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                await userService.UpdateProfileAsync(userId, request);
+                return Results.Ok(new { Message = "Perfil atualizado com sucesso." });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
         });
 
-        // 2. ATUALIZAR PERFIL (COM VALIDAÇÃO DE UNICIDADE)
-        userGroup.MapPut("/profile", async (ClaimsPrincipal userClaims, [FromBody] UpdateProfileRequest request, IUnitOfWork uow) =>
+        userGroup.MapPost("/avatar", async (ClaimsPrincipal userClaims, IFormFile file, IUserService userService) =>
         {
-            var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var user = await uow.Users.GetByIdAsync(userId);
-            if (user == null) return Results.NotFound();
+            try
+            {
+                if (file == null || file.Length == 0) return Results.BadRequest(new { Error = "Nenhuma imagem enviada." });
 
-            // Validar Unicidade do NIF
-            if (!string.IsNullOrWhiteSpace(request.Nif) && !await uow.Users.IsNifUniqueAsync(request.Nif, userId))
-                return Results.BadRequest(new { Error = "Este NIF já está registado noutra conta." });
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-            // Validar Unicidade do CC
-            if (!string.IsNullOrWhiteSpace(request.CitizenCardNumber) && !await uow.Users.IsCcUniqueAsync(request.CitizenCardNumber, userId))
-                return Results.BadRequest(new { Error = "Este Cartão de Cidadão já está registado noutra conta." });
+                using var stream = file.OpenReadStream();
+                var url = await userService.UpdateAvatarAsync(userId, stream, file.FileName);
 
-            user.Name = request.Name;
-            user.Email = request.Email;
-            user.Nif = request.Nif;
-            user.CitizenCardNumber = request.CitizenCardNumber;
-            user.Address = request.Address;
-            user.PostalCode = request.PostalCode;
-
-            await uow.SaveChangesAsync();
-            return Results.Ok(new { Message = "Perfil atualizado com sucesso." });
-        });
-
-        // 3. UPLOAD FOTO DE PERFIL (AVATAR)
-        userGroup.MapPost("/avatar", async (ClaimsPrincipal userClaims, IFormFile file, IUnitOfWork uow, IWebHostEnvironment env) =>
-        {
-            if (file == null || file.Length == 0) return Results.BadRequest(new { Error = "Nenhuma imagem enviada." });
-
-            var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var user = await uow.Users.GetByIdAsync(userId);
-            if (user == null) return Results.NotFound();
-
-            var extension = Path.GetExtension(file.FileName).ToLower();
-            var uploadsFolder = Path.Combine(env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "uploads", "profiles");
-            if (!Directory.Exists(uploadsFolder)) Directory.CreateDirectory(uploadsFolder);
-
-            var uniqueFileName = $"{userId}_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}{extension}";
-            var filePath = Path.Combine(uploadsFolder, uniqueFileName);
-
-            using (var stream = new FileStream(filePath, FileMode.Create))
-                await file.CopyToAsync(stream);
-
-            user.ProfilePictureUrl = $"/uploads/profiles/{uniqueFileName}";
-            await uow.SaveChangesAsync();
-
-            return Results.Ok(new { Message = "Foto atualizada.", ProfilePictureUrl = user.ProfilePictureUrl });
+                return Results.Ok(new { Message = "Foto atualizada.", ProfilePictureUrl = url });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
         }).DisableAntiforgery();
 
-        userGroup.MapPut("/security", async (ClaimsPrincipal userClaims, [FromBody] UpdatePasswordRequest request, IUnitOfWork uow) =>
+        userGroup.MapPost("/verify-documents", async (ClaimsPrincipal userClaims,
+            IFormFile? ccFrontDocument, IFormFile? ccBackDocument, IFormFile? noDebtDocument, IUserService userService) =>
         {
-            var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var user = await uow.Users.GetByIdAsync(userId);
-
-            if (user == null) return Results.NotFound();
-
-            if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
-                return Results.BadRequest(new { Error = "Password atual incorreta." });
-
-            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-            await uow.SaveChangesAsync();
-
-            return Results.Ok(new { Message = "Password atualizada com sucesso." });
-        });
-
-        userGroup.MapPost("/verify-documents", async (ClaimsPrincipal userClaims, IFormFile? ccDocument, IFormFile? noDebtDocument, IUnitOfWork uow) =>
-        {
-            var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var user = await uow.Users.GetByIdAsync(userId);
-
-            if (ccDocument != null && ccDocument.Length > 0)
+            try
             {
-                await Task.Delay(1500); // Simula leitura IA
-                user.IsIdentityVerified = true;
-                user.TrustScore += 20;
-            }
-            if (noDebtDocument != null && noDebtDocument.Length > 0)
-            {
-                await Task.Delay(1500);
-                user.IsNoDebtVerified = true;
-                user.TrustScore += 15;
-            }
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-            await uow.SaveChangesAsync();
-            return Results.Ok(new { user.IsIdentityVerified, user.IsNoDebtVerified, user.TrustScore });
+                using var ccFrontStream = ccFrontDocument?.OpenReadStream();
+                using var ccBackStream = ccBackDocument?.OpenReadStream();
+                using var noDebtStream = noDebtDocument?.OpenReadStream();
+
+                var result = await userService.VerifyDocumentsAsync(userId,
+                    ccFrontStream, ccFrontDocument?.FileName,
+                    ccBackStream, ccBackDocument?.FileName,
+                    noDebtStream, noDebtDocument?.FileName);
+
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
         }).DisableAntiforgery();
+
+        userGroup.MapPut("/security", async (ClaimsPrincipal userClaims, [FromBody] UpdatePasswordRequest request, IUserService userService) =>
+        {
+            try
+            {
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                await userService.UpdatePasswordAsync(userId, request.CurrentPassword, request.NewPassword);
+                return Results.Ok(new { Message = "Password atualizada com sucesso." });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
     }
 }
 
-public record UpdateProfileRequest(string Name, string Email, string? Nif, string? CitizenCardNumber, string? Address, string? PostalCode);
 public record UpdatePasswordRequest(string CurrentPassword, string NewPassword);
 
 
@@ -580,7 +689,6 @@ FICHEIRO: .\TrustRent.Modules.Catalog\TrustRent.Modules.Catalog.csproj
 
   <ItemGroup>
     <Folder Include="Repositories\" />
-    <Folder Include="Services\" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -607,17 +715,81 @@ public class CatalogDbContext : DbContext
     public CatalogDbContext(DbContextOptions<CatalogDbContext> options) : base(options) { }
 
     public DbSet<Property> Properties { get; set; }
+    public DbSet<PropertyImage> PropertyImages { get; set; }
+    public DbSet<PropertyDocument> PropertyDocuments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // MAGIA AQUI: Colocar as tabelas de imóveis no schema "catalog"
         modelBuilder.HasDefaultSchema("catalog");
+
+        // Configurar as relações (1 Imóvel tem N Imagens/Documentos)
+        modelBuilder.Entity<Property>()
+            .HasMany(p => p.Images)
+            .WithOne()
+            .HasForeignKey(img => img.PropertyId)
+            .OnDelete(DeleteBehavior.Cascade); // Se apagar a casa, apaga as referências das fotos
+
+        modelBuilder.Entity<Property>()
+            .HasMany(p => p.Documents)
+            .WithOne()
+            .HasForeignKey(doc => doc.PropertyId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         base.OnModelCreating(modelBuilder);
     }
 }
 
 
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\DTOs\CreatePropertyDto.cs
+================================================
+namespace TrustRent.Modules.Catalog.Contracts.DTOs;
+
+public class CreatePropertyDto
+{
+    public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public string PropertyType { get; set; } = string.Empty;
+    public string Typology { get; set; } = string.Empty;
+    public decimal Area { get; set; }
+    public int Rooms { get; set; }
+    public int Bathrooms { get; set; }
+    public string Floor { get; set; } = string.Empty;
+
+    // Comodidades
+    public bool HasElevator { get; set; }
+    public bool HasAirConditioning { get; set; }
+    public bool HasGarage { get; set; }
+    public bool AllowsPets { get; set; }
+    public bool IsFurnished { get; set; }
+    public string? FurnishedDescription { get; set; }
+
+    // Localização
+    public string Street { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+}
+
+// Pequeno record para transportar os ficheiros do Endpoint para o Serviço sem quebrar o Clean Architecture
+public record FileDto(Stream Content, string FileName);
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\Interfaces\IPropertyService.cs
+================================================
+using TrustRent.Modules.Catalog.Contracts.DTOs;
+
+namespace TrustRent.Modules.Catalog.Contracts.Interfaces;
+
+public interface IPropertyService
+{
+    Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IEnumerable<FileDto> documents);
+}
 
 
 ================================================
@@ -628,12 +800,168 @@ namespace TrustRent.Modules.Catalog.Models;
 public class Property
 {
     public Guid Id { get; set; }
+    public Guid LandlordId { get; set; } // Relacionamento (simulado) com o dono do imóvel
+
+    // Informações Básicas
     public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
     public decimal Price { get; set; }
+    public string PropertyType { get; set; } = string.Empty;
     public string Typology { get; set; } = string.Empty;
+
+    // Características
+    public decimal Area { get; set; }
+    public int Rooms { get; set; }
+    public int Bathrooms { get; set; }
+    public string Floor { get; set; } = string.Empty;
+
+    // Comodidades (Toggles)
+    public bool HasElevator { get; set; }
+    public bool HasAirConditioning { get; set; }
+    public bool HasGarage { get; set; }
+    public bool AllowsPets { get; set; }
+    public bool IsFurnished { get; set; }
+    public string? FurnishedDescription { get; set; }
+
+    // Localização
+    public string Street { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+
+    // Status da Plataforma
+    public bool IsAvailable { get; set; } = false; // Se está público ou é rascunho
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAt { get; set; }
+
+    // Relacionamentos (As listas de imagens e documentos)
+    public List<PropertyImage> Images { get; set; } = new();
+    public List<PropertyDocument> Documents { get; set; } = new();
+}
+
+// Classe para guardar a Galeria de Imagens
+public class PropertyImage
+{
+    public Guid Id { get; set; }
+    public Guid PropertyId { get; set; }
+    public string Url { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public bool IsMain { get; set; } // Diz se é a foto de Capa
+}
+
+// Classe para guardar os Documentos (Caderneta, etc)
+public class PropertyDocument
+{
+    public Guid Id { get; set; }
+    public Guid PropertyId { get; set; }
+    public string DocumentType { get; set; } = string.Empty; // Ex: CadernetaPredial, CertificadoEnergetico
+    public string Url { get; set; } = string.Empty;
 }
 
 
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Services\PropertyService.cs
+================================================
+using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Contracts.DTOs;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Modules.Catalog.Models;
+using TrustRent.Shared.Contracts.Interfaces;
+
+namespace TrustRent.Modules.Catalog.Services;
+
+public class PropertyService : IPropertyService
+{
+    private readonly CatalogDbContext _context;
+    private readonly IImageService _imageService;
+
+    public PropertyService(CatalogDbContext context, IImageService imageService)
+    {
+        _context = context;
+        _imageService = imageService;
+    }
+
+    public async Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IEnumerable<FileDto> documents)
+    {
+        // 1. Mapear o DTO para o nosso Modelo da Base de Dados
+        var property = new Property
+        {
+            Id = Guid.NewGuid(),
+            LandlordId = landlordId,
+            Title = dto.Title,
+            Description = dto.Description,
+            Price = dto.Price,
+            PropertyType = dto.PropertyType,
+            Typology = dto.Typology,
+            Area = dto.Area,
+            Rooms = dto.Rooms,
+            Bathrooms = dto.Bathrooms,
+            Floor = dto.Floor,
+            HasElevator = dto.HasElevator,
+            HasAirConditioning = dto.HasAirConditioning,
+            HasGarage = dto.HasGarage,
+            AllowsPets = dto.AllowsPets,
+            IsFurnished = dto.IsFurnished,
+            FurnishedDescription = dto.FurnishedDescription,
+            Street = dto.Street,
+            PostalCode = dto.PostalCode,
+            City = dto.City,
+            Latitude = dto.Latitude,
+            Longitude = dto.Longitude,
+            IsAvailable = false // Por defeito, fica como rascunho/em análise
+        };
+
+        // 2. Processar e fazer Upload das Imagens
+        bool isFirstImage = true;
+        foreach (var img in images)
+        {
+            if (img.Content.Length > 0)
+            {
+                // Aqui chamamos o serviço do módulo Shared. 
+                // Ele vai automaticamente converter para WebP e devolver o URL da Cloud!
+                var imageUrl = await _imageService.UploadImageAsync(img.Content, img.FileName, $"properties/{property.Id}");
+
+                property.Images.Add(new PropertyImage
+                {
+                    Id = Guid.NewGuid(),
+                    PropertyId = property.Id,
+                    Url = imageUrl,
+                    Category = "Geral",
+                    IsMain = isFirstImage // A primeira imagem que vem no array fica como Capa
+                });
+
+                isFirstImage = false;
+            }
+        }
+
+        // 3. Processar Documentos (Caderneta, etc)
+        // (Futuramente podemos usar uma pasta diferente no Cloudinary ou S3 para PDFs)
+        foreach (var doc in documents)
+        {
+            if (doc.Content.Length > 0)
+            {
+                var docUrl = await _imageService.UploadImageAsync(doc.Content, doc.FileName, $"properties/{property.Id}/docs");
+
+                property.Documents.Add(new PropertyDocument
+                {
+                    Id = Guid.NewGuid(),
+                    PropertyId = property.Id,
+                    Url = docUrl,
+                    DocumentType = "Documento" // Pode ser extraído no Frontend depois
+                });
+            }
+        }
+
+        // 4. Guardar tudo na Base de Dados
+        _context.Properties.Add(property);
+        await _context.SaveChangesAsync();
+
+        return property.Id; // Devolvemos o ID para o Frontend poder redirecionar o utilizador
+    }
+}
 
 
 ================================================
@@ -758,6 +1086,27 @@ public interface IUserRepository
 
 
 ================================================
+FICHEIRO: .\TrustRent.Modules.Identity\Contracts\Interfaces\IUserService.cs
+================================================
+using TrustRent.Modules.Identity.Models;
+
+namespace TrustRent.Modules.Identity.Contracts.Interfaces;
+
+public interface IUserService
+{
+    Task<User?> GetProfileAsync(Guid userId);
+    Task UpdateProfileAsync(Guid userId, UpdateProfileDto request);
+    Task UpdatePasswordAsync(Guid userId, string currentPassword, string newPassword);
+    Task<string> UpdateAvatarAsync(Guid userId, Stream fileStream, string fileName);
+    Task<VerificationResultDto> VerifyDocumentsAsync(Guid userId, Stream? ccFrontStream, string? ccFrontFileName, Stream? ccBackStream, string? ccBackFileName, Stream? noDebtStream, string? noDebtFileName);
+}
+
+// DTOs
+public record UpdateProfileDto(string Name, string Email, string? Nif, string? CitizenCardNumber, string? Address, string? PostalCode);
+public record VerificationResultDto(bool IsIdentityVerified, DateTime? IdentityExpiryDate, bool IsNoDebtVerified, DateTime? NoDebtExpiryDate, int TrustScore);
+
+
+================================================
 FICHEIRO: .\TrustRent.Modules.Identity\Models\User.cs
 ================================================
 namespace TrustRent.Modules.Identity.Models;
@@ -778,7 +1127,9 @@ public class User
 
     // Validações de Confiança (Read-Only no Frontend)
     public bool IsIdentityVerified { get; set; } = false;
+    public DateTime? IdentityExpiryDate { get; set; }
     public bool IsNoDebtVerified { get; set; } = false;
+    public DateTime? NoDebtExpiryDate { get; set; }
     public int TrustScore { get; set; } = 50;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
@@ -946,6 +1297,230 @@ public class AuthService : IAuthService
 
 
 ================================================
+FICHEIRO: .\TrustRent.Modules.Identity\Services\UserService.cs
+================================================
+using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
+using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Modules.Identity.Models;
+using TrustRent.Shared.Contracts.Interfaces;
+
+namespace TrustRent.Modules.Identity.Services;
+
+public class UserService : IUserService
+{
+    private readonly IUnitOfWork _uow;
+    private readonly IImageService _imageService;
+    private readonly IOcrService _ocrService;
+
+    public UserService(IUnitOfWork uow, IImageService imageService, IOcrService ocrService)
+    {
+        _uow = uow;
+        _imageService = imageService;
+        _ocrService = ocrService;
+    }
+
+    public async Task<User?> GetProfileAsync(Guid userId)
+        => await _uow.Users.GetByIdAsync(userId);
+
+    public async Task UpdateProfileAsync(Guid userId, UpdateProfileDto request)
+    {
+        var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
+
+        if (user.IsIdentityVerified)
+        {
+            if (request.Name != user.Name || request.Nif != user.Nif || request.CitizenCardNumber != user.CitizenCardNumber)
+            {
+                throw new Exception("Não podes alterar o Nome, NIF ou Cartão de Cidadão após a validação de identidade.");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Nif))
+        {
+            if (request.Nif.Length != 9 || !request.Nif.All(char.IsDigit))
+                throw new Exception("O NIF deve conter exatamente 9 números.");
+
+            if (!await _uow.Users.IsNifUniqueAsync(request.Nif, userId))
+                throw new Exception("Este NIF já está registado noutra conta.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.CitizenCardNumber))
+        {
+            if (request.CitizenCardNumber.Length != 8 || !request.CitizenCardNumber.All(char.IsDigit))
+                throw new Exception("O Número do Cartão de Cidadão deve conter exatamente os 8 números principais.");
+
+            if (!await _uow.Users.IsCcUniqueAsync(request.CitizenCardNumber, userId))
+                throw new Exception("Este Cartão de Cidadão já está registado noutra conta.");
+        }
+
+        user.Name = request.Name;
+        user.Email = request.Email;
+        user.Nif = request.Nif;
+        user.CitizenCardNumber = request.CitizenCardNumber;
+        user.Address = request.Address;
+        user.PostalCode = request.PostalCode;
+
+        await _uow.SaveChangesAsync();
+    }
+
+    public async Task UpdatePasswordAsync(Guid userId, string currentPassword, string newPassword)
+    {
+        var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
+
+        if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.PasswordHash))
+            throw new Exception("Password atual incorreta.");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        await _uow.SaveChangesAsync();
+    }
+
+    public async Task<string> UpdateAvatarAsync(Guid userId, Stream fileStream, string fileName)
+    {
+        var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
+
+        // O ImageService trata da magia toda
+        var cloudUrl = await _imageService.UploadImageAsync(fileStream, fileName, "profiles");
+
+        user.ProfilePictureUrl = cloudUrl;
+        await _uow.SaveChangesAsync();
+
+        return user.ProfilePictureUrl;
+    }
+
+    public async Task<VerificationResultDto> VerifyDocumentsAsync(
+        Guid userId, Stream? ccFrontStream, 
+        string? ccFrontFileName, 
+        Stream? ccBackStream, 
+        string? ccBackFileName, 
+        Stream? noDebtStream, 
+        string? noDebtFileName)
+    {
+        var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
+
+        // 1. VALIDAÇÃO DO CARTÃO DE CIDADÃO (FRENTE E VERSO)
+        if (ccFrontStream != null && ccFrontStream.Length > 0 && ccBackStream != null && ccBackStream.Length > 0)
+        {
+            // Extrai o texto da Frente
+            var frontText = await _ocrService.ExtractTextAsync(ccFrontStream, ccFrontFileName);
+            // Extrai o texto do Verso
+            var backText = await _ocrService.ExtractTextAsync(ccBackStream, ccBackFileName);
+
+            // Junta tudo! Assim procuramos o NIF, Nome e Validade nesta grande "sopa de letras"
+            var combinedText = frontText + " \n " + backText;
+            var normalizedText = RemoveDiacritics(combinedText).ToUpperInvariant().Replace(" ", "");
+
+            bool hasNif = !string.IsNullOrEmpty(user.Nif) && Regex.IsMatch(normalizedText, $@"(?<!\d){user.Nif}(?!\d)");
+            bool hasCcNum = string.IsNullOrEmpty(user.CitizenCardNumber) ||
+                Regex.IsMatch(normalizedText, $@"(?<!\d){user.CitizenCardNumber}(?:\d[A-Z]|\D|$)");
+
+            var normalizedUserName = RemoveDiacritics(user.Name).ToUpperInvariant();
+            var nameParts = normalizedUserName.Split(' ');
+            bool hasFirstName = normalizedText.Contains(nameParts.First());
+            bool hasLastName = nameParts.Length > 1 && normalizedText.Contains(nameParts.Last());
+
+            if (!hasNif || !hasFirstName || !hasCcNum)
+            {
+                throw new Exception("Validação CC Falhou: O Nome ou NIF não foram detetados ou não coincidem.");
+            }
+
+            user.IsIdentityVerified = true;
+            user.IdentityExpiryDate = ExtractExpiryDate(combinedText);
+            user.TrustScore += 20;
+        }
+
+        // 2. VALIDAÇÃO DA CERTIDÃO DE NÃO DÍVIDA
+        if (noDebtStream != null && noDebtStream.Length > 0 && !string.IsNullOrEmpty(noDebtFileName))
+        {
+            var extractedText = await _ocrService.ExtractTextAsync(noDebtStream, noDebtFileName);
+            var normalizedText = extractedText.ToUpperInvariant();
+
+            // Verifica se o NIF do utilizador está no documento
+            bool hasNif = !string.IsNullOrEmpty(user.Nif) && normalizedText.Contains(user.Nif);
+
+            // Verifica a frase mágica da AT (Autoridade Tributária)
+            bool isRegularized = normalizedText.Contains("SITUAÇÃO TRIBUTÁRIA REGULARIZADA") ||
+                                 normalizedText.Contains("SITUACAO TRIBUTARIA REGULARIZADA");
+
+            if (!hasNif || !isRegularized)
+            {
+                throw new Exception("Validação AT Falhou: Certidão inválida, não pertence ao utilizador ou deteta dívidas.");
+            }
+
+            user.IsNoDebtVerified = true;
+            user.NoDebtExpiryDate = ExtractExpiryDate(extractedText); // Extrai a data!
+            user.TrustScore += 15;
+        }
+
+        await _uow.SaveChangesAsync();
+        return new VerificationResultDto(user.IsIdentityVerified, user.IdentityExpiryDate, user.IsNoDebtVerified, user.NoDebtExpiryDate, user.TrustScore);
+    }
+
+    // Helper Mágico para extrair datas
+    private static DateTime? ExtractExpiryDate(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+
+        // 1. Procura Formato Português/Europeu: DD MM YYYY (com espaços, barras, pontos ou traços)
+        // Permite até 50 caracteres de "lixo" (como o número do CC) entre a palavra "EXPIRY" e a data.
+        var matchPT = Regex.Match(text, @"(?:V[ÁA]LID[OA]\s*AT[ÉE]|VALIDADE|EXPIRY\s*DATE)[\s\S]{1,50}?\b(\d{2})[\s.\-/]+(\d{2})[\s.\-/]+(\d{4})\b", RegexOptions.IgnoreCase);
+
+        if (matchPT.Success)
+        {
+            var day = matchPT.Groups[1].Value;
+            var month = matchPT.Groups[2].Value;
+            var year = matchPT.Groups[3].Value;
+
+            // Forçamos o formato DD/MM/YYYY limpo
+            var dateStr = $"{day}/{month}/{year}";
+            if (DateTime.TryParseExact(dateStr, "dd/MM/yyyy", null, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal, out var parsedDate))
+            {
+                return parsedDate;
+            }
+        }
+
+        // 2. Procura Formato Internacional/AT: YYYY MM DD (muito comum em PDFs das Finanças)
+        var matchInt = Regex.Match(text, @"(?:V[ÁA]LID[OA]\s*AT[ÉE]|VALIDADE)[\s\S]{1,50}?\b(\d{4})[\s.\-/]+(\d{2})[\s.\-/]+(\d{2})\b", RegexOptions.IgnoreCase);
+
+        if (matchInt.Success)
+        {
+            var year = matchInt.Groups[1].Value;
+            var month = matchInt.Groups[2].Value;
+            var day = matchInt.Groups[3].Value;
+
+            var dateStr = $"{day}/{month}/{year}";
+            if (DateTime.TryParseExact(dateStr, "dd/MM/yyyy", null, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal, out var parsedDate))
+            {
+                return parsedDate;
+            }
+        }
+
+        return null;
+    }
+
+    // Helper para remover acentos (ex: "Estêvão" vira "Estevao")
+    private static string RemoveDiacritics(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return text;
+
+        var normalizedString = text.Normalize(NormalizationForm.FormD);
+        var stringBuilder = new StringBuilder(capacity: normalizedString.Length);
+
+        foreach (var c in normalizedString)
+        {
+            var unicodeCategory = CharUnicodeInfo.GetUnicodeCategory(c);
+            if (unicodeCategory != UnicodeCategory.NonSpacingMark)
+            {
+                stringBuilder.Append(c);
+            }
+        }
+
+        return stringBuilder.ToString().Normalize(NormalizationForm.FormC);
+    }
+}
+
+
+================================================
 FICHEIRO: .\TrustRent.Modules.Leasing\Class1.cs
 ================================================
 namespace TrustRent.Modules.Leasing;
@@ -977,18 +1552,6 @@ FICHEIRO: .\TrustRent.Modules.Leasing\TrustRent.Modules.Leasing.csproj
 
 
 ================================================
-FICHEIRO: .\TrustRent.Shared\Class1.cs
-================================================
-namespace TrustRent.Shared;
-
-public class Class1
-{
-
-}
-
-
-
-================================================
 FICHEIRO: .\TrustRent.Shared\TrustRent.Shared.csproj
 ================================================
 <Project Sdk="Microsoft.NET.Sdk">
@@ -999,8 +1562,40 @@ FICHEIRO: .\TrustRent.Shared\TrustRent.Shared.csproj
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="4.0.19.3" />
+    <PackageReference Include="CloudinaryDotNet" Version="1.28.0" />
+    <PackageReference Include="Google.Cloud.Vision.V1" Version="3.8.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.5" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+  </ItemGroup>
+
 </Project>
 
+
+
+================================================
+FICHEIRO: .\TrustRent.Shared\Contracts\Interfaces\IImageService.cs
+================================================
+namespace TrustRent.Shared.Contracts.Interfaces;
+
+public interface IImageService
+{
+    // Recebe o stream, o nome original e a pasta de destino (ex: "profiles" ou "properties")
+    Task<string> UploadImageAsync(Stream fileStream, string fileName, string folder);
+}
+
+
+================================================
+FICHEIRO: .\TrustRent.Shared\Contracts\Interfaces\IOcrService.cs
+================================================
+namespace TrustRent.Shared.Contracts.Interfaces;
+
+public interface IOcrService
+{
+    // Recebe o stream do ficheiro e devolve todo o texto extraído da imagem
+    Task<string> ExtractTextAsync(Stream fileStream, string fileName);
+}
 
 
 ================================================
@@ -1041,5 +1636,255 @@ public static class EncryptionHelper
         var cipherBytes = Convert.FromBase64String(cipherText);
         var decryptedBytes = decryptor.TransformFinalBlock(cipherBytes, 0, cipherBytes.Length);
         return Encoding.UTF8.GetString(decryptedBytes);
+    }
+}
+
+
+================================================
+FICHEIRO: .\TrustRent.Shared\Services\CloudinaryImageService.cs
+================================================
+using CloudinaryDotNet;
+using CloudinaryDotNet.Actions;
+using Microsoft.Extensions.Configuration;
+using TrustRent.Shared.Contracts.Interfaces;
+
+namespace TrustRent.Shared.Services;
+
+public class CloudinaryImageService : IImageService
+{
+    private readonly Cloudinary _cloudinary;
+
+    public CloudinaryImageService(IConfiguration config)
+    {
+        var account = new Account(
+            config["CloudinarySettings:CloudName"],
+            config["CloudinarySettings:ApiKey"],
+            config["CloudinarySettings:ApiSecret"]
+        );
+
+        _cloudinary = new Cloudinary(account);
+        _cloudinary.Api.Secure = true; // Garante que gera links HTTPS
+    }
+
+    public async Task<string> UploadImageAsync(Stream fileStream, string fileName, string folder)
+    {
+        if (fileStream == null || fileStream.Length == 0)
+            throw new ArgumentException("O ficheiro está vazio.");
+
+        using var optimizedStream = await ImageOptimizer.OptimizeAsync(fileStream);
+
+        var uniqueFileName = $"{Guid.NewGuid()}.webp";
+
+        var uploadParams = new ImageUploadParams
+        {
+            File = new FileDescription(uniqueFileName, optimizedStream),
+            Folder = $"TrustRent/{folder}",
+            UseFilename = true,
+            UniqueFilename = true,
+            Overwrite = false
+        };
+
+        var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+
+        if (uploadResult.Error != null)
+        {
+            throw new Exception($"Erro no upload para a Cloud: {uploadResult.Error.Message}");
+        }
+
+        // Devolve o URL final, limpo e público!
+        return uploadResult.SecureUrl.ToString();
+    }
+}
+
+
+================================================
+FICHEIRO: .\TrustRent.Shared\Services\GoogleVisionOcrService.cs
+================================================
+using Google.Apis.Auth.OAuth2;
+using Google.Cloud.Vision.V1;
+using Google.Protobuf;
+using Microsoft.Extensions.Configuration;
+using TrustRent.Shared.Contracts.Interfaces;
+
+namespace TrustRent.Shared.Services;
+
+public class GoogleVisionOcrService : IOcrService
+{
+    private readonly ImageAnnotatorClient _client;
+
+    public GoogleVisionOcrService(IConfiguration config)
+    {
+        var credentialsPath = config["GoogleCloud:CredentialsPath"];
+
+        if (!string.IsNullOrEmpty(credentialsPath) && File.Exists(credentialsPath))
+        {
+            // Lê o ficheiro JSON de credenciais
+            var credential = GoogleCredential.FromFile(credentialsPath);
+            var builder = new ImageAnnotatorClientBuilder
+            {
+                Credential = credential
+            };
+            _client = builder.Build();
+        }
+        else
+        {
+            // Se não houver ficheiro, tenta usar a variável de ambiente GOOGLE_APPLICATION_CREDENTIALS
+            // (Isto é útil para quando publicares o projeto na Cloud/Azure/AWS)
+            _client = ImageAnnotatorClient.Create();
+        }
+    }
+
+    public async Task<string> ExtractTextAsync(Stream fileStream, string fileName)
+    {
+        if (fileStream == null || fileStream.Length == 0) return string.Empty;
+        fileStream.Position = 0;
+
+        var extension = Path.GetExtension(fileName).ToLower();
+        var byteString = await ByteString.FromStreamAsync(fileStream);
+
+        // SE FOR PDF: Usamos o método nativo de ficheiros da Google
+        if (extension == ".pdf")
+        {
+            var request = new AnnotateFileRequest
+            {
+                InputConfig = new InputConfig { Content = byteString, MimeType = "application/pdf" },
+                Features = { new Feature { Type = Feature.Types.Type.DocumentTextDetection } },
+                Pages = { 1 } // Lê apenas a 1ª página para poupar custos
+            };
+
+            var batchRequest = new BatchAnnotateFilesRequest { Requests = { request } };
+            var response = await _client.BatchAnnotateFilesAsync(batchRequest);
+
+            var fileResponse = response.Responses.FirstOrDefault();
+            return fileResponse?.Responses.FirstOrDefault()?.FullTextAnnotation?.Text ?? string.Empty;
+        }
+
+        // SE FOR IMAGEM (JPG/PNG): Usamos o método normal
+        var image = Image.FromBytes(byteString.ToByteArray());
+        var imgResponse = await _client.DetectDocumentTextAsync(image);
+        return imgResponse?.Text ?? string.Empty;
+    }
+}
+
+
+================================================
+FICHEIRO: .\TrustRent.Shared\Services\ImageOptimizer.cs
+================================================
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Webp;
+using SixLabors.ImageSharp.Processing;
+
+namespace TrustRent.Shared.Services;
+
+public static class ImageOptimizer
+{
+    // Recebe o stream original e devolve um novo stream otimizado em WebP
+    public static async Task<Stream> OptimizeAsync(Stream inputStream, int maxWidth = 1920)
+    {
+        var outputStream = new MemoryStream();
+
+        // Carrega a imagem para a memória usando o ImageSharp
+        using var image = await Image.LoadAsync(inputStream);
+
+        // Se a imagem for mais larga que o nosso limite (ex: 1920px), redimensionamos!
+        if (image.Width > maxWidth)
+        {
+            image.Mutate(x => x.Resize(new ResizeOptions
+            {
+                Size = new Size(maxWidth, 0), // O 0 faz com que a altura seja calculada automaticamente para manter a proporção
+                Mode = ResizeMode.Max
+            }));
+        }
+
+        // Guarda a imagem no outputStream usando o formato WebP (alta qualidade, baixo peso)
+        var encoder = new WebpEncoder { Quality = 80 }; // 80% de qualidade é o "sweet spot" para a web
+        await image.SaveAsWebpAsync(outputStream, encoder);
+
+        // MUITO IMPORTANTE: Repor a "agulha" do stream no início para que a AWS/Cloudinary consigam ler o ficheiro otimizado desde o princípio
+        outputStream.Position = 0;
+
+        return outputStream;
+    }
+}
+
+
+================================================
+FICHEIRO: .\TrustRent.Shared\Services\R2ImageService.cs
+================================================
+using Amazon.S3;
+using Amazon.S3.Model;
+using Microsoft.Extensions.Configuration;
+using TrustRent.Shared.Contracts.Interfaces;
+
+namespace TrustRent.Shared.Services;
+
+public class R2ImageService : IImageService
+{
+    private readonly AmazonS3Client _s3Client;
+    private readonly string _bucketName;
+    private readonly string _publicDomain;
+
+    public R2ImageService(IConfiguration config)
+    {
+        var accessKey = config["CloudflareR2Settings:AccessKey"];
+        var secretKey = config["CloudflareR2Settings:SecretKey"];
+        var serviceUrl = config["CloudflareR2Settings:ServiceUrl"];
+
+        _bucketName = config["CloudflareR2Settings:BucketName"]!;
+        _publicDomain = config["CloudflareR2Settings:PublicDomain"]!;
+
+        // Configuração específica para a R2 (compatibilidade S3)
+        var s3Config = new AmazonS3Config
+        {
+            ServiceURL = serviceUrl,
+        };
+
+        _s3Client = new AmazonS3Client(accessKey, secretKey, s3Config);
+    }
+
+    public async Task<string> UploadImageAsync(Stream fileStream, string fileName, string folder)
+    {
+        if (fileStream == null || fileStream.Length == 0)
+            throw new ArgumentException("O ficheiro está vazio.");
+
+        // Otimizamos a imagem para max 1920px e formato WebP
+        using var optimizedStream = await ImageOptimizer.OptimizeAsync(fileStream);
+
+        // Como vamos guardar em WebP, forçamos a extensão e o nome
+        var uniqueFileName = $"{Guid.NewGuid()}.webp";
+        var objectKey = $"{folder}/{uniqueFileName}";
+
+        // Caminho final no Bucket (ex: "profiles/1234-5678.jpg")
+        var putRequest = new PutObjectRequest
+        {
+            BucketName = _bucketName,
+            Key = objectKey,
+            InputStream = optimizedStream, // Enviamos o stream já otimizado e muito mais leve!
+            ContentType = "image/webp",    // Atualizamos o tipo de ficheiro
+            DisablePayloadSigning = true
+        };
+
+        var response = await _s3Client.PutObjectAsync(putRequest);
+
+        if (response.HttpStatusCode != System.Net.HttpStatusCode.OK)
+        {
+            throw new Exception("Falha ao fazer upload da imagem para a Cloudflare R2.");
+        }
+
+        // Devolve o URL público que o React vai ler (ex: https://pub-dummy.r2.dev/profiles/1234-5678.jpg)
+        return $"{_publicDomain}/{objectKey}";
+    }
+
+    // Helper para descobrir o Content-Type
+    private string GetContentType(string extension)
+    {
+        return extension switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            _ => "application/octet-stream"
+        };
     }
 }

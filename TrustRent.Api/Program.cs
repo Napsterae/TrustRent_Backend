@@ -4,14 +4,27 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TrustRent.Api.Endpoints;
 using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Modules.Catalog.Services;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Repositories;
 using TrustRent.Modules.Identity.Services;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Services;
+using Microsoft.AspNetCore.Http.Features;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.Limits.MaxRequestBodySize = 104857600; // 100 MB
+});
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 104857600; // 100 MB
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -64,6 +77,7 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IPropertyService, PropertyService>();
 
 builder.Services.AddScoped<IOcrService, GoogleVisionOcrService>();
 builder.Services.AddScoped<IImageService, CloudinaryImageService>();
@@ -113,5 +127,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapAuthUserEndpoints();
+app.MapPropertyEndpoints();
 
 app.Run();
