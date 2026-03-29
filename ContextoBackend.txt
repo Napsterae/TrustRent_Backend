@@ -41,6 +41,7 @@ TrustRent.Modules.Catalog\Contracts\DTOs
 TrustRent.Modules.Catalog\Contracts\Interfaces
 TrustRent.Modules.Catalog\Contracts\Database\CatalogDbContext.cs
 TrustRent.Modules.Catalog\Contracts\DTOs\CreatePropertyDto.cs
+TrustRent.Modules.Catalog\Contracts\DTOs\PropertySummaryDto.cs
 TrustRent.Modules.Catalog\Contracts\Interfaces\IPropertyService.cs
 TrustRent.Modules.Catalog\Models\Property.cs
 TrustRent.Modules.Catalog\Services\PropertyService.cs
@@ -262,8 +263,19 @@ using TrustRent.Modules.Identity.Repositories;
 using TrustRent.Modules.Identity.Services;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Services;
+using Microsoft.AspNetCore.Http.Features;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.Limits.MaxRequestBodySize = 104857600; // 100 MB
+});
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 104857600; // 100 MB
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -526,8 +538,10 @@ public static class PropertyEndpoints
                 var documentFiles = form.Files.GetFiles("documents")
                     .Select(f => new FileDto(f.OpenReadStream(), f.FileName)).ToList();
 
+                var imageCategories = form["imageCategories"].Where(c => !string.IsNullOrEmpty(c)).ToList();
+
                 // 5. Chamar a nossa lógica de negócio (O motor que criámos no Passo 2)
-                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, documentFiles);
+                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, documentFiles);
 
                 return Results.Ok(new
                 {
@@ -541,6 +555,79 @@ public static class PropertyEndpoints
                 return Results.BadRequest(new { Error = ex.Message });
             }
         }).DisableAntiforgery(); // Necessário para aceitar multipart/form-data nas Minimal APIs
+
+
+        propertyGroup.MapGet("/my-properties", async (ClaimsPrincipal userClaims, IPropertyService propertyService) =>
+        {
+            try
+            {
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                var properties = await propertyService.GetPropertiesByLandlordAsync(userId);
+
+                return Results.Ok(properties);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        // 1. GET: Obter detalhes do imóvel
+        propertyGroup.MapGet("/{id:guid}", async (Guid id, IPropertyService propertyService) =>
+        {
+            var property = await propertyService.GetPropertyByIdAsync(id);
+            return property is not null ? Results.Ok(property) : Results.NotFound();
+        });
+
+        // 2. PUT: Atualizar o imóvel
+        propertyGroup.MapPut("/{id:guid}", async (Guid id, HttpRequest request, ClaimsPrincipal userClaims, IPropertyService propertyService) =>
+        {
+            try
+            {
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                var form = await request.ReadFormAsync();
+
+                // Dica: Usamos a mesma estrutura de DTO que usaste no POST!
+                var dto = new CreatePropertyDto
+                {
+                    Title = form["title"].ToString(),
+                    Description = form["description"].ToString(),
+                    PropertyType = form["propertyType"].ToString(),
+                    Typology = form["typology"].ToString(),
+                    Floor = form["floor"].ToString(),
+                    Street = form["street"].ToString(),
+                    PostalCode = form["postalCode"].ToString(),
+                    City = form["city"].ToString(),
+                    FurnishedDescription = form["furnishedDescription"].ToString(),
+                    Price = decimal.TryParse(form["price"], out var p) ? p : 0,
+                    Area = decimal.TryParse(form["area"], out var a) ? a : 0,
+                    Rooms = int.TryParse(form["rooms"], out var r) ? r : 0,
+                    Bathrooms = int.TryParse(form["bathrooms"], out var b) ? b : 0,
+                    Latitude = double.TryParse(form["latitude"], out var lat) ? lat : 0,
+                    Longitude = double.TryParse(form["longitude"], out var lon) ? lon : 0,
+                    HasElevator = form["hasElevator"] == "true",
+                    HasAirConditioning = form["hasAirConditioning"] == "true",
+                    HasGarage = form["hasGarage"] == "true",
+                    AllowsPets = form["allowsPets"] == "true",
+                    IsFurnished = form["isFurnished"] == "true",
+                };
+
+                // Apanhar apenas as NOVAS imagens adicionadas na edição
+                var newImageFiles = form.Files.GetFiles("images")
+                    .Select(f => new FileDto(f.OpenReadStream(), f.FileName)).ToList();
+
+                var imageCategories = form["imageCategories"].Where(c => !string.IsNullOrEmpty(c)).ToList();
+
+                await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories);
+
+                return Results.Ok(new { Message = "Imóvel atualizado com sucesso!" });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        }).DisableAntiforgery();
+
     }
 }
 
@@ -780,15 +867,34 @@ public record FileDto(Stream Content, string FileName);
 
 
 ================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\DTOs\PropertySummaryDto.cs
+================================================
+namespace TrustRent.Modules.Catalog.Contracts.DTOs;
+
+public record PropertySummaryDto(
+    Guid Id,
+    string Title,
+    string City,
+    bool IsAvailable,
+    string MainImageUrl
+);
+
+
+================================================
 FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\Interfaces\IPropertyService.cs
 ================================================
 using TrustRent.Modules.Catalog.Contracts.DTOs;
+using TrustRent.Modules.Catalog.Models;
 
 namespace TrustRent.Modules.Catalog.Contracts.Interfaces;
 
 public interface IPropertyService
 {
-    Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IEnumerable<FileDto> documents);
+    Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IList<string> imageCategories, IEnumerable<FileDto> documents);
+    Task<IEnumerable<PropertySummaryDto>> GetPropertiesByLandlordAsync(Guid landlordId);
+
+    Task<Property?> GetPropertyByIdAsync(Guid propertyId);
+    Task UpdatePropertyAsync(Guid propertyId, Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> newImages, IList<string> imageCategories);
 }
 
 
@@ -865,6 +971,7 @@ public class PropertyDocument
 ================================================
 FICHEIRO: .\TrustRent.Modules.Catalog\Services\PropertyService.cs
 ================================================
+using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
@@ -884,7 +991,7 @@ public class PropertyService : IPropertyService
         _imageService = imageService;
     }
 
-    public async Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IEnumerable<FileDto> documents)
+    public async Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IList<string> imageCategories, IEnumerable<FileDto> documents)
     {
         // 1. Mapear o DTO para o nosso Modelo da Base de Dados
         var property = new Property
@@ -915,25 +1022,27 @@ public class PropertyService : IPropertyService
         };
 
         // 2. Processar e fazer Upload das Imagens
-        bool isFirstImage = true;
-        foreach (var img in images)
+        var newImagesList = images.ToList();
+        for (int i = 0; i < newImagesList.Count; i++)
         {
+            var img = newImagesList[i];
+
+            // Garante que apanhamos a categoria certa, ou "Geral" se falhar
+            var category = (imageCategories != null && i < imageCategories.Count)
+                ? imageCategories[i]
+                : "Geral";
+
             if (img.Content.Length > 0)
             {
-                // Aqui chamamos o serviço do módulo Shared. 
-                // Ele vai automaticamente converter para WebP e devolver o URL da Cloud!
                 var imageUrl = await _imageService.UploadImageAsync(img.Content, img.FileName, $"properties/{property.Id}");
-
                 property.Images.Add(new PropertyImage
                 {
                     Id = Guid.NewGuid(),
                     PropertyId = property.Id,
                     Url = imageUrl,
-                    Category = "Geral",
-                    IsMain = isFirstImage // A primeira imagem que vem no array fica como Capa
+                    Category = category, // <--- AGORA USA A CATEGORIA REAL
+                    IsMain = false
                 });
-
-                isFirstImage = false;
             }
         }
 
@@ -960,6 +1069,94 @@ public class PropertyService : IPropertyService
         await _context.SaveChangesAsync();
 
         return property.Id; // Devolvemos o ID para o Frontend poder redirecionar o utilizador
+    }
+
+    public async Task<IEnumerable<PropertySummaryDto>> GetPropertiesByLandlordAsync(Guid landlordId)
+    {
+        var properties = await _context.Properties
+            .Include(p => p.Images) // Precisamos das imagens para ir buscar a capa
+            .Where(p => p.LandlordId == landlordId)
+            .OrderByDescending(p => p.CreatedAt)
+            .Select(p => new PropertySummaryDto(
+                p.Id,
+                p.Title,
+                p.City,
+                p.IsAvailable,
+                p.Images.FirstOrDefault(i => i.IsMain) != null
+                    ? p.Images.FirstOrDefault(i => i.IsMain)!.Url
+                    : "" // Fallback caso não tenha imagem (embora no teu create seja obrigatório)
+            ))
+            .ToListAsync();
+
+        return properties;
+    }
+
+    // Vai buscar o imóvel e traz as imagens agarradas
+    public async Task<Property?> GetPropertyByIdAsync(Guid propertyId)
+    {
+        return await _context.Properties
+            .Include(p => p.Images)
+            .Include(p => p.Documents)
+            .FirstOrDefaultAsync(p => p.Id == propertyId);
+    }
+
+    // Atualiza os dados de texto e adiciona novas imagens se existirem
+    public async Task UpdatePropertyAsync(Guid propertyId, Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> newImages, IList<string> imageCategories)
+    {
+        var property = await _context.Properties
+            .Include(p => p.Images)
+            .FirstOrDefaultAsync(p => p.Id == propertyId && p.LandlordId == landlordId);
+
+        if (property == null) throw new Exception("Imóvel não encontrado ou não te pertence.");
+
+        // Atualizar campos de texto
+        property.Title = dto.Title;
+        property.Description = dto.Description;
+        property.Price = dto.Price;
+        property.PropertyType = dto.PropertyType;
+        property.Typology = dto.Typology;
+        property.Area = dto.Area;
+        property.Rooms = dto.Rooms;
+        property.Bathrooms = dto.Bathrooms;
+        property.Floor = dto.Floor;
+        property.HasElevator = dto.HasElevator;
+        property.HasAirConditioning = dto.HasAirConditioning;
+        property.HasGarage = dto.HasGarage;
+        property.AllowsPets = dto.AllowsPets;
+        property.IsFurnished = dto.IsFurnished;
+        property.FurnishedDescription = dto.FurnishedDescription;
+        property.Street = dto.Street;
+        property.PostalCode = dto.PostalCode;
+        property.City = dto.City;
+        property.Latitude = dto.Latitude;
+        property.Longitude = dto.Longitude;
+
+        // Fazer upload de NOVAS imagens (se o senhorio tiver adicionado mais)
+        var newImagesList = newImages.ToList();
+        for (int i = 0; i < newImagesList.Count; i++)
+        {
+            var img = newImagesList[i];
+
+            // Garante que apanhamos a categoria certa, ou "Geral" se falhar
+            var category = (imageCategories != null && i < imageCategories.Count)
+                ? imageCategories[i]
+                : "Geral";
+
+            if (img.Content.Length > 0)
+            {
+                var imageUrl = await _imageService.UploadImageAsync(img.Content, img.FileName, $"properties/{property.Id}");
+                property.Images.Add(new PropertyImage
+                {
+                    Id = Guid.NewGuid(),
+                    PropertyId = property.Id,
+                    Url = imageUrl,
+                    Category = category,
+                    IsMain = false
+                });
+            }
+        }
+
+        await _context.SaveChangesAsync();
     }
 }
 

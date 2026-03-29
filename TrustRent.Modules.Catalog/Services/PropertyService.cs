@@ -18,7 +18,7 @@ public class PropertyService : IPropertyService
         _imageService = imageService;
     }
 
-    public async Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IEnumerable<FileDto> documents)
+    public async Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IList<string> imageCategories, IEnumerable<FileDto> documents)
     {
         // 1. Mapear o DTO para o nosso Modelo da Base de Dados
         var property = new Property
@@ -49,25 +49,27 @@ public class PropertyService : IPropertyService
         };
 
         // 2. Processar e fazer Upload das Imagens
-        bool isFirstImage = true;
-        foreach (var img in images)
+        var newImagesList = images.ToList();
+        for (int i = 0; i < newImagesList.Count; i++)
         {
+            var img = newImagesList[i];
+
+            // Garante que apanhamos a categoria certa, ou "Geral" se falhar
+            var category = (imageCategories != null && i < imageCategories.Count)
+                ? imageCategories[i]
+                : "Geral";
+
             if (img.Content.Length > 0)
             {
-                // Aqui chamamos o serviço do módulo Shared. 
-                // Ele vai automaticamente converter para WebP e devolver o URL da Cloud!
                 var imageUrl = await _imageService.UploadImageAsync(img.Content, img.FileName, $"properties/{property.Id}");
-
                 property.Images.Add(new PropertyImage
                 {
                     Id = Guid.NewGuid(),
                     PropertyId = property.Id,
                     Url = imageUrl,
-                    Category = "Geral",
-                    IsMain = isFirstImage // A primeira imagem que vem no array fica como Capa
+                    Category = category, // <--- AGORA USA A CATEGORIA REAL
+                    IsMain = false
                 });
-
-                isFirstImage = false;
             }
         }
 
@@ -114,5 +116,89 @@ public class PropertyService : IPropertyService
             .ToListAsync();
 
         return properties;
+    }
+
+    // Vai buscar o imóvel e traz as imagens agarradas
+    public async Task<Property?> GetPropertyByIdAsync(Guid propertyId)
+    {
+        return await _context.Properties
+            .Include(p => p.Images)
+            .Include(p => p.Documents)
+            .FirstOrDefaultAsync(p => p.Id == propertyId);
+    }
+
+    // Atualiza os dados de texto e adiciona novas imagens se existirem
+    public async Task UpdatePropertyAsync(
+        Guid propertyId, 
+        Guid landlordId, 
+        CreatePropertyDto dto, 
+        IEnumerable<FileDto> newImages, 
+        IList<string> imageCategories,
+        IList<Guid> retainedImageIds)
+    {
+        var property = await _context.Properties
+            .Include(p => p.Images)
+            .FirstOrDefaultAsync(p => p.Id == propertyId && p.LandlordId == landlordId);
+
+        if (property == null) throw new Exception("Imóvel não encontrado ou não te pertence.");
+
+        var imagesToRemove = property.Images.Where(img => !retainedImageIds.Contains(img.Id)).ToList();
+        foreach (var img in imagesToRemove)
+        {
+            // 1.1 Apagar fisicamente da Cloud (O serviço ativo resolve)
+            await _imageService.DeleteImageAsync(img.Url);
+
+            // 1.2 Remover da Base de Dados
+            _context.Set<PropertyImage>().Remove(img);
+        }
+
+        // Atualizar campos de texto
+        property.Title = dto.Title;
+        property.Description = dto.Description;
+        property.Price = dto.Price;
+        property.PropertyType = dto.PropertyType;
+        property.Typology = dto.Typology;
+        property.Area = dto.Area;
+        property.Rooms = dto.Rooms;
+        property.Bathrooms = dto.Bathrooms;
+        property.Floor = dto.Floor;
+        property.HasElevator = dto.HasElevator;
+        property.HasAirConditioning = dto.HasAirConditioning;
+        property.HasGarage = dto.HasGarage;
+        property.AllowsPets = dto.AllowsPets;
+        property.IsFurnished = dto.IsFurnished;
+        property.FurnishedDescription = dto.FurnishedDescription;
+        property.Street = dto.Street;
+        property.PostalCode = dto.PostalCode;
+        property.City = dto.City;
+        property.Latitude = dto.Latitude;
+        property.Longitude = dto.Longitude;
+
+        // Fazer upload de NOVAS imagens (se o senhorio tiver adicionado mais)
+        var newImagesList = newImages.ToList();
+        for (int i = 0; i < newImagesList.Count; i++)
+        {
+            var img = newImagesList[i];
+
+            // Garante que apanhamos a categoria certa, ou "Geral" se falhar
+            var category = (imageCategories != null && i < imageCategories.Count)
+                ? imageCategories[i]
+                : "Geral";
+
+            if (img.Content.Length > 0)
+            {
+                var imageUrl = await _imageService.UploadImageAsync(img.Content, img.FileName, $"properties/{property.Id}");
+                property.Images.Add(new PropertyImage
+                {
+                    Id = Guid.NewGuid(),
+                    PropertyId = property.Id,
+                    Url = imageUrl,
+                    Category = category,
+                    IsMain = false
+                });
+            }
+        }
+
+        await _context.SaveChangesAsync();
     }
 }

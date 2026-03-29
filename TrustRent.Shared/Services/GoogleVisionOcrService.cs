@@ -16,6 +16,14 @@ public class GoogleVisionOcrService : IOcrService
 
         if (!string.IsNullOrEmpty(credentialsPath) && File.Exists(credentialsPath))
         {
+            Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", credentialsPath);
+        }
+
+        _client = ImageAnnotatorClient.Create();
+
+        /*
+        if (!string.IsNullOrEmpty(credentialsPath) && File.Exists(credentialsPath))
+        {
             // Lê o ficheiro JSON de credenciais
             var credential = GoogleCredential.FromFile(credentialsPath);
             var builder = new ImageAnnotatorClientBuilder
@@ -29,7 +37,7 @@ public class GoogleVisionOcrService : IOcrService
             // Se não houver ficheiro, tenta usar a variável de ambiente GOOGLE_APPLICATION_CREDENTIALS
             // (Isto é útil para quando publicares o projeto na Cloud/Azure/AWS)
             _client = ImageAnnotatorClient.Create();
-        }
+        }*/
     }
 
     public async Task<string> ExtractTextAsync(Stream fileStream, string fileName)

@@ -58,8 +58,13 @@ public static class PropertyEndpoints
                 var documentFiles = form.Files.GetFiles("documents")
                     .Select(f => new FileDto(f.OpenReadStream(), f.FileName)).ToList();
 
+                var imageCategories = form["imageCategories"]
+                    .Where(c => !string.IsNullOrEmpty(c))
+                    .Select(c => c!)
+                    .ToList();
+
                 // 5. Chamar a nossa lógica de negócio (O motor que criámos no Passo 2)
-                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, documentFiles);
+                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, documentFiles);
 
                 return Results.Ok(new
                 {
@@ -89,6 +94,71 @@ public static class PropertyEndpoints
                 return Results.BadRequest(new { Error = ex.Message });
             }
         });
+
+        // 1. GET: Obter detalhes do imóvel
+        propertyGroup.MapGet("/{id:guid}", async (Guid id, IPropertyService propertyService) =>
+        {
+            var property = await propertyService.GetPropertyByIdAsync(id);
+            return property is not null ? Results.Ok(property) : Results.NotFound();
+        });
+
+        // 2. PUT: Atualizar o imóvel
+        propertyGroup.MapPut("/{id:guid}", async (Guid id, HttpRequest request, ClaimsPrincipal userClaims, IPropertyService propertyService) =>
+        {
+            try
+            {
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                var form = await request.ReadFormAsync();
+
+                // Dica: Usamos a mesma estrutura de DTO que usaste no POST!
+                var dto = new CreatePropertyDto
+                {
+                    Title = form["title"].ToString(),
+                    Description = form["description"].ToString(),
+                    PropertyType = form["propertyType"].ToString(),
+                    Typology = form["typology"].ToString(),
+                    Floor = form["floor"].ToString(),
+                    Street = form["street"].ToString(),
+                    PostalCode = form["postalCode"].ToString(),
+                    City = form["city"].ToString(),
+                    FurnishedDescription = form["furnishedDescription"].ToString(),
+                    Price = decimal.TryParse(form["price"], out var p) ? p : 0,
+                    Area = decimal.TryParse(form["area"], out var a) ? a : 0,
+                    Rooms = int.TryParse(form["rooms"], out var r) ? r : 0,
+                    Bathrooms = int.TryParse(form["bathrooms"], out var b) ? b : 0,
+                    Latitude = double.TryParse(form["latitude"], out var lat) ? lat : 0,
+                    Longitude = double.TryParse(form["longitude"], out var lon) ? lon : 0,
+                    HasElevator = form["hasElevator"] == "true",
+                    HasAirConditioning = form["hasAirConditioning"] == "true",
+                    HasGarage = form["hasGarage"] == "true",
+                    AllowsPets = form["allowsPets"] == "true",
+                    IsFurnished = form["isFurnished"] == "true",
+                };
+
+                // Apanhar apenas as NOVAS imagens adicionadas na edição
+                var newImageFiles = form.Files.GetFiles("images")
+                    .Select(f => new FileDto(f.OpenReadStream(), f.FileName)).ToList();
+
+                var imageCategories = form["imageCategories"]
+                    .Where(c => !string.IsNullOrEmpty(c))
+                    .Select(c => c!)
+                    .ToList();
+
+                var retainedImageIds = new List<Guid>();
+                if (form.TryGetValue("retainedImageIds", out var ids))
+                {
+                    retainedImageIds = ids.Select(id => Guid.Parse(id!.ToString())).ToList();
+                }
+
+                await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories, retainedImageIds);
+
+                return Results.Ok(new { Message = "Imóvel atualizado com sucesso!" });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        }).DisableAntiforgery();
 
     }
 }

@@ -49,4 +49,29 @@ public class CloudinaryImageService : IImageService
         // Devolve o URL final, limpo e público!
         return uploadResult.SecureUrl.ToString();
     }
+
+    public async Task DeleteImageAsync(string imageUrl)
+    {
+        try
+        {
+            // O URL do Cloudinary costuma ser: https://res.cloudinary.com/xyz/image/upload/v123/TrustRent/properties/id/foto.webp
+            // Precisamos extrair apenas "TrustRent/properties/id/foto"
+            var startIndex = imageUrl.IndexOf("TrustRent/");
+            if (startIndex != -1)
+            {
+                var publicIdWithExt = imageUrl.Substring(startIndex);
+
+                // Remover a extensão (.webp)
+                var lastDotIndex = publicIdWithExt.LastIndexOf('.');
+                var publicId = lastDotIndex != -1 ? publicIdWithExt.Substring(0, lastDotIndex) : publicIdWithExt;
+
+                var deletionParams = new DeletionParams(publicId);
+                await _cloudinary.DestroyAsync(deletionParams);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro ao apagar imagem do Cloudinary: {ex.Message}");
+        }
+    }
 }

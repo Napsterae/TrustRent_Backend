@@ -62,6 +62,28 @@ public class R2ImageService : IImageService
         return $"{_publicDomain}/{objectKey}";
     }
 
+    public async Task DeleteImageAsync(string imageUrl)
+    {
+        try
+        {
+            // Extrair a "Key" (caminho interno) a partir do URL público
+            // Ex: "https://pub-dummy.r2.dev/properties/123/foto.webp" -> "properties/123/foto.webp"
+            var objectKey = imageUrl.Replace($"{_publicDomain}/", "");
+
+            var deleteRequest = new DeleteObjectRequest
+            {
+                BucketName = _bucketName,
+                Key = objectKey
+            };
+
+            await _s3Client.DeleteObjectAsync(deleteRequest);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro ao apagar imagem da Cloudflare R2: {ex.Message}");
+        }
+    }
+
     // Helper para descobrir o Content-Type
     private string GetContentType(string extension)
     {
