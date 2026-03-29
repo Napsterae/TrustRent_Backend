@@ -110,6 +110,8 @@ public class PropertyUploadJob : IPropertyUploadJob
 
             try
             {
+                bool hasMainImage = property.Images.Any(img => img.IsMain);
+
                 for (int i = 0; i < tempFilePaths.Count; i++)
                 {
                     var filePath = tempFilePaths[i];
@@ -121,13 +123,15 @@ public class PropertyUploadJob : IPropertyUploadJob
                         {
                             var imageUrl = await _imageService.UploadImageAsync(stream, Path.GetFileName(filePath), $"properties/{propertyId}");
 
+                            bool isThisMain = !hasMainImage && (i == 0);
+
                             _context.PropertyImages.Add(new PropertyImage
                             {
                                 Id = Guid.NewGuid(),
                                 PropertyId = propertyId,
                                 Url = imageUrl,
                                 Category = category,
-                                IsMain = false
+                                IsMain = isThisMain
                             });
                         }
                         File.Delete(filePath);
