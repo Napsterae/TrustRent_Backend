@@ -27,11 +27,14 @@ TrustRent.Api\Endpoints\AuthEndpoints.cs
 TrustRent.Api\Endpoints\PropertyEndpoints.cs
 TrustRent.Api\Endpoints\UserEndpoints.cs
 TrustRent.Api\Properties\launchSettings.json
+TrustRent.Api\wwwroot\temp-uploads
 TrustRent.Api\wwwroot\uploads
+TrustRent.Api\wwwroot\temp-uploads\0289c585-7b3e-4dc4-9bc5-b77a5ddbe624
 TrustRent.Api\wwwroot\uploads\profiles
 TrustRent.Api\wwwroot\uploads\profiles\12232557-7de5-493a-84d5-e9b8291a58ca_1774486198.png
 TrustRent.Api\wwwroot\uploads\profiles\12232557-7de5-493a-84d5-e9b8291a58ca_1774486214.png
 TrustRent.Modules.Catalog\Contracts
+TrustRent.Modules.Catalog\Jobs
 TrustRent.Modules.Catalog\Models
 TrustRent.Modules.Catalog\Repositories
 TrustRent.Modules.Catalog\Services
@@ -43,6 +46,7 @@ TrustRent.Modules.Catalog\Contracts\Database\CatalogDbContext.cs
 TrustRent.Modules.Catalog\Contracts\DTOs\CreatePropertyDto.cs
 TrustRent.Modules.Catalog\Contracts\DTOs\PropertySummaryDto.cs
 TrustRent.Modules.Catalog\Contracts\Interfaces\IPropertyService.cs
+TrustRent.Modules.Catalog\Jobs\PropertyUploadJob.cs
 TrustRent.Modules.Catalog\Models\Property.cs
 TrustRent.Modules.Catalog\Services\PropertyService.cs
 TrustRent.Modules.Identity\Contracts
@@ -69,12 +73,15 @@ TrustRent.Shared\Security
 TrustRent.Shared\Services
 TrustRent.Shared\TrustRent.Shared.csproj
 TrustRent.Shared\Contracts\Interfaces
+TrustRent.Shared\Contracts\Interfaces\IEmailService.cs
 TrustRent.Shared\Contracts\Interfaces\IImageService.cs
+TrustRent.Shared\Contracts\Interfaces\INotificationService.cs
 TrustRent.Shared\Contracts\Interfaces\IOcrService.cs
 TrustRent.Shared\Security\EncryptionHelper.cs
 TrustRent.Shared\Services\CloudinaryImageService.cs
 TrustRent.Shared\Services\GoogleVisionOcrService.cs
 TrustRent.Shared\Services\ImageOptimizer.cs
+TrustRent.Shared\Services\NotificationAndEmailServices.cs
 TrustRent.Shared\Services\R2ImageService.cs
 
 
@@ -264,6 +271,10 @@ using TrustRent.Modules.Identity.Services;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Services;
 using Microsoft.AspNetCore.Http.Features;
+using Hangfire;
+using Hangfire.PostgreSql;
+using TrustRent.Modules.Catalog.Jobs;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -332,7 +343,18 @@ builder.Services.AddScoped<IPropertyService, PropertyService>();
 
 builder.Services.AddScoped<IOcrService, GoogleVisionOcrService>();
 builder.Services.AddScoped<IImageService, CloudinaryImageService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IPropertyUploadJob, PropertyUploadJob>();
 //builder.Services.AddScoped<IImageService, R2ImageService>();
+
+builder.Services.AddHangfire(config => config
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UsePostgreSqlStorage(c => c.UseNpgsqlConnection(connectionString)));
+
+builder.Services.AddHangfireServer();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -369,6 +391,7 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.UseHangfireDashboard();
 }
 
 app.UseStaticFiles();
@@ -396,6 +419,8 @@ FICHEIRO: .\TrustRent.Api\TrustRent.Api.csproj
 
   <ItemGroup>
     <PackageReference Include="CloudinaryDotNet" Version="1.28.0" />
+    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />
+    <PackageReference Include="Hangfire.PostgreSql" Version="1.21.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.*" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.*" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.*">
@@ -479,8 +504,10 @@ public record LoginRequest(string Email, string Password);
 FICHEIRO: .\TrustRent.Api\Endpoints\PropertyEndpoints.cs
 ================================================
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Shared.Contracts.Interfaces;
 
 namespace TrustRent.Api.Endpoints;
 
@@ -640,6 +667,64 @@ public static class PropertyEndpoints
             }
         }).DisableAntiforgery();
 
+        propertyGroup.MapPost("/extract-document", async (HttpRequest request, IOcrService ocrService) =>
+        {
+            try
+            {
+                var form = await request.ReadFormAsync();
+                var file = form.Files.FirstOrDefault();
+                var docType = form["docType"].ToString(); // "caderneta", "certificado", ou "modelo2"
+
+                if (file == null || file.Length == 0) return Results.BadRequest(new { Error = "Nenhum ficheiro recebido." });
+
+                using var stream = file.OpenReadStream();
+                // Chama o Google Vision OCR (não guarda nada em disco!)
+                var extractedText = await ocrService.ExtractTextAsync(stream, file.FileName);
+                var normalizedText = extractedText.ToUpperInvariant().Replace("\n", " ");
+
+                object resultData = null;
+
+                // LÓGICA DE EXTRAÇÃO (Tens de afinar as Regex com PDFs reais portugueses)
+                if (docType == "caderneta")
+                {
+                    var matchArtigo = Regex.Match(normalizedText, @"ARTIGO MATRICIAL[:\s]*(\d+)");
+                    var matchFracao = Regex.Match(normalizedText, @"FRAÇÃO[:\s]*([A-Z0-9]+)");
+
+                    resultData = new
+                    {
+                        matrixArticle = matchArtigo.Success ? matchArtigo.Groups[1].Value : null,
+                        propertyFraction = matchFracao.Success ? matchFracao.Groups[1].Value : null
+                    };
+                }
+                else if (docType == "certificado")
+                {
+                    var matchClass = Regex.Match(normalizedText, @"CLASSE ENERG[ÉE]TICA[:\s]*([A-F]\+?)");
+                    var matchNumber = Regex.Match(normalizedText, @"CERTIFICADO N[ºO][:.\s]*([\d\w-]+)");
+
+                    resultData = new
+                    {
+                        energyClass = matchClass.Success ? matchClass.Groups[1].Value : null,
+                        energyCertNumber = matchNumber.Success ? matchNumber.Groups[1].Value : null
+                    };
+                }
+                else if (docType == "modelo2")
+                {
+                    var matchReg = Regex.Match(normalizedText, @"N[ºO] DE REGISTO[:\s]*(\d+)");
+
+                    resultData = new
+                    {
+                        atRegistrationNumber = matchReg.Success ? matchReg.Groups[1].Value : null
+                    };
+                }
+
+                return Results.Ok(resultData);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        }).DisableAntiforgery();
+
     }
 }
 
@@ -778,6 +863,7 @@ FICHEIRO: .\TrustRent.Modules.Catalog\TrustRent.Modules.Catalog.csproj
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Hangfire.Core" Version="1.8.23" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
   </ItemGroup>
 
@@ -815,24 +901,32 @@ public class CatalogDbContext : DbContext
 
     public DbSet<Property> Properties { get; set; }
     public DbSet<PropertyImage> PropertyImages { get; set; }
-    public DbSet<PropertyDocument> PropertyDocuments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("catalog");
 
-        // Configurar as relações (1 Imóvel tem N Imagens/Documentos)
-        modelBuilder.Entity<Property>()
-            .HasMany(p => p.Images)
-            .WithOne()
-            .HasForeignKey(img => img.PropertyId)
-            .OnDelete(DeleteBehavior.Cascade); // Se apagar a casa, apaga as referências das fotos
+        modelBuilder.Entity<Property>(builder =>
+        {
+            builder.HasKey(p => p.Id);
 
-        modelBuilder.Entity<Property>()
-            .HasMany(p => p.Documents)
-            .WithOne()
-            .HasForeignKey(doc => doc.PropertyId)
-            .OnDelete(DeleteBehavior.Cascade);
+            builder.HasMany(p => p.Images)
+                   .WithOne()
+                   .HasForeignKey(i => i.PropertyId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Property(p => p.MatrixArticle).HasMaxLength(100);
+            builder.Property(p => p.PropertyFraction).HasMaxLength(10);
+            builder.Property(p => p.EnergyClass).HasMaxLength(5);
+            builder.Property(p => p.EnergyCertificateNumber).HasMaxLength(100);
+            builder.Property(p => p.AtRegistrationNumber).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<PropertyImage>(builder =>
+        {
+            builder.HasKey(i => i.Id);
+            builder.Property(i => i.Url).IsRequired();
+        });
 
         base.OnModelCreating(modelBuilder);
     }
@@ -872,6 +966,18 @@ public class CreatePropertyDto
     public string City { get; set; } = string.Empty;
     public double Latitude { get; set; }
     public double Longitude { get; set; }
+
+    // Caderneta
+    public string? MatrixArticle { get; set; }
+    public string? PropertyFraction { get; set; }
+
+    // Certificado Energético
+    public string? EnergyClass { get; set; }
+    public string? EnergyCertificateNumber { get; set; }
+    public string? EnergyCertificateExpiryDate { get; set; }
+
+    // Registo AT
+    public string? AtRegistrationNumber { get; set; }
 }
 
 // Pequeno record para transportar os ficheiros do Endpoint para o Serviço sem quebrar o Clean Architecture
@@ -907,6 +1013,176 @@ public interface IPropertyService
 
     Task<Property?> GetPropertyByIdAsync(Guid propertyId);
     Task UpdatePropertyAsync(Guid propertyId, Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> newImages, IList<string> imageCategories, IList<Guid> retainedImageIds);
+}
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Jobs\PropertyUploadJob.cs
+================================================
+using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Models;
+using TrustRent.Shared.Contracts.Interfaces;
+
+namespace TrustRent.Modules.Catalog.Jobs;
+
+public interface IPropertyUploadJob
+{
+    Task ProcessCreationAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories);
+    Task ProcessEditAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, List<string> imageUrlsToDelete);
+}
+
+public class PropertyUploadJob : IPropertyUploadJob
+{
+    private readonly CatalogDbContext _context;
+    private readonly IImageService _imageService;
+    private readonly INotificationService _notificationService;
+
+    public PropertyUploadJob(CatalogDbContext context, IImageService imageService, INotificationService notificationService)
+    {
+        _context = context;
+        _imageService = imageService;
+        _notificationService = notificationService;
+    }
+
+    public async Task ProcessCreationAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories)
+    {
+        var property = await _context.Properties.FindAsync(propertyId);
+        if (property == null) return;
+
+        try
+        {
+            // 1. Processar cada imagem pendente
+            for (int i = 0; i < tempFilePaths.Count; i++)
+            {
+                var filePath = tempFilePaths[i];
+                var category = (categories != null && i < categories.Count) ? categories[i] : "Geral";
+
+                if (File.Exists(filePath))
+                {
+                    using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                    {
+                        // Upload pesado para a Cloud (demora o tempo que for preciso sem bloquear ninguém)
+                        var imageUrl = await _imageService.UploadImageAsync(stream, Path.GetFileName(filePath), $"properties/{propertyId}");
+
+                        property.Images.Add(new PropertyImage
+                        {
+                            Id = Guid.NewGuid(),
+                            PropertyId = propertyId,
+                            Url = imageUrl,
+                            Category = category,
+                            IsMain = (i == 0) // A primeira é a capa
+                        });
+                    }
+
+                    // Limpar o ficheiro temporário do disco do nosso servidor após upload
+                    File.Delete(filePath);
+                }
+            }
+
+            // 2. Marcar o imóvel como público/processado
+            property.IsAvailable = true;
+            await _context.SaveChangesAsync();
+
+            // 3. Notificar o Senhorio que o anúncio já está online!
+            await _notificationService.SendNotificationAsync(
+                landlordId,
+                "application", // Ícone
+                $"As imagens do teu anúncio '{property.Title}' foram processadas e o imóvel já está público!"
+            );
+        }
+        catch (Exception ex)
+        {
+            // O Hangfire tenta novamente de forma automática caso haja falhas de rede com a Cloud!
+            Console.WriteLine($"Erro no Job de Upload: {ex.Message}");
+            throw;
+        }
+        finally
+        {
+            // Limpar a pasta temporária do imóvel (caso tenha ficado vazia)
+            var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", propertyId.ToString());
+            if (Directory.Exists(tempFolder) && !Directory.EnumerateFileSystemEntries(tempFolder).Any())
+            {
+                Directory.Delete(tempFolder);
+            }
+        }
+    }
+
+    public async Task ProcessEditAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, List<string> imageUrlsToDelete)
+    {
+        // 1. APAGAR AS IMAGENS VELHAS DA CLOUD (Em background)
+        foreach (var urlToDelete in imageUrlsToDelete)
+        {
+            try
+            {
+                await _imageService.DeleteImageAsync(urlToDelete);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erro ao apagar imagem órfã {urlToDelete}: {ex.Message}");
+                // Não atiramos throw aqui para não interromper os uploads novos se falhar a apagar uma velha
+            }
+        }
+
+        // 2. FAZER UPLOAD DAS NOVAS IMAGENS (Se existirem)
+        if (tempFilePaths.Any())
+        {
+            var property = await _context.Properties.FindAsync(propertyId);
+            if (property == null) return;
+
+            try
+            {
+                bool hasMainImage = property.Images.Any(img => img.IsMain);
+
+                for (int i = 0; i < tempFilePaths.Count; i++)
+                {
+                    var filePath = tempFilePaths[i];
+                    var category = (categories != null && i < categories.Count) ? categories[i] : "Geral";
+
+                    if (File.Exists(filePath))
+                    {
+                        using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                        {
+                            var imageUrl = await _imageService.UploadImageAsync(stream, Path.GetFileName(filePath), $"properties/{propertyId}");
+
+                            bool isThisMain = !hasMainImage && (i == 0);
+
+                            _context.PropertyImages.Add(new PropertyImage
+                            {
+                                Id = Guid.NewGuid(),
+                                PropertyId = propertyId,
+                                Url = imageUrl,
+                                Category = category,
+                                IsMain = isThisMain
+                            });
+                        }
+                        File.Delete(filePath);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                // Notificar que a atualização das fotos terminou
+                await _notificationService.SendNotificationAsync(
+                    landlordId,
+                    "application",
+                    $"A galeria do teu imóvel '{property.Title}' acabou de ser atualizada!"
+                );
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erro no Job de Edição: {ex.Message}");
+                throw;
+            }
+            finally
+            {
+                var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", propertyId.ToString());
+                if (Directory.Exists(tempFolder) && !Directory.EnumerateFileSystemEntries(tempFolder).Any())
+                {
+                    Directory.Delete(tempFolder);
+                }
+            }
+        }
+    }
 }
 
 
@@ -953,9 +1229,21 @@ public class Property
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
-    // Relacionamentos (As listas de imagens e documentos)
+    // Relacionamentos (As listas de imagens)
     public List<PropertyImage> Images { get; set; } = new();
-    public List<PropertyDocument> Documents { get; set; } = new();
+
+
+    // Caderneta
+    public string? MatrixArticle { get; set; }
+    public string? PropertyFraction { get; set; }
+
+    // Certificado Energético
+    public string? EnergyClass { get; set; }
+    public string? EnergyCertificateNumber { get; set; }
+    public DateTime? EnergyCertificateExpiryDate { get; set; }
+
+    // Registo AT
+    public string? AtRegistrationNumber { get; set; }
 }
 
 // Classe para guardar a Galeria de Imagens
@@ -966,15 +1254,6 @@ public class PropertyImage
     public string Url { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public bool IsMain { get; set; } // Diz se é a foto de Capa
-}
-
-// Classe para guardar os Documentos (Caderneta, etc)
-public class PropertyDocument
-{
-    public Guid Id { get; set; }
-    public Guid PropertyId { get; set; }
-    public string DocumentType { get; set; } = string.Empty; // Ex: CadernetaPredial, CertificadoEnergetico
-    public string Url { get; set; } = string.Empty;
 }
 
 
@@ -989,18 +1268,19 @@ using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Shared.Contracts.Interfaces;
+using Hangfire;
 
 namespace TrustRent.Modules.Catalog.Services;
 
 public class PropertyService : IPropertyService
 {
     private readonly CatalogDbContext _context;
-    private readonly IImageService _imageService;
+    private readonly IBackgroundJobClient _backgroundJobs;
 
-    public PropertyService(CatalogDbContext context, IImageService imageService)
+    public PropertyService(CatalogDbContext context, IBackgroundJobClient backgroundJobs)
     {
         _context = context;
-        _imageService = imageService;
+        _backgroundJobs = backgroundJobs;
     }
 
     public async Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IList<string> imageCategories, IEnumerable<FileDto> documents)
@@ -1030,9 +1310,32 @@ public class PropertyService : IPropertyService
             City = dto.City,
             Latitude = dto.Latitude,
             Longitude = dto.Longitude,
-            IsAvailable = false // Por defeito, fica como rascunho/em análise
+            IsAvailable = false
         };
 
+        var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", property.Id.ToString());
+        Directory.CreateDirectory(tempFolder);
+
+        var savedFilePaths = new List<string>();
+
+        foreach (var img in images)
+        {
+            if (img.Content.Length > 0)
+            {
+                var tempPath = Path.Combine(tempFolder, Guid.NewGuid() + Path.GetExtension(img.FileName));
+                using (var stream = new FileStream(tempPath, FileMode.Create))
+                {
+                    await img.Content.CopyToAsync(stream);
+                }
+                savedFilePaths.Add(tempPath);
+            }
+        }
+
+        _backgroundJobs.Enqueue<Jobs.IPropertyUploadJob>(job =>
+            job.ProcessCreationAsync(property.Id, landlordId, savedFilePaths, imageCategories.ToList())
+        );
+
+        /*
         // 2. Processar e fazer Upload das Imagens
         var newImagesList = images.ToList();
         for (int i = 0; i < newImagesList.Count; i++)
@@ -1079,6 +1382,7 @@ public class PropertyService : IPropertyService
         // 4. Guardar tudo na Base de Dados
         _context.Properties.Add(property);
         await _context.SaveChangesAsync();
+        */
 
         return property.Id; // Devolvemos o ID para o Frontend poder redirecionar o utilizador
     }
@@ -1108,7 +1412,6 @@ public class PropertyService : IPropertyService
     {
         return await _context.Properties
             .Include(p => p.Images)
-            .Include(p => p.Documents)
             .FirstOrDefaultAsync(p => p.Id == propertyId);
     }
 
@@ -1126,16 +1429,6 @@ public class PropertyService : IPropertyService
             .FirstOrDefaultAsync(p => p.Id == propertyId && p.LandlordId == landlordId);
 
         if (property == null) throw new Exception("Imóvel não encontrado ou não te pertence.");
-
-        var imagesToRemove = property.Images.Where(img => !retainedImageIds.Contains(img.Id)).ToList();
-        foreach (var img in imagesToRemove)
-        {
-            // 1.1 Apagar fisicamente da Cloud (O serviço ativo resolve)
-            await _imageService.DeleteImageAsync(img.Url);
-
-            // 1.2 Remover da Base de Dados
-            _context.Set<PropertyImage>().Remove(img);
-        }
 
         // Atualizar campos de texto
         property.Title = dto.Title;
@@ -1159,32 +1452,46 @@ public class PropertyService : IPropertyService
         property.Latitude = dto.Latitude;
         property.Longitude = dto.Longitude;
 
-        // Fazer upload de NOVAS imagens (se o senhorio tiver adicionado mais)
-        var newImagesList = newImages.ToList();
-        for (int i = 0; i < newImagesList.Count; i++)
+        var imagesToRemove = property.Images.Where(img => !retainedImageIds.Contains(img.Id)).ToList();
+        var urlsToDeleteFromCloud = new List<string>();
+
+        foreach (var img in imagesToRemove)
         {
-            var img = newImagesList[i];
+            urlsToDeleteFromCloud.Add(img.Url);
+            property.Images.Remove(img);
+        }
 
-            // Garante que apanhamos a categoria certa, ou "Geral" se falhar
-            var category = (imageCategories != null && i < imageCategories.Count)
-                ? imageCategories[i]
-                : "Geral";
+        if (property.Images.Any() && !property.Images.Any(img => img.IsMain))
+        {
+            property.Images.First().IsMain = true;
+        }
 
+        var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", property.Id.ToString());
+        Directory.CreateDirectory(tempFolder);
+        var savedFilePaths = new List<string>();
+
+        var newImagesList = newImages.ToList();
+        foreach (var img in newImagesList)
+        {
             if (img.Content.Length > 0)
             {
-                var imageUrl = await _imageService.UploadImageAsync(img.Content, img.FileName, $"properties/{property.Id}");
-                property.Images.Add(new PropertyImage
+                var tempPath = Path.Combine(tempFolder, Guid.NewGuid() + Path.GetExtension(img.FileName));
+                using (var stream = new FileStream(tempPath, FileMode.Create))
                 {
-                    Id = Guid.NewGuid(),
-                    PropertyId = property.Id,
-                    Url = imageUrl,
-                    Category = category,
-                    IsMain = false
-                });
+                    await img.Content.CopyToAsync(stream);
+                }
+                savedFilePaths.Add(tempPath);
             }
         }
 
         await _context.SaveChangesAsync();
+
+        if (urlsToDeleteFromCloud.Any() || savedFilePaths.Any())
+        {
+            _backgroundJobs.Enqueue<Jobs.IPropertyUploadJob>(job =>
+                job.ProcessEditAsync(propertyId, landlordId, savedFilePaths, imageCategories.ToList(), urlsToDeleteFromCloud)
+            );
+        }
     }
 }
 
@@ -1800,6 +2107,18 @@ FICHEIRO: .\TrustRent.Shared\TrustRent.Shared.csproj
 
 
 ================================================
+FICHEIRO: .\TrustRent.Shared\Contracts\Interfaces\IEmailService.cs
+================================================
+namespace TrustRent.Shared.Contracts.Interfaces;
+
+public interface IEmailService
+{
+    Task SendEmailAsync(string to, string subject, string body);
+}
+
+
+
+================================================
 FICHEIRO: .\TrustRent.Shared\Contracts\Interfaces\IImageService.cs
 ================================================
 namespace TrustRent.Shared.Contracts.Interfaces;
@@ -1810,6 +2129,17 @@ public interface IImageService
     Task<string> UploadImageAsync(Stream fileStream, string fileName, string folder);
 
     Task DeleteImageAsync(string imageUrl);
+}
+
+
+================================================
+FICHEIRO: .\TrustRent.Shared\Contracts\Interfaces\INotificationService.cs
+================================================
+namespace TrustRent.Shared.Contracts.Interfaces;
+
+public interface INotificationService
+{
+    Task SendNotificationAsync(Guid userId, string type, string message);
 }
 
 
@@ -2064,6 +2394,34 @@ public static class ImageOptimizer
         outputStream.Position = 0;
 
         return outputStream;
+    }
+}
+
+
+================================================
+FICHEIRO: .\TrustRent.Shared\Services\NotificationAndEmailServices.cs
+================================================
+using TrustRent.Shared.Contracts.Interfaces;
+
+namespace TrustRent.Shared.Services;
+
+public class EmailService : IEmailService
+{
+    public async Task SendEmailAsync(string to, string subject, string body)
+    {
+        // Aqui integras com SendGrid, AWS SES ou Mailgun
+        Console.WriteLine($"[EMAIL ENVIADO] Para: {to} | Assunto: {subject}");
+        await Task.CompletedTask;
+    }
+}
+
+public class NotificationService : INotificationService
+{
+    public async Task SendNotificationAsync(Guid userId, string type, string message)
+    {
+        // Futuramente: Gravar na tabela de Notificações ou enviar via WebSockets (SignalR)
+        Console.WriteLine($"[NOTIFICAÇÃO] User: {userId} | Tipo: {type} | Msg: {message}");
+        await Task.CompletedTask;
     }
 }
 

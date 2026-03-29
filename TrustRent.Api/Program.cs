@@ -1,10 +1,15 @@
+using Hangfire;
+using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TrustRent.Api.Endpoints;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Modules.Catalog.Jobs;
+using TrustRent.Modules.Catalog.Repositories;
 using TrustRent.Modules.Catalog.Services;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
@@ -12,10 +17,6 @@ using TrustRent.Modules.Identity.Repositories;
 using TrustRent.Modules.Identity.Services;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Services;
-using Microsoft.AspNetCore.Http.Features;
-using Hangfire;
-using Hangfire.PostgreSql;
-using TrustRent.Modules.Catalog.Jobs;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -81,14 +82,19 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IPropertyService, PropertyService>();
-
 builder.Services.AddScoped<IOcrService, GoogleVisionOcrService>();
 builder.Services.AddScoped<IImageService, CloudinaryImageService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
-builder.Services.AddScoped<IPropertyUploadJob, PropertyUploadJob>();
+
 //builder.Services.AddScoped<IImageService, R2ImageService>();
+
+/* CATALOG*/
+builder.Services.AddScoped<IPropertyService, PropertyService>();
+builder.Services.AddScoped<IPropertyUploadJob, PropertyUploadJob>();
+builder.Services.AddScoped<IDocumentExtractionService, DocumentExtractionService>();
+builder.Services.AddScoped<IPropertyRepository, PropertyRepository>();
+builder.Services.AddScoped<ICatalogUnitOfWork, CatalogUnitOfWork>();
 
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)

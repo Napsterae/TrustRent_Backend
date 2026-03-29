@@ -1,4 +1,5 @@
 ﻿using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Shared.Contracts.Interfaces;
 
@@ -12,20 +13,20 @@ public interface IPropertyUploadJob
 
 public class PropertyUploadJob : IPropertyUploadJob
 {
-    private readonly CatalogDbContext _context;
+    private readonly ICatalogUnitOfWork _uow;
     private readonly IImageService _imageService;
     private readonly INotificationService _notificationService;
 
-    public PropertyUploadJob(CatalogDbContext context, IImageService imageService, INotificationService notificationService)
+    public PropertyUploadJob(ICatalogUnitOfWork uow, IImageService imageService, INotificationService notificationService)
     {
-        _context = context;
+        _uow = uow;
         _imageService = imageService;
         _notificationService = notificationService;
     }
 
     public async Task ProcessCreationAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories)
     {
-        var property = await _context.Properties.FindAsync(propertyId);
+        var property = await _uow.Properties.GetByIdAsync(propertyId);
         if (property == null) return;
 
         try
@@ -60,7 +61,7 @@ public class PropertyUploadJob : IPropertyUploadJob
 
             // 2. Marcar o imóvel como público/processado
             property.IsAvailable = true;
-            await _context.SaveChangesAsync();
+            await _uow.SaveChangesAsync();
 
             // 3. Notificar o Senhorio que o anúncio já está online!
             await _notificationService.SendNotificationAsync(
@@ -105,7 +106,7 @@ public class PropertyUploadJob : IPropertyUploadJob
         // 2. FAZER UPLOAD DAS NOVAS IMAGENS (Se existirem)
         if (tempFilePaths.Any())
         {
-            var property = await _context.Properties.FindAsync(propertyId);
+            var property = await _uow.Properties.GetByIdAsync(propertyId);
             if (property == null) return;
 
             try
@@ -125,7 +126,7 @@ public class PropertyUploadJob : IPropertyUploadJob
 
                             bool isThisMain = !hasMainImage && (i == 0);
 
-                            _context.PropertyImages.Add(new PropertyImage
+                            await _uow.Properties.AddImageAsync(new PropertyImage
                             {
                                 Id = Guid.NewGuid(),
                                 PropertyId = propertyId,
@@ -138,7 +139,7 @@ public class PropertyUploadJob : IPropertyUploadJob
                     }
                 }
 
-                await _context.SaveChangesAsync();
+                await _uow.SaveChangesAsync();
 
                 // Notificar que a atualização das fotos terminou
                 await _notificationService.SendNotificationAsync(

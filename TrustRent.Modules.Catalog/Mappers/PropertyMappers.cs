@@ -1,0 +1,81 @@
+﻿using TrustRent.Modules.Catalog.Contracts.DTOs;
+using TrustRent.Modules.Catalog.Models;
+
+namespace TrustRent.Modules.Catalog.Mappers;
+
+public static class PropertyMappers
+{
+    // Método de extensão para converter um único Property para DTO
+    public static PropertySummaryDto ToSummaryDto(this Property p)
+    {
+        return new PropertySummaryDto(
+            p.Id,
+            p.Title,
+            p.City,
+            p.IsAvailable,
+            p.Images.FirstOrDefault(i => i.IsMain)?.Url ?? ""
+        );
+    }
+
+    // Método de extensão para converter uma lista inteira
+    public static IEnumerable<PropertySummaryDto> ToSummaryDtoList(this IEnumerable<Property> properties)
+    {
+        return properties.Select(p => p.ToSummaryDto());
+    }
+
+    // 1. DTO -> Entidade (Para o Create)
+    public static Property ToEntity(this CreatePropertyDto dto, Guid landlordId)
+    {
+        return new Property
+        {
+            Id = Guid.NewGuid(),
+            LandlordId = landlordId,
+            Title = dto.Title,
+            Description = dto.Description,
+            Price = dto.Price,
+            PropertyType = dto.PropertyType,
+            Typology = dto.Typology,
+            Area = dto.Area,
+            Rooms = dto.Rooms,
+            Bathrooms = dto.Bathrooms,
+            Floor = dto.Floor,
+            HasElevator = dto.HasElevator,
+            HasAirConditioning = dto.HasAirConditioning,
+            HasGarage = dto.HasGarage,
+            AllowsPets = dto.AllowsPets,
+            IsFurnished = dto.IsFurnished,
+            FurnishedDescription = dto.FurnishedDescription,
+            Street = dto.Street,
+            PostalCode = dto.PostalCode,
+            City = dto.City,
+            Latitude = dto.Latitude,
+            Longitude = dto.Longitude,
+            IsAvailable = false
+        };
+    }
+
+    // 2. DTO -> Entidade Existente (Para o Update)
+    public static void UpdateEntity(this CreatePropertyDto dto, Property property)
+    {
+        property.Title = dto.Title;
+        property.Description = dto.Description;
+        property.Price = dto.Price;
+        property.PropertyType = dto.PropertyType;
+        property.Typology = dto.Typology;
+        property.Area = dto.Area;
+        property.Rooms = dto.Rooms;
+        property.Bathrooms = dto.Bathrooms;
+        property.Floor = dto.Floor;
+        property.HasElevator = dto.HasElevator;
+        property.HasAirConditioning = dto.HasAirConditioning;
+        property.HasGarage = dto.HasGarage;
+        property.AllowsPets = dto.AllowsPets;
+        property.IsFurnished = dto.IsFurnished;
+        property.FurnishedDescription = dto.FurnishedDescription;
+        property.Street = dto.Street;
+        property.PostalCode = dto.PostalCode;
+        property.City = dto.City;
+        property.Latitude = dto.Latitude;
+        property.Longitude = dto.Longitude;
+    }
+}

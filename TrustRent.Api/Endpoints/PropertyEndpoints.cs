@@ -162,55 +162,19 @@ public static class PropertyEndpoints
             }
         }).DisableAntiforgery();
 
-        propertyGroup.MapPost("/extract-document", async (HttpRequest request, IOcrService ocrService) =>
+        propertyGroup.MapPost("/extract-document", async (HttpRequest request, IDocumentExtractionService extractionService) =>
         {
             try
             {
                 var form = await request.ReadFormAsync();
                 var file = form.Files.FirstOrDefault();
-                var docType = form["docType"].ToString(); // "caderneta", "certificado", ou "modelo2"
+                var docType = form["docType"].ToString();
 
                 if (file == null || file.Length == 0) return Results.BadRequest(new { Error = "Nenhum ficheiro recebido." });
 
                 using var stream = file.OpenReadStream();
-                // Chama o Google Vision OCR (não guarda nada em disco!)
-                var extractedText = await ocrService.ExtractTextAsync(stream, file.FileName);
-                var normalizedText = extractedText.ToUpperInvariant().Replace("\n", " ");
 
-                object resultData = null;
-
-                // LÓGICA DE EXTRAÇÃO (Tens de afinar as Regex com PDFs reais portugueses)
-                if (docType == "caderneta")
-                {
-                    var matchArtigo = Regex.Match(normalizedText, @"ARTIGO MATRICIAL[:\s]*(\d+)");
-                    var matchFracao = Regex.Match(normalizedText, @"FRAÇÃO[:\s]*([A-Z0-9]+)");
-
-                    resultData = new
-                    {
-                        matrixArticle = matchArtigo.Success ? matchArtigo.Groups[1].Value : null,
-                        propertyFraction = matchFracao.Success ? matchFracao.Groups[1].Value : null
-                    };
-                }
-                else if (docType == "certificado")
-                {
-                    var matchClass = Regex.Match(normalizedText, @"CLASSE ENERG[ÉE]TICA[:\s]*([A-F]\+?)");
-                    var matchNumber = Regex.Match(normalizedText, @"CERTIFICADO N[ºO][:.\s]*([\d\w-]+)");
-
-                    resultData = new
-                    {
-                        energyClass = matchClass.Success ? matchClass.Groups[1].Value : null,
-                        energyCertNumber = matchNumber.Success ? matchNumber.Groups[1].Value : null
-                    };
-                }
-                else if (docType == "modelo2")
-                {
-                    var matchReg = Regex.Match(normalizedText, @"N[ºO] DE REGISTO[:\s]*(\d+)");
-
-                    resultData = new
-                    {
-                        atRegistrationNumber = matchReg.Success ? matchReg.Groups[1].Value : null
-                    };
-                }
+                var resultData = await extractionService.ExtractDataAsync(stream, file.FileName, docType);
 
                 return Results.Ok(resultData);
             }
