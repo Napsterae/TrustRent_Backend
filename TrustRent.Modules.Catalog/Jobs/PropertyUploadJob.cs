@@ -7,8 +7,8 @@ namespace TrustRent.Modules.Catalog.Jobs;
 
 public interface IPropertyUploadJob
 {
-    Task ProcessCreationAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories);
-    Task ProcessEditAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, List<string> imageUrlsToDelete);
+    Task ProcessCreationAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, int mainImageIndex);
+    Task ProcessEditAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, List<string> imageUrlsToDelete, int mainImageIndex);
 }
 
 public class PropertyUploadJob : IPropertyUploadJob
@@ -24,7 +24,7 @@ public class PropertyUploadJob : IPropertyUploadJob
         _notificationService = notificationService;
     }
 
-    public async Task ProcessCreationAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories)
+    public async Task ProcessCreationAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, int mainImageIndex)
     {
         var property = await _uow.Properties.GetByIdAsync(propertyId);
         if (property == null) return;
@@ -50,7 +50,7 @@ public class PropertyUploadJob : IPropertyUploadJob
                             PropertyId = propertyId,
                             Url = imageUrl,
                             Category = category,
-                            IsMain = (i == 0) // A primeira é a capa
+                            IsMain = (i == mainImageIndex)
                         });
                     }
 
@@ -87,7 +87,7 @@ public class PropertyUploadJob : IPropertyUploadJob
         }
     }
 
-    public async Task ProcessEditAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, List<string> imageUrlsToDelete)
+    public async Task ProcessEditAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, List<string> imageUrlsToDelete, int mainImageIndex)
     {
         // 1. APAGAR AS IMAGENS VELHAS DA CLOUD (Em background)
         foreach (var urlToDelete in imageUrlsToDelete)
@@ -124,7 +124,7 @@ public class PropertyUploadJob : IPropertyUploadJob
                         {
                             var imageUrl = await _imageService.UploadImageAsync(stream, Path.GetFileName(filePath), $"properties/{propertyId}");
 
-                            bool isThisMain = !hasMainImage && (i == 0);
+                            bool isThisMain = (i == mainImageIndex);
 
                             await _uow.Properties.AddImageAsync(new PropertyImage
                             {

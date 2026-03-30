@@ -53,6 +53,8 @@ public static class PropertyEndpoints
                     IsFurnished = form["isFurnished"] == "true",
                 };
 
+                var mainImageIndex = int.TryParse(form["mainImageIndex"], out var mii) ? mii : 0;
+
                 // 4. Apanhar as listas de ficheiros (Imagens e Documentos)
                 var imageFiles = form.Files.GetFiles("images")
                     .Select(f => new FileDto(f.OpenReadStream(), f.FileName)).ToList();
@@ -66,7 +68,7 @@ public static class PropertyEndpoints
                     .ToList();
 
                 // 5. Chamar a nossa lógica de negócio (O motor que criámos no Passo 2)
-                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, documentFiles);
+                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, mainImageIndex, documentFiles);
 
                 return Results.Ok(new
                 {
@@ -146,13 +148,16 @@ public static class PropertyEndpoints
                     .Select(c => c!)
                     .ToList();
 
+                var mainImageIndex = int.TryParse(form["mainImageIndex"], out var mii) ? mii : -1;
+                var mainRetainedImageId = Guid.TryParse(form["mainRetainedImageId"], out var mrid) ? mrid : (Guid?)null;
+
                 var retainedImageIds = new List<Guid>();
                 if (form.TryGetValue("retainedImageIds", out var ids))
                 {
                     retainedImageIds = ids.Select(id => Guid.Parse(id!.ToString())).ToList();
                 }
 
-                await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories, retainedImageIds);
+                await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories, retainedImageIds, mainImageIndex, mainRetainedImageId);
 
                 return Results.Ok(new { Message = "Imóvel atualizado com sucesso!" });
             }

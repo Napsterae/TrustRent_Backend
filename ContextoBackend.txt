@@ -29,12 +29,12 @@ TrustRent.Api\Endpoints\UserEndpoints.cs
 TrustRent.Api\Properties\launchSettings.json
 TrustRent.Api\wwwroot\temp-uploads
 TrustRent.Api\wwwroot\uploads
-TrustRent.Api\wwwroot\temp-uploads\0289c585-7b3e-4dc4-9bc5-b77a5ddbe624
 TrustRent.Api\wwwroot\uploads\profiles
 TrustRent.Api\wwwroot\uploads\profiles\12232557-7de5-493a-84d5-e9b8291a58ca_1774486198.png
 TrustRent.Api\wwwroot\uploads\profiles\12232557-7de5-493a-84d5-e9b8291a58ca_1774486214.png
 TrustRent.Modules.Catalog\Contracts
 TrustRent.Modules.Catalog\Jobs
+TrustRent.Modules.Catalog\Mappers
 TrustRent.Modules.Catalog\Models
 TrustRent.Modules.Catalog\Repositories
 TrustRent.Modules.Catalog\Services
@@ -44,10 +44,18 @@ TrustRent.Modules.Catalog\Contracts\DTOs
 TrustRent.Modules.Catalog\Contracts\Interfaces
 TrustRent.Modules.Catalog\Contracts\Database\CatalogDbContext.cs
 TrustRent.Modules.Catalog\Contracts\DTOs\CreatePropertyDto.cs
+TrustRent.Modules.Catalog\Contracts\DTOs\DocumentExtractionResultDto.cs
 TrustRent.Modules.Catalog\Contracts\DTOs\PropertySummaryDto.cs
+TrustRent.Modules.Catalog\Contracts\Interfaces\ICatalogUnitOfWork.cs
+TrustRent.Modules.Catalog\Contracts\Interfaces\IDocumentExtractionService.cs
+TrustRent.Modules.Catalog\Contracts\Interfaces\IPropertyRepository.cs
 TrustRent.Modules.Catalog\Contracts\Interfaces\IPropertyService.cs
 TrustRent.Modules.Catalog\Jobs\PropertyUploadJob.cs
+TrustRent.Modules.Catalog\Mappers\PropertyMappers.cs
 TrustRent.Modules.Catalog\Models\Property.cs
+TrustRent.Modules.Catalog\Repositories\CatalogUnitOfWork.cs
+TrustRent.Modules.Catalog\Repositories\PropertyRepository.cs
+TrustRent.Modules.Catalog\Services\DocumentExtractionService.cs
 TrustRent.Modules.Catalog\Services\PropertyService.cs
 TrustRent.Modules.Identity\Contracts
 TrustRent.Modules.Identity\Models
@@ -256,13 +264,18 @@ FICHEIRO: .\TrustRent.Api\appsettings.json
 ================================================
 FICHEIRO: .\TrustRent.Api\Program.cs
 ================================================
+using Hangfire;
+using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TrustRent.Api.Endpoints;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Modules.Catalog.Jobs;
+using TrustRent.Modules.Catalog.Repositories;
 using TrustRent.Modules.Catalog.Services;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
@@ -270,10 +283,6 @@ using TrustRent.Modules.Identity.Repositories;
 using TrustRent.Modules.Identity.Services;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Services;
-using Microsoft.AspNetCore.Http.Features;
-using Hangfire;
-using Hangfire.PostgreSql;
-using TrustRent.Modules.Catalog.Jobs;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -339,14 +348,19 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IPropertyService, PropertyService>();
-
 builder.Services.AddScoped<IOcrService, GoogleVisionOcrService>();
 builder.Services.AddScoped<IImageService, CloudinaryImageService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
-builder.Services.AddScoped<IPropertyUploadJob, PropertyUploadJob>();
+
 //builder.Services.AddScoped<IImageService, R2ImageService>();
+
+/* CATALOG*/
+builder.Services.AddScoped<IPropertyService, PropertyService>();
+builder.Services.AddScoped<IPropertyUploadJob, PropertyUploadJob>();
+builder.Services.AddScoped<IDocumentExtractionService, DocumentExtractionService>();
+builder.Services.AddScoped<IPropertyRepository, PropertyRepository>();
+builder.Services.AddScoped<ICatalogUnitOfWork, CatalogUnitOfWork>();
 
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -667,55 +681,19 @@ public static class PropertyEndpoints
             }
         }).DisableAntiforgery();
 
-        propertyGroup.MapPost("/extract-document", async (HttpRequest request, IOcrService ocrService) =>
+        propertyGroup.MapPost("/extract-document", async (HttpRequest request, IDocumentExtractionService extractionService) =>
         {
             try
             {
                 var form = await request.ReadFormAsync();
                 var file = form.Files.FirstOrDefault();
-                var docType = form["docType"].ToString(); // "caderneta", "certificado", ou "modelo2"
+                var docType = form["docType"].ToString();
 
                 if (file == null || file.Length == 0) return Results.BadRequest(new { Error = "Nenhum ficheiro recebido." });
 
                 using var stream = file.OpenReadStream();
-                // Chama o Google Vision OCR (não guarda nada em disco!)
-                var extractedText = await ocrService.ExtractTextAsync(stream, file.FileName);
-                var normalizedText = extractedText.ToUpperInvariant().Replace("\n", " ");
 
-                object resultData = null;
-
-                // LÓGICA DE EXTRAÇÃO (Tens de afinar as Regex com PDFs reais portugueses)
-                if (docType == "caderneta")
-                {
-                    var matchArtigo = Regex.Match(normalizedText, @"ARTIGO MATRICIAL[:\s]*(\d+)");
-                    var matchFracao = Regex.Match(normalizedText, @"FRAÇÃO[:\s]*([A-Z0-9]+)");
-
-                    resultData = new
-                    {
-                        matrixArticle = matchArtigo.Success ? matchArtigo.Groups[1].Value : null,
-                        propertyFraction = matchFracao.Success ? matchFracao.Groups[1].Value : null
-                    };
-                }
-                else if (docType == "certificado")
-                {
-                    var matchClass = Regex.Match(normalizedText, @"CLASSE ENERG[ÉE]TICA[:\s]*([A-F]\+?)");
-                    var matchNumber = Regex.Match(normalizedText, @"CERTIFICADO N[ºO][:.\s]*([\d\w-]+)");
-
-                    resultData = new
-                    {
-                        energyClass = matchClass.Success ? matchClass.Groups[1].Value : null,
-                        energyCertNumber = matchNumber.Success ? matchNumber.Groups[1].Value : null
-                    };
-                }
-                else if (docType == "modelo2")
-                {
-                    var matchReg = Regex.Match(normalizedText, @"N[ºO] DE REGISTO[:\s]*(\d+)");
-
-                    resultData = new
-                    {
-                        atRegistrationNumber = matchReg.Success ? matchReg.Groups[1].Value : null
-                    };
-                }
+                var resultData = await extractionService.ExtractDataAsync(stream, file.FileName, docType);
 
                 return Results.Ok(resultData);
             }
@@ -872,10 +850,6 @@ FICHEIRO: .\TrustRent.Modules.Catalog\TrustRent.Modules.Catalog.csproj
     <ProjectReference Include="..\TrustRent.Shared\TrustRent.Shared.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Repositories\" />
-  </ItemGroup>
-
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -985,6 +959,20 @@ public record FileDto(Stream Content, string FileName);
 
 
 ================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\DTOs\DocumentExtractionResultDto.cs
+================================================
+namespace TrustRent.Modules.Catalog.Contracts.DTOs;
+
+public record DocumentExtractionResultDto(
+    string? MatrixArticle = null,
+    string? PropertyFraction = null,
+    string? EnergyClass = null,
+    string? EnergyCertNumber = null,
+    string? AtRegistrationNumber = null
+);
+
+
+================================================
 FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\DTOs\PropertySummaryDto.cs
 ================================================
 namespace TrustRent.Modules.Catalog.Contracts.DTOs;
@@ -996,6 +984,50 @@ public record PropertySummaryDto(
     bool IsAvailable,
     string MainImageUrl
 );
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\Interfaces\ICatalogUnitOfWork.cs
+================================================
+namespace TrustRent.Modules.Catalog.Contracts.Interfaces;
+
+public interface ICatalogUnitOfWork : IDisposable
+{
+    IPropertyRepository Properties { get; }
+    Task<int> SaveChangesAsync();
+}
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\Interfaces\IDocumentExtractionService.cs
+================================================
+using TrustRent.Modules.Catalog.Contracts.DTOs;
+
+namespace TrustRent.Modules.Catalog.Contracts.Interfaces;
+
+public interface IDocumentExtractionService
+{
+    Task<DocumentExtractionResultDto> ExtractDataAsync(Stream fileStream, string fileName, string docType);
+}
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\Interfaces\IPropertyRepository.cs
+================================================
+using TrustRent.Modules.Catalog.Models;
+
+namespace TrustRent.Modules.Catalog.Contracts.Interfaces;
+
+public interface IPropertyRepository
+{
+    Task<Property?> GetByIdAsync(Guid id);
+    Task<Property?> GetByIdWithImagesAsync(Guid id);
+    Task<Property?> GetByIdAndLandlordWithImagesAsync(Guid id, Guid landlordId);
+    Task<IEnumerable<Property>> GetByLandlordIdWithImagesAsync(Guid landlordId);
+    Task AddAsync(Property property);
+    Task AddImageAsync(PropertyImage image);
+    void RemoveImages(IEnumerable<PropertyImage> images);
+}
 
 
 ================================================
@@ -1020,6 +1052,7 @@ public interface IPropertyService
 FICHEIRO: .\TrustRent.Modules.Catalog\Jobs\PropertyUploadJob.cs
 ================================================
 using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Shared.Contracts.Interfaces;
 
@@ -1033,20 +1066,20 @@ public interface IPropertyUploadJob
 
 public class PropertyUploadJob : IPropertyUploadJob
 {
-    private readonly CatalogDbContext _context;
+    private readonly ICatalogUnitOfWork _uow;
     private readonly IImageService _imageService;
     private readonly INotificationService _notificationService;
 
-    public PropertyUploadJob(CatalogDbContext context, IImageService imageService, INotificationService notificationService)
+    public PropertyUploadJob(ICatalogUnitOfWork uow, IImageService imageService, INotificationService notificationService)
     {
-        _context = context;
+        _uow = uow;
         _imageService = imageService;
         _notificationService = notificationService;
     }
 
     public async Task ProcessCreationAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories)
     {
-        var property = await _context.Properties.FindAsync(propertyId);
+        var property = await _uow.Properties.GetByIdAsync(propertyId);
         if (property == null) return;
 
         try
@@ -1081,7 +1114,7 @@ public class PropertyUploadJob : IPropertyUploadJob
 
             // 2. Marcar o imóvel como público/processado
             property.IsAvailable = true;
-            await _context.SaveChangesAsync();
+            await _uow.SaveChangesAsync();
 
             // 3. Notificar o Senhorio que o anúncio já está online!
             await _notificationService.SendNotificationAsync(
@@ -1126,7 +1159,7 @@ public class PropertyUploadJob : IPropertyUploadJob
         // 2. FAZER UPLOAD DAS NOVAS IMAGENS (Se existirem)
         if (tempFilePaths.Any())
         {
-            var property = await _context.Properties.FindAsync(propertyId);
+            var property = await _uow.Properties.GetByIdAsync(propertyId);
             if (property == null) return;
 
             try
@@ -1146,7 +1179,7 @@ public class PropertyUploadJob : IPropertyUploadJob
 
                             bool isThisMain = !hasMainImage && (i == 0);
 
-                            _context.PropertyImages.Add(new PropertyImage
+                            await _uow.Properties.AddImageAsync(new PropertyImage
                             {
                                 Id = Guid.NewGuid(),
                                 PropertyId = propertyId,
@@ -1159,7 +1192,7 @@ public class PropertyUploadJob : IPropertyUploadJob
                     }
                 }
 
-                await _context.SaveChangesAsync();
+                await _uow.SaveChangesAsync();
 
                 // Notificar que a atualização das fotos terminou
                 await _notificationService.SendNotificationAsync(
@@ -1182,6 +1215,92 @@ public class PropertyUploadJob : IPropertyUploadJob
                 }
             }
         }
+    }
+}
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Mappers\PropertyMappers.cs
+================================================
+using TrustRent.Modules.Catalog.Contracts.DTOs;
+using TrustRent.Modules.Catalog.Models;
+
+namespace TrustRent.Modules.Catalog.Mappers;
+
+public static class PropertyMappers
+{
+    // Método de extensão para converter um único Property para DTO
+    public static PropertySummaryDto ToSummaryDto(this Property p)
+    {
+        return new PropertySummaryDto(
+            p.Id,
+            p.Title,
+            p.City,
+            p.IsAvailable,
+            p.Images.FirstOrDefault(i => i.IsMain)?.Url ?? ""
+        );
+    }
+
+    // Método de extensão para converter uma lista inteira
+    public static IEnumerable<PropertySummaryDto> ToSummaryDtoList(this IEnumerable<Property> properties)
+    {
+        return properties.Select(p => p.ToSummaryDto());
+    }
+
+    // 1. DTO -> Entidade (Para o Create)
+    public static Property ToEntity(this CreatePropertyDto dto, Guid landlordId)
+    {
+        return new Property
+        {
+            Id = Guid.NewGuid(),
+            LandlordId = landlordId,
+            Title = dto.Title,
+            Description = dto.Description,
+            Price = dto.Price,
+            PropertyType = dto.PropertyType,
+            Typology = dto.Typology,
+            Area = dto.Area,
+            Rooms = dto.Rooms,
+            Bathrooms = dto.Bathrooms,
+            Floor = dto.Floor,
+            HasElevator = dto.HasElevator,
+            HasAirConditioning = dto.HasAirConditioning,
+            HasGarage = dto.HasGarage,
+            AllowsPets = dto.AllowsPets,
+            IsFurnished = dto.IsFurnished,
+            FurnishedDescription = dto.FurnishedDescription,
+            Street = dto.Street,
+            PostalCode = dto.PostalCode,
+            City = dto.City,
+            Latitude = dto.Latitude,
+            Longitude = dto.Longitude,
+            IsAvailable = false
+        };
+    }
+
+    // 2. DTO -> Entidade Existente (Para o Update)
+    public static void UpdateEntity(this CreatePropertyDto dto, Property property)
+    {
+        property.Title = dto.Title;
+        property.Description = dto.Description;
+        property.Price = dto.Price;
+        property.PropertyType = dto.PropertyType;
+        property.Typology = dto.Typology;
+        property.Area = dto.Area;
+        property.Rooms = dto.Rooms;
+        property.Bathrooms = dto.Bathrooms;
+        property.Floor = dto.Floor;
+        property.HasElevator = dto.HasElevator;
+        property.HasAirConditioning = dto.HasAirConditioning;
+        property.HasGarage = dto.HasGarage;
+        property.AllowsPets = dto.AllowsPets;
+        property.IsFurnished = dto.IsFurnished;
+        property.FurnishedDescription = dto.FurnishedDescription;
+        property.Street = dto.Street;
+        property.PostalCode = dto.PostalCode;
+        property.City = dto.City;
+        property.Latitude = dto.Latitude;
+        property.Longitude = dto.Longitude;
     }
 }
 
@@ -1260,58 +1379,159 @@ public class PropertyImage
 
 
 ================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Repositories\CatalogUnitOfWork.cs
+================================================
+using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
+
+namespace TrustRent.Modules.Catalog.Repositories;
+
+public class CatalogUnitOfWork : ICatalogUnitOfWork
+{
+    private readonly CatalogDbContext _context;
+    private IPropertyRepository? _propertyRepository;
+
+    public CatalogUnitOfWork(CatalogDbContext context) => _context = context;
+
+    public IPropertyRepository Properties => _propertyRepository ??= new PropertyRepository(_context);
+
+    public async Task<int> SaveChangesAsync() => await _context.SaveChangesAsync();
+
+    public void Dispose() => _context.Dispose();
+}
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Repositories\PropertyRepository.cs
+================================================
+using Microsoft.EntityFrameworkCore;
+using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Modules.Catalog.Models;
+
+namespace TrustRent.Modules.Catalog.Repositories;
+
+public class PropertyRepository : IPropertyRepository
+{
+    private readonly CatalogDbContext _context;
+
+    public PropertyRepository(CatalogDbContext context) => _context = context;
+
+    public async Task<Property?> GetByIdAsync(Guid id) =>
+        await _context.Properties.FindAsync(id);
+
+    public async Task<Property?> GetByIdWithImagesAsync(Guid id) =>
+        await _context.Properties.Include(p => p.Images).FirstOrDefaultAsync(p => p.Id == id);
+
+    public async Task<Property?> GetByIdAndLandlordWithImagesAsync(Guid id, Guid landlordId) =>
+        await _context.Properties.Include(p => p.Images).FirstOrDefaultAsync(p => p.Id == id && p.LandlordId == landlordId);
+
+    public async Task<IEnumerable<Property>> GetByLandlordIdWithImagesAsync(Guid landlordId) =>
+        await _context.Properties.Include(p => p.Images).Where(p => p.LandlordId == landlordId).OrderByDescending(p => p.CreatedAt).ToListAsync();
+
+    public async Task AddAsync(Property property) =>
+        await _context.Properties.AddAsync(property);
+
+    public async Task AddImageAsync(PropertyImage image) =>
+        await _context.PropertyImages.AddAsync(image);
+
+    public void RemoveImages(IEnumerable<PropertyImage> images) =>
+        _context.PropertyImages.RemoveRange(images);
+}
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Services\DocumentExtractionService.cs
+================================================
+using System.Text.RegularExpressions;
+using TrustRent.Modules.Catalog.Contracts.DTOs;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Shared.Contracts.Interfaces;
+
+namespace TrustRent.Modules.Catalog.Services;
+
+public class DocumentExtractionService : IDocumentExtractionService
+{
+    private readonly IOcrService _ocrService;
+
+    public DocumentExtractionService(IOcrService ocrService)
+    {
+        _ocrService = ocrService;
+    }
+
+    public async Task<DocumentExtractionResultDto> ExtractDataAsync(Stream fileStream, string fileName, string docType)
+    {
+        var extractedText = await _ocrService.ExtractTextAsync(fileStream, fileName);
+        var normalizedText = extractedText.ToUpperInvariant().Replace("\n", " ");
+
+        var result = new DocumentExtractionResultDto();
+
+        if (docType == "caderneta")
+        {
+            var matchArtigo = Regex.Match(normalizedText, @"ARTIGO MATRICIAL[:\s]*(\d+)");
+            var matchFracao = Regex.Match(normalizedText, @"FRAÇÃO[:\s]*([A-Z0-9]+)");
+
+            result = result with
+            {
+                MatrixArticle = matchArtigo.Success ? matchArtigo.Groups[1].Value : null,
+                PropertyFraction = matchFracao.Success ? matchFracao.Groups[1].Value : null
+            };
+        }
+        else if (docType == "certificado")
+        {
+            var matchClass = Regex.Match(normalizedText, @"CLASSE ENERG[ÉE]TICA[:\s]*([A-F]\+?)");
+            var matchNumber = Regex.Match(normalizedText, @"CERTIFICADO N[ºO][:.\s]*([\d\w-]+)");
+
+            result = result with
+            {
+                EnergyClass = matchClass.Success ? matchClass.Groups[1].Value : null,
+                EnergyCertNumber = matchNumber.Success ? matchNumber.Groups[1].Value : null
+            };
+        }
+        else if (docType == "modelo2")
+        {
+            var matchReg = Regex.Match(normalizedText, @"N[ºO] DE REGISTO[:\s]*(\d+)");
+
+            result = result with
+            {
+                AtRegistrationNumber = matchReg.Success ? matchReg.Groups[1].Value : null
+            };
+        }
+
+        return result;
+    }
+}
+
+
+================================================
 FICHEIRO: .\TrustRent.Modules.Catalog\Services\PropertyService.cs
 ================================================
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Modules.Catalog.Mappers;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Shared.Contracts.Interfaces;
-using Hangfire;
 
 namespace TrustRent.Modules.Catalog.Services;
 
 public class PropertyService : IPropertyService
 {
-    private readonly CatalogDbContext _context;
+    private readonly ICatalogUnitOfWork _uow;
     private readonly IBackgroundJobClient _backgroundJobs;
 
-    public PropertyService(CatalogDbContext context, IBackgroundJobClient backgroundJobs)
+    public PropertyService(ICatalogUnitOfWork uow, IBackgroundJobClient backgroundJobs)
     {
-        _context = context;
+        _uow = uow;
         _backgroundJobs = backgroundJobs;
     }
 
     public async Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IList<string> imageCategories, IEnumerable<FileDto> documents)
     {
         // 1. Mapear o DTO para o nosso Modelo da Base de Dados
-        var property = new Property
-        {
-            Id = Guid.NewGuid(),
-            LandlordId = landlordId,
-            Title = dto.Title,
-            Description = dto.Description,
-            Price = dto.Price,
-            PropertyType = dto.PropertyType,
-            Typology = dto.Typology,
-            Area = dto.Area,
-            Rooms = dto.Rooms,
-            Bathrooms = dto.Bathrooms,
-            Floor = dto.Floor,
-            HasElevator = dto.HasElevator,
-            HasAirConditioning = dto.HasAirConditioning,
-            HasGarage = dto.HasGarage,
-            AllowsPets = dto.AllowsPets,
-            IsFurnished = dto.IsFurnished,
-            FurnishedDescription = dto.FurnishedDescription,
-            Street = dto.Street,
-            PostalCode = dto.PostalCode,
-            City = dto.City,
-            Latitude = dto.Latitude,
-            Longitude = dto.Longitude,
-            IsAvailable = false
-        };
+        var property = dto.ToEntity(landlordId);
 
         var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", property.Id.ToString());
         Directory.CreateDirectory(tempFolder);
@@ -1335,84 +1555,20 @@ public class PropertyService : IPropertyService
             job.ProcessCreationAsync(property.Id, landlordId, savedFilePaths, imageCategories.ToList())
         );
 
-        /*
-        // 2. Processar e fazer Upload das Imagens
-        var newImagesList = images.ToList();
-        for (int i = 0; i < newImagesList.Count; i++)
-        {
-            var img = newImagesList[i];
-
-            // Garante que apanhamos a categoria certa, ou "Geral" se falhar
-            var category = (imageCategories != null && i < imageCategories.Count)
-                ? imageCategories[i]
-                : "Geral";
-
-            if (img.Content.Length > 0)
-            {
-                var imageUrl = await _imageService.UploadImageAsync(img.Content, img.FileName, $"properties/{property.Id}");
-                property.Images.Add(new PropertyImage
-                {
-                    Id = Guid.NewGuid(),
-                    PropertyId = property.Id,
-                    Url = imageUrl,
-                    Category = category, // <--- AGORA USA A CATEGORIA REAL
-                    IsMain = false
-                });
-            }
-        }
-
-        // 3. Processar Documentos (Caderneta, etc)
-        // (Futuramente podemos usar uma pasta diferente no Cloudinary ou S3 para PDFs)
-        foreach (var doc in documents)
-        {
-            if (doc.Content.Length > 0)
-            {
-                var docUrl = await _imageService.UploadImageAsync(doc.Content, doc.FileName, $"properties/{property.Id}/docs");
-
-                property.Documents.Add(new PropertyDocument
-                {
-                    Id = Guid.NewGuid(),
-                    PropertyId = property.Id,
-                    Url = docUrl,
-                    DocumentType = "Documento" // Pode ser extraído no Frontend depois
-                });
-            }
-        }
-
-        // 4. Guardar tudo na Base de Dados
-        _context.Properties.Add(property);
-        await _context.SaveChangesAsync();
-        */
-
         return property.Id; // Devolvemos o ID para o Frontend poder redirecionar o utilizador
     }
 
     public async Task<IEnumerable<PropertySummaryDto>> GetPropertiesByLandlordAsync(Guid landlordId)
     {
-        var properties = await _context.Properties
-            .Include(p => p.Images) // Precisamos das imagens para ir buscar a capa
-            .Where(p => p.LandlordId == landlordId)
-            .OrderByDescending(p => p.CreatedAt)
-            .Select(p => new PropertySummaryDto(
-                p.Id,
-                p.Title,
-                p.City,
-                p.IsAvailable,
-                p.Images.FirstOrDefault(i => i.IsMain) != null
-                    ? p.Images.FirstOrDefault(i => i.IsMain)!.Url
-                    : "" // Fallback caso não tenha imagem (embora no teu create seja obrigatório)
-            ))
-            .ToListAsync();
+        var properties = await _uow.Properties.GetByLandlordIdWithImagesAsync(landlordId);
 
-        return properties;
+        return properties.ToSummaryDtoList();
     }
 
     // Vai buscar o imóvel e traz as imagens agarradas
     public async Task<Property?> GetPropertyByIdAsync(Guid propertyId)
     {
-        return await _context.Properties
-            .Include(p => p.Images)
-            .FirstOrDefaultAsync(p => p.Id == propertyId);
+        return await _uow.Properties.GetByIdWithImagesAsync(propertyId);
     }
 
     // Atualiza os dados de texto e adiciona novas imagens se existirem
@@ -1424,33 +1580,12 @@ public class PropertyService : IPropertyService
         IList<string> imageCategories,
         IList<Guid> retainedImageIds)
     {
-        var property = await _context.Properties
-            .Include(p => p.Images)
-            .FirstOrDefaultAsync(p => p.Id == propertyId && p.LandlordId == landlordId);
+        var property = await _uow.Properties.GetByIdAndLandlordWithImagesAsync(propertyId, landlordId);
 
         if (property == null) throw new Exception("Imóvel não encontrado ou não te pertence.");
 
         // Atualizar campos de texto
-        property.Title = dto.Title;
-        property.Description = dto.Description;
-        property.Price = dto.Price;
-        property.PropertyType = dto.PropertyType;
-        property.Typology = dto.Typology;
-        property.Area = dto.Area;
-        property.Rooms = dto.Rooms;
-        property.Bathrooms = dto.Bathrooms;
-        property.Floor = dto.Floor;
-        property.HasElevator = dto.HasElevator;
-        property.HasAirConditioning = dto.HasAirConditioning;
-        property.HasGarage = dto.HasGarage;
-        property.AllowsPets = dto.AllowsPets;
-        property.IsFurnished = dto.IsFurnished;
-        property.FurnishedDescription = dto.FurnishedDescription;
-        property.Street = dto.Street;
-        property.PostalCode = dto.PostalCode;
-        property.City = dto.City;
-        property.Latitude = dto.Latitude;
-        property.Longitude = dto.Longitude;
+        dto.UpdateEntity(property);
 
         var imagesToRemove = property.Images.Where(img => !retainedImageIds.Contains(img.Id)).ToList();
         var urlsToDeleteFromCloud = new List<string>();
@@ -1484,7 +1619,7 @@ public class PropertyService : IPropertyService
             }
         }
 
-        await _context.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
 
         if (urlsToDeleteFromCloud.Any() || savedFilePaths.Any())
         {

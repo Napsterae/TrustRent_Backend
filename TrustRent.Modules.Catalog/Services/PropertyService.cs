@@ -20,7 +20,13 @@ public class PropertyService : IPropertyService
         _backgroundJobs = backgroundJobs;
     }
 
-    public async Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IList<string> imageCategories, IEnumerable<FileDto> documents)
+    public async Task<Guid> CreatePropertyAsync(
+        Guid landlordId, 
+        CreatePropertyDto dto, 
+        IEnumerable<FileDto> images, 
+        IList<string> imageCategories, 
+        int mainImageIndex, 
+        IEnumerable<FileDto> documents)
     {
         // 1. Mapear o DTO para o nosso Modelo da Base de Dados
         var property = dto.ToEntity(landlordId);
@@ -44,7 +50,7 @@ public class PropertyService : IPropertyService
         }
 
         _backgroundJobs.Enqueue<Jobs.IPropertyUploadJob>(job =>
-            job.ProcessCreationAsync(property.Id, landlordId, savedFilePaths, imageCategories.ToList())
+            job.ProcessCreationAsync(property.Id, landlordId, savedFilePaths, imageCategories.ToList(), mainImageIndex)
         );
 
         return property.Id; // Devolvemos o ID para o Frontend poder redirecionar o utilizador
@@ -69,8 +75,10 @@ public class PropertyService : IPropertyService
         Guid landlordId, 
         CreatePropertyDto dto, 
         IEnumerable<FileDto> newImages, 
-        IList<string> imageCategories,
-        IList<Guid> retainedImageIds)
+        IList<string> imageCategories, 
+        IList<Guid> retainedImageIds, 
+        int mainImageIndex, 
+        Guid? mainRetainedImageId)
     {
         var property = await _uow.Properties.GetByIdAndLandlordWithImagesAsync(propertyId, landlordId);
 
@@ -88,7 +96,20 @@ public class PropertyService : IPropertyService
             property.Images.Remove(img);
         }
 
-        if (property.Images.Any() && !property.Images.Any(img => img.IsMain))
+        // 1. Resetar TODAS as imagens antigas que ficaram (retained) para IsMain = false
+        foreach (var img in property.Images)
+        {
+            img.IsMain = false;
+        }
+
+        // 2. Se a imagem principal for uma das antigas, ativamo-la já na Base de Dados
+        if (mainRetainedImageId.HasValue && mainRetainedImageId.Value != Guid.Empty)
+        {
+            var mainImg = property.Images.FirstOrDefault(i => i.Id == mainRetainedImageId.Value);
+            if (mainImg != null) mainImg.IsMain = true;
+        }
+        // Fallback de Segurança: Se não há nova imagem principal E não há imagem retida principal, assumimos a primeira das retidas
+        else if (mainImageIndex < 0 && property.Images.Any())
         {
             property.Images.First().IsMain = true;
         }
@@ -116,7 +137,7 @@ public class PropertyService : IPropertyService
         if (urlsToDeleteFromCloud.Any() || savedFilePaths.Any())
         {
             _backgroundJobs.Enqueue<Jobs.IPropertyUploadJob>(job =>
-                job.ProcessEditAsync(propertyId, landlordId, savedFilePaths, imageCategories.ToList(), urlsToDeleteFromCloud)
+                job.ProcessEditAsync(propertyId, landlordId, savedFilePaths, imageCategories.ToList(), urlsToDeleteFromCloud, mainImageIndex)
             );
         }
     }
