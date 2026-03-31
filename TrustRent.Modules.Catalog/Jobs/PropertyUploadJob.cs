@@ -59,8 +59,6 @@ public class PropertyUploadJob : IPropertyUploadJob
                 }
             }
 
-            // 2. Marcar o imóvel como público/processado
-            property.IsAvailable = true;
             await _uow.SaveChangesAsync();
 
             // 3. Notificar o Senhorio que o anúncio já está online!
@@ -78,6 +76,13 @@ public class PropertyUploadJob : IPropertyUploadJob
         }
         finally
         {
+            var exProperty = await _uow.Properties.GetByIdAsync(propertyId);
+            if (exProperty != null)
+            {
+                exProperty.IsUnderMaintenance = false;
+                await _uow.SaveChangesAsync();
+            }
+
             // Limpar a pasta temporária do imóvel (caso tenha ficado vazia)
             var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", propertyId.ToString());
             if (Directory.Exists(tempFolder) && !Directory.EnumerateFileSystemEntries(tempFolder).Any())
@@ -155,6 +160,13 @@ public class PropertyUploadJob : IPropertyUploadJob
             }
             finally
             {
+                var exProperty = await _uow.Properties.GetByIdAsync(propertyId);
+                if (exProperty != null)
+                {
+                    exProperty.IsUnderMaintenance = false;
+                    await _uow.SaveChangesAsync();
+                }
+
                 var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", propertyId.ToString());
                 if (Directory.Exists(tempFolder) && !Directory.EnumerateFileSystemEntries(tempFolder).Any())
                 {

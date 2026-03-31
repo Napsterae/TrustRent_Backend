@@ -29,6 +29,7 @@ TrustRent.Api\Endpoints\UserEndpoints.cs
 TrustRent.Api\Properties\launchSettings.json
 TrustRent.Api\wwwroot\temp-uploads
 TrustRent.Api\wwwroot\uploads
+TrustRent.Api\wwwroot\temp-uploads\0289c585-7b3e-4dc4-9bc5-b77a5ddbe624
 TrustRent.Api\wwwroot\uploads\profiles
 TrustRent.Api\wwwroot\uploads\profiles\12232557-7de5-493a-84d5-e9b8291a58ca_1774486198.png
 TrustRent.Api\wwwroot\uploads\profiles\12232557-7de5-493a-84d5-e9b8291a58ca_1774486214.png
@@ -572,6 +573,8 @@ public static class PropertyEndpoints
                     IsFurnished = form["isFurnished"] == "true",
                 };
 
+                var mainImageIndex = int.TryParse(form["mainImageIndex"], out var mii) ? mii : 0;
+
                 // 4. Apanhar as listas de ficheiros (Imagens e Documentos)
                 var imageFiles = form.Files.GetFiles("images")
                     .Select(f => new FileDto(f.OpenReadStream(), f.FileName)).ToList();
@@ -585,7 +588,7 @@ public static class PropertyEndpoints
                     .ToList();
 
                 // 5. Chamar a nossa lógica de negócio (O motor que criámos no Passo 2)
-                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, documentFiles);
+                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, mainImageIndex, documentFiles);
 
                 return Results.Ok(new
                 {
@@ -665,13 +668,16 @@ public static class PropertyEndpoints
                     .Select(c => c!)
                     .ToList();
 
+                var mainImageIndex = int.TryParse(form["mainImageIndex"], out var mii) ? mii : -1;
+                var mainRetainedImageId = Guid.TryParse(form["mainRetainedImageId"], out var mrid) ? mrid : (Guid?)null;
+
                 var retainedImageIds = new List<Guid>();
                 if (form.TryGetValue("retainedImageIds", out var ids))
                 {
                     retainedImageIds = ids.Select(id => Guid.Parse(id!.ToString())).ToList();
                 }
 
-                await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories, retainedImageIds);
+                await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories, retainedImageIds, mainImageIndex, mainRetainedImageId);
 
                 return Results.Ok(new { Message = "Imóvel atualizado com sucesso!" });
             }
@@ -1040,11 +1046,11 @@ namespace TrustRent.Modules.Catalog.Contracts.Interfaces;
 
 public interface IPropertyService
 {
-    Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IList<string> imageCategories, IEnumerable<FileDto> documents);
+    Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IList<string> imageCategories, int mainImageIndex, IEnumerable<FileDto> documents);
     Task<IEnumerable<PropertySummaryDto>> GetPropertiesByLandlordAsync(Guid landlordId);
 
     Task<Property?> GetPropertyByIdAsync(Guid propertyId);
-    Task UpdatePropertyAsync(Guid propertyId, Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> newImages, IList<string> imageCategories, IList<Guid> retainedImageIds);
+    Task UpdatePropertyAsync(Guid propertyId, Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> newImages, IList<string> imageCategories, IList<Guid> retainedImageIds, int mainImageIndex, Guid? mainRetainedImageId);
 }
 
 
@@ -1060,8 +1066,8 @@ namespace TrustRent.Modules.Catalog.Jobs;
 
 public interface IPropertyUploadJob
 {
-    Task ProcessCreationAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories);
-    Task ProcessEditAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, List<string> imageUrlsToDelete);
+    Task ProcessCreationAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, int mainImageIndex);
+    Task ProcessEditAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, List<string> imageUrlsToDelete, int mainImageIndex);
 }
 
 public class PropertyUploadJob : IPropertyUploadJob
@@ -1077,7 +1083,7 @@ public class PropertyUploadJob : IPropertyUploadJob
         _notificationService = notificationService;
     }
 
-    public async Task ProcessCreationAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories)
+    public async Task ProcessCreationAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, int mainImageIndex)
     {
         var property = await _uow.Properties.GetByIdAsync(propertyId);
         if (property == null) return;
@@ -1103,7 +1109,7 @@ public class PropertyUploadJob : IPropertyUploadJob
                             PropertyId = propertyId,
                             Url = imageUrl,
                             Category = category,
-                            IsMain = (i == 0) // A primeira é a capa
+                            IsMain = (i == mainImageIndex)
                         });
                     }
 
@@ -1140,7 +1146,7 @@ public class PropertyUploadJob : IPropertyUploadJob
         }
     }
 
-    public async Task ProcessEditAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, List<string> imageUrlsToDelete)
+    public async Task ProcessEditAsync(Guid propertyId, Guid landlordId, List<string> tempFilePaths, List<string> categories, List<string> imageUrlsToDelete, int mainImageIndex)
     {
         // 1. APAGAR AS IMAGENS VELHAS DA CLOUD (Em background)
         foreach (var urlToDelete in imageUrlsToDelete)
@@ -1177,7 +1183,7 @@ public class PropertyUploadJob : IPropertyUploadJob
                         {
                             var imageUrl = await _imageService.UploadImageAsync(stream, Path.GetFileName(filePath), $"properties/{propertyId}");
 
-                            bool isThisMain = !hasMainImage && (i == 0);
+                            bool isThisMain = (i == mainImageIndex);
 
                             await _uow.Properties.AddImageAsync(new PropertyImage
                             {
@@ -1528,7 +1534,13 @@ public class PropertyService : IPropertyService
         _backgroundJobs = backgroundJobs;
     }
 
-    public async Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IList<string> imageCategories, IEnumerable<FileDto> documents)
+    public async Task<Guid> CreatePropertyAsync(
+        Guid landlordId, 
+        CreatePropertyDto dto, 
+        IEnumerable<FileDto> images, 
+        IList<string> imageCategories, 
+        int mainImageIndex, 
+        IEnumerable<FileDto> documents)
     {
         // 1. Mapear o DTO para o nosso Modelo da Base de Dados
         var property = dto.ToEntity(landlordId);
@@ -1552,7 +1564,7 @@ public class PropertyService : IPropertyService
         }
 
         _backgroundJobs.Enqueue<Jobs.IPropertyUploadJob>(job =>
-            job.ProcessCreationAsync(property.Id, landlordId, savedFilePaths, imageCategories.ToList())
+            job.ProcessCreationAsync(property.Id, landlordId, savedFilePaths, imageCategories.ToList(), mainImageIndex)
         );
 
         return property.Id; // Devolvemos o ID para o Frontend poder redirecionar o utilizador
@@ -1577,8 +1589,10 @@ public class PropertyService : IPropertyService
         Guid landlordId, 
         CreatePropertyDto dto, 
         IEnumerable<FileDto> newImages, 
-        IList<string> imageCategories,
-        IList<Guid> retainedImageIds)
+        IList<string> imageCategories, 
+        IList<Guid> retainedImageIds, 
+        int mainImageIndex, 
+        Guid? mainRetainedImageId)
     {
         var property = await _uow.Properties.GetByIdAndLandlordWithImagesAsync(propertyId, landlordId);
 
@@ -1596,7 +1610,20 @@ public class PropertyService : IPropertyService
             property.Images.Remove(img);
         }
 
-        if (property.Images.Any() && !property.Images.Any(img => img.IsMain))
+        // 1. Resetar TODAS as imagens antigas que ficaram (retained) para IsMain = false
+        foreach (var img in property.Images)
+        {
+            img.IsMain = false;
+        }
+
+        // 2. Se a imagem principal for uma das antigas, ativamo-la já na Base de Dados
+        if (mainRetainedImageId.HasValue && mainRetainedImageId.Value != Guid.Empty)
+        {
+            var mainImg = property.Images.FirstOrDefault(i => i.Id == mainRetainedImageId.Value);
+            if (mainImg != null) mainImg.IsMain = true;
+        }
+        // Fallback de Segurança: Se não há nova imagem principal E não há imagem retida principal, assumimos a primeira das retidas
+        else if (mainImageIndex < 0 && property.Images.Any())
         {
             property.Images.First().IsMain = true;
         }
@@ -1624,7 +1651,7 @@ public class PropertyService : IPropertyService
         if (urlsToDeleteFromCloud.Any() || savedFilePaths.Any())
         {
             _backgroundJobs.Enqueue<Jobs.IPropertyUploadJob>(job =>
-                job.ProcessEditAsync(propertyId, landlordId, savedFilePaths, imageCategories.ToList(), urlsToDeleteFromCloud)
+                job.ProcessEditAsync(propertyId, landlordId, savedFilePaths, imageCategories.ToList(), urlsToDeleteFromCloud, mainImageIndex)
             );
         }
     }

@@ -34,7 +34,8 @@ public class Property
     public double Longitude { get; set; }
 
     // Status da Plataforma
-    public bool IsAvailable { get; set; } = false; // Se está público ou é rascunho
+    public bool IsPublic { get; set; } = false;
+    public bool IsUnderMaintenance { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 

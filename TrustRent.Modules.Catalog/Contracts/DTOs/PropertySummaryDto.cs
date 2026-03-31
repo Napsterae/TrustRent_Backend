@@ -4,6 +4,7 @@ public record PropertySummaryDto(
     Guid Id,
     string Title,
     string City,
-    bool IsAvailable,
+    bool IsPublic,
+    bool IsUnderMaintenance,
     string MainImageUrl
 );

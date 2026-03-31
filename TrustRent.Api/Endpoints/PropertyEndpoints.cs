@@ -51,6 +51,9 @@ public static class PropertyEndpoints
                     HasGarage = form["hasGarage"] == "true",
                     AllowsPets = form["allowsPets"] == "true",
                     IsFurnished = form["isFurnished"] == "true",
+
+                    IsPublic = form["isPublic"] == "true",
+                    //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
                 };
 
                 var mainImageIndex = int.TryParse(form["mainImageIndex"], out var mii) ? mii : 0;
@@ -137,6 +140,8 @@ public static class PropertyEndpoints
                     HasGarage = form["hasGarage"] == "true",
                     AllowsPets = form["allowsPets"] == "true",
                     IsFurnished = form["isFurnished"] == "true",
+                    IsPublic = form["isPublic"] == "true",
+                    //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
                 };
 
                 // Apanhar apenas as NOVAS imagens adicionadas na edição

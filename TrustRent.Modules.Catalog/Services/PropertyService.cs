@@ -49,6 +49,8 @@ public class PropertyService : IPropertyService
             }
         }
 
+        property.IsUnderMaintenance = true;
+
         _backgroundJobs.Enqueue<Jobs.IPropertyUploadJob>(job =>
             job.ProcessCreationAsync(property.Id, landlordId, savedFilePaths, imageCategories.ToList(), mainImageIndex)
         );
@@ -132,9 +134,16 @@ public class PropertyService : IPropertyService
             }
         }
 
+        bool requiresBackgroundProcessing = urlsToDeleteFromCloud.Any() || savedFilePaths.Any();
+
+        if (requiresBackgroundProcessing)
+        {
+            property.IsUnderMaintenance = true;
+        }
+
         await _uow.SaveChangesAsync();
 
-        if (urlsToDeleteFromCloud.Any() || savedFilePaths.Any())
+        if (requiresBackgroundProcessing)
         {
             _backgroundJobs.Enqueue<Jobs.IPropertyUploadJob>(job =>
                 job.ProcessEditAsync(propertyId, landlordId, savedFilePaths, imageCategories.ToList(), urlsToDeleteFromCloud, mainImageIndex)

@@ -12,7 +12,8 @@ public static class PropertyMappers
             p.Id,
             p.Title,
             p.City,
-            p.IsAvailable,
+            p.IsPublic,
+            p.IsUnderMaintenance,
             p.Images.FirstOrDefault(i => i.IsMain)?.Url ?? ""
         );
     }
@@ -50,7 +51,7 @@ public static class PropertyMappers
             City = dto.City,
             Latitude = dto.Latitude,
             Longitude = dto.Longitude,
-            IsAvailable = false
+            IsPublic = dto.IsPublic,
         };
     }
 
@@ -77,5 +78,6 @@ public static class PropertyMappers
         property.City = dto.City;
         property.Latitude = dto.Latitude;
         property.Longitude = dto.Longitude;
+        property.IsPublic = dto.IsPublic;
     }
 }
