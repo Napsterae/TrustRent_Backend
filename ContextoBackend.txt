@@ -46,6 +46,7 @@ TrustRent.Modules.Catalog\Contracts\Interfaces
 TrustRent.Modules.Catalog\Contracts\Database\CatalogDbContext.cs
 TrustRent.Modules.Catalog\Contracts\DTOs\CreatePropertyDto.cs
 TrustRent.Modules.Catalog\Contracts\DTOs\DocumentExtractionResultDto.cs
+TrustRent.Modules.Catalog\Contracts\DTOs\PropertySearchQuery.cs
 TrustRent.Modules.Catalog\Contracts\DTOs\PropertySummaryDto.cs
 TrustRent.Modules.Catalog\Contracts\Interfaces\ICatalogUnitOfWork.cs
 TrustRent.Modules.Catalog\Contracts\Interfaces\IDocumentExtractionService.cs
@@ -554,7 +555,10 @@ public static class PropertyEndpoints
                     Floor = form["floor"].ToString(),
                     Street = form["street"].ToString(),
                     PostalCode = form["postalCode"].ToString(),
-                    City = form["city"].ToString(),
+                    District = form["district"].ToString(),
+                    Municipality = form["municipality"].ToString(),
+                    Parish = form["parish"].ToString(),
+                    DoorNumber = form["doorNumber"].ToString(),
                     FurnishedDescription = form["furnishedDescription"].ToString(),
 
                     // Conversões seguras de números (se falhar, mete 0)
@@ -571,6 +575,9 @@ public static class PropertyEndpoints
                     HasGarage = form["hasGarage"] == "true",
                     AllowsPets = form["allowsPets"] == "true",
                     IsFurnished = form["isFurnished"] == "true",
+
+                    IsPublic = form["isPublic"] == "true",
+                    //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
                 };
 
                 var mainImageIndex = int.TryParse(form["mainImageIndex"], out var mii) ? mii : 0;
@@ -644,7 +651,10 @@ public static class PropertyEndpoints
                     Floor = form["floor"].ToString(),
                     Street = form["street"].ToString(),
                     PostalCode = form["postalCode"].ToString(),
-                    City = form["city"].ToString(),
+                    District = form["district"].ToString(),
+                    Municipality = form["municipality"].ToString(),
+                    Parish = form["parish"].ToString(),
+                    DoorNumber = form["doorNumber"].ToString(),
                     FurnishedDescription = form["furnishedDescription"].ToString(),
                     Price = decimal.TryParse(form["price"], out var p) ? p : 0,
                     Area = decimal.TryParse(form["area"], out var a) ? a : 0,
@@ -657,6 +667,8 @@ public static class PropertyEndpoints
                     HasGarage = form["hasGarage"] == "true",
                     AllowsPets = form["allowsPets"] == "true",
                     IsFurnished = form["isFurnished"] == "true",
+                    IsPublic = form["isPublic"] == "true",
+                    //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
                 };
 
                 // Apanhar apenas as NOVAS imagens adicionadas na edição
@@ -708,6 +720,19 @@ public static class PropertyEndpoints
                 return Results.BadRequest(new { Error = ex.Message });
             }
         }).DisableAntiforgery();
+
+        app.MapGet("/api/properties", async ([AsParameters] PropertySearchQuery query, IPropertyService propertyService) =>
+        {
+            try
+            {
+                var result = await propertyService.SearchPropertiesAsync(query);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
 
     }
 }
@@ -922,6 +947,8 @@ namespace TrustRent.Modules.Catalog.Contracts.DTOs;
 
 public class CreatePropertyDto
 {
+    public bool IsPublic { get; set; }
+
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public decimal Price { get; set; }
@@ -942,8 +969,11 @@ public class CreatePropertyDto
 
     // Localização
     public string Street { get; set; } = string.Empty;
+    public string District { get; set; } = string.Empty;
+    public string Municipality { get; set; } = string.Empty;
+    public string Parish { get; set; } = string.Empty;
+    public string DoorNumber { get; set; } = string.Empty;
     public string PostalCode { get; set; } = string.Empty;
-    public string City { get; set; } = string.Empty;
     public double Latitude { get; set; }
     public double Longitude { get; set; }
 
@@ -979,6 +1009,60 @@ public record DocumentExtractionResultDto(
 
 
 ================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\DTOs\PropertySearchQuery.cs
+================================================
+namespace TrustRent.Modules.Catalog.Contracts.DTOs;
+
+// Modelo para receber os filtros do Frontend
+public class PropertySearchQuery
+{
+    public string? SearchTerm { get; set; }
+    public string? Type { get; set; }
+    public string? Typologies { get; set; }
+    public decimal? MinPrice { get; set; }
+    public decimal? MaxPrice { get; set; }
+    public string? Locations { get; set; }
+
+    // Comodidades
+    public bool? HasElevator { get; set; }
+    public bool? HasAirConditioning { get; set; }
+    public bool? HasGarage { get; set; }
+    public bool? AllowsPets { get; set; }
+    public bool? IsFurnished { get; set; }
+
+    // Paginação para o Scroll Infinito
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 9; // 9 fica bem numa grelha de 3 colunas
+}
+
+// Resposta genérica paginada
+public class PagedResult<T>
+{
+    public IEnumerable<T> Items { get; set; } = new List<T>();
+    public int TotalCount { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public bool HasNextPage => Page * PageSize < TotalCount;
+}
+
+// DTO Específico para o Card de Pesquisa (Evita enviar dados desnecessários)
+public record PropertySearchDto(
+    Guid Id,
+    string Title,
+    string Municipality,
+    string Parish,
+    decimal Price,
+    string PropertyType,
+    string Typology,
+    decimal Area,
+    int Rooms,
+    int Bathrooms,
+    bool AllowsPets,
+    string MainImageUrl
+);
+
+
+================================================
 FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\DTOs\PropertySummaryDto.cs
 ================================================
 namespace TrustRent.Modules.Catalog.Contracts.DTOs;
@@ -986,8 +1070,11 @@ namespace TrustRent.Modules.Catalog.Contracts.DTOs;
 public record PropertySummaryDto(
     Guid Id,
     string Title,
-    string City,
-    bool IsAvailable,
+    string District,
+    string Municipality,
+    string Parish,
+    bool IsPublic,
+    bool IsUnderMaintenance,
     string MainImageUrl
 );
 
@@ -1020,6 +1107,7 @@ public interface IDocumentExtractionService
 ================================================
 FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\Interfaces\IPropertyRepository.cs
 ================================================
+using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Models;
 
 namespace TrustRent.Modules.Catalog.Contracts.Interfaces;
@@ -1033,6 +1121,7 @@ public interface IPropertyRepository
     Task AddAsync(Property property);
     Task AddImageAsync(PropertyImage image);
     void RemoveImages(IEnumerable<PropertyImage> images);
+    Task<(IEnumerable<Property> Items, int TotalCount)> SearchAsync(PropertySearchQuery query);
 }
 
 
@@ -1048,9 +1137,9 @@ public interface IPropertyService
 {
     Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IList<string> imageCategories, int mainImageIndex, IEnumerable<FileDto> documents);
     Task<IEnumerable<PropertySummaryDto>> GetPropertiesByLandlordAsync(Guid landlordId);
-
     Task<Property?> GetPropertyByIdAsync(Guid propertyId);
     Task UpdatePropertyAsync(Guid propertyId, Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> newImages, IList<string> imageCategories, IList<Guid> retainedImageIds, int mainImageIndex, Guid? mainRetainedImageId);
+    Task<PagedResult<PropertySearchDto>> SearchPropertiesAsync(PropertySearchQuery query);
 }
 
 
@@ -1118,8 +1207,6 @@ public class PropertyUploadJob : IPropertyUploadJob
                 }
             }
 
-            // 2. Marcar o imóvel como público/processado
-            property.IsAvailable = true;
             await _uow.SaveChangesAsync();
 
             // 3. Notificar o Senhorio que o anúncio já está online!
@@ -1137,6 +1224,13 @@ public class PropertyUploadJob : IPropertyUploadJob
         }
         finally
         {
+            var exProperty = await _uow.Properties.GetByIdAsync(propertyId);
+            if (exProperty != null)
+            {
+                exProperty.IsUnderMaintenance = false;
+                await _uow.SaveChangesAsync();
+            }
+
             // Limpar a pasta temporária do imóvel (caso tenha ficado vazia)
             var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", propertyId.ToString());
             if (Directory.Exists(tempFolder) && !Directory.EnumerateFileSystemEntries(tempFolder).Any())
@@ -1214,6 +1308,13 @@ public class PropertyUploadJob : IPropertyUploadJob
             }
             finally
             {
+                var exProperty = await _uow.Properties.GetByIdAsync(propertyId);
+                if (exProperty != null)
+                {
+                    exProperty.IsUnderMaintenance = false;
+                    await _uow.SaveChangesAsync();
+                }
+
                 var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", propertyId.ToString());
                 if (Directory.Exists(tempFolder) && !Directory.EnumerateFileSystemEntries(tempFolder).Any())
                 {
@@ -1241,8 +1342,11 @@ public static class PropertyMappers
         return new PropertySummaryDto(
             p.Id,
             p.Title,
-            p.City,
-            p.IsAvailable,
+            p.District,
+            p.Municipality,
+            p.Parish,
+            p.IsPublic,
+            p.IsUnderMaintenance,
             p.Images.FirstOrDefault(i => i.IsMain)?.Url ?? ""
         );
     }
@@ -1277,10 +1381,13 @@ public static class PropertyMappers
             FurnishedDescription = dto.FurnishedDescription,
             Street = dto.Street,
             PostalCode = dto.PostalCode,
-            City = dto.City,
+            Municipality = dto.Municipality,
+            Parish = dto.Parish,
+            District = dto.District,
+            DoorNumber = dto.DoorNumber,
             Latitude = dto.Latitude,
             Longitude = dto.Longitude,
-            IsAvailable = false
+            IsPublic = dto.IsPublic,
         };
     }
 
@@ -1304,9 +1411,26 @@ public static class PropertyMappers
         property.FurnishedDescription = dto.FurnishedDescription;
         property.Street = dto.Street;
         property.PostalCode = dto.PostalCode;
-        property.City = dto.City;
+        property.Municipality = dto.Municipality;
+        property.Parish = dto.Parish;
+        property.District = dto.District;
+        property.DoorNumber = dto.DoorNumber;
         property.Latitude = dto.Latitude;
         property.Longitude = dto.Longitude;
+        property.IsPublic = dto.IsPublic;
+    }
+
+    public static PropertySearchDto ToSearchDto(this Property p)
+    {
+        return new PropertySearchDto(
+            p.Id,
+            p.Title,
+            p.Municipality,
+            p.Parish,
+            p.Price, p.PropertyType, p.Typology,
+            p.Area, p.Rooms, p.Bathrooms, p.AllowsPets,
+            p.Images.FirstOrDefault(i => i.IsMain)?.Url ?? ""
+        );
     }
 }
 
@@ -1343,14 +1467,18 @@ public class Property
     public string? FurnishedDescription { get; set; }
 
     // Localização
+    public string District { get; set; } = string.Empty;
+    public string Municipality { get; set; } = string.Empty;
+    public string Parish { get; set; } = string.Empty;
+    public string DoorNumber { get; set; } = string.Empty;
     public string Street { get; set; } = string.Empty;
     public string PostalCode { get; set; } = string.Empty;
-    public string City { get; set; } = string.Empty;
     public double Latitude { get; set; }
     public double Longitude { get; set; }
 
     // Status da Plataforma
-    public bool IsAvailable { get; set; } = false; // Se está público ou é rascunho
+    public bool IsPublic { get; set; } = false;
+    public bool IsUnderMaintenance { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
@@ -1412,6 +1540,7 @@ FICHEIRO: .\TrustRent.Modules.Catalog\Repositories\PropertyRepository.cs
 ================================================
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Models;
 
@@ -1443,6 +1572,57 @@ public class PropertyRepository : IPropertyRepository
 
     public void RemoveImages(IEnumerable<PropertyImage> images) =>
         _context.PropertyImages.RemoveRange(images);
+
+    public async Task<(IEnumerable<Property> Items, int TotalCount)> SearchAsync(PropertySearchQuery query)
+    {
+        // Apenas listamos imóveis públicos
+        var q = _context.Properties.Include(p => p.Images).Where(p => p.IsPublic);
+
+        if (!string.IsNullOrWhiteSpace(query.SearchTerm))
+            q = q.Where(p => 
+            p.Title.ToLower().Contains(query.SearchTerm.ToLower()) ||
+            p.District.ToLower().Contains(query.SearchTerm.ToLower()));
+
+        if (!string.IsNullOrWhiteSpace(query.Type) && query.Type != "Todos")
+            q = q.Where(p => p.PropertyType == query.Type);
+
+        if (!string.IsNullOrWhiteSpace(query.Typologies))
+        {
+            var types = query.Typologies.Split(',').Select(t => t.Trim()).ToList();
+            q = q.Where(p => types.Contains(p.Typology));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Locations))
+        {
+            var locs = query.Locations.Split(',').Select(l => l.Trim().ToLower()).ToList();
+
+            q = q.Where(p =>
+                locs.Contains(p.District.ToLower()) ||
+                locs.Contains(p.Municipality.ToLower()) ||
+                locs.Contains(p.Parish.ToLower())
+            );
+        }
+
+        if (query.MinPrice.HasValue) q = q.Where(p => p.Price >= query.MinPrice.Value);
+        if (query.MaxPrice.HasValue) q = q.Where(p => p.Price <= query.MaxPrice.Value);
+
+        // Toggles de Comodidades
+        if (query.HasElevator == true) q = q.Where(p => p.HasElevator);
+        if (query.HasAirConditioning == true) q = q.Where(p => p.HasAirConditioning);
+        if (query.HasGarage == true) q = q.Where(p => p.HasGarage);
+        if (query.AllowsPets == true) q = q.Where(p => p.AllowsPets);
+        if (query.IsFurnished == true) q = q.Where(p => p.IsFurnished);
+
+        var totalCount = await q.CountAsync();
+
+        // Aplica a Paginação
+        var items = await q.OrderByDescending(p => p.CreatedAt)
+                           .Skip((query.Page - 1) * query.PageSize)
+                           .Take(query.PageSize)
+                           .ToListAsync();
+
+        return (items, totalCount);
+    }
 }
 
 
@@ -1563,6 +1743,8 @@ public class PropertyService : IPropertyService
             }
         }
 
+        property.IsUnderMaintenance = true;
+
         _backgroundJobs.Enqueue<Jobs.IPropertyUploadJob>(job =>
             job.ProcessCreationAsync(property.Id, landlordId, savedFilePaths, imageCategories.ToList(), mainImageIndex)
         );
@@ -1646,14 +1828,34 @@ public class PropertyService : IPropertyService
             }
         }
 
+        bool requiresBackgroundProcessing = urlsToDeleteFromCloud.Any() || savedFilePaths.Any();
+
+        if (requiresBackgroundProcessing)
+        {
+            property.IsUnderMaintenance = true;
+        }
+
         await _uow.SaveChangesAsync();
 
-        if (urlsToDeleteFromCloud.Any() || savedFilePaths.Any())
+        if (requiresBackgroundProcessing)
         {
             _backgroundJobs.Enqueue<Jobs.IPropertyUploadJob>(job =>
                 job.ProcessEditAsync(propertyId, landlordId, savedFilePaths, imageCategories.ToList(), urlsToDeleteFromCloud, mainImageIndex)
             );
         }
+    }
+
+    public async Task<PagedResult<PropertySearchDto>> SearchPropertiesAsync(PropertySearchQuery query)
+    {
+        var (items, totalCount) = await _uow.Properties.SearchAsync(query);
+
+        return new PagedResult<PropertySearchDto>
+        {
+            Items = items.Select(p => p.ToSearchDto()),
+            TotalCount = totalCount,
+            Page = query.Page,
+            PageSize = query.PageSize
+        };
     }
 }
 

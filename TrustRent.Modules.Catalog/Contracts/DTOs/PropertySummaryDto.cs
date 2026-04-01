@@ -3,7 +3,9 @@
 public record PropertySummaryDto(
     Guid Id,
     string Title,
-    string City,
+    string District,
+    string Municipality,
+    string Parish,
     bool IsPublic,
     bool IsUnderMaintenance,
     string MainImageUrl

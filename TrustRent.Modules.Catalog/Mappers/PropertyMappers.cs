@@ -11,7 +11,9 @@ public static class PropertyMappers
         return new PropertySummaryDto(
             p.Id,
             p.Title,
-            p.City,
+            p.District,
+            p.Municipality,
+            p.Parish,
             p.IsPublic,
             p.IsUnderMaintenance,
             p.Images.FirstOrDefault(i => i.IsMain)?.Url ?? ""
@@ -48,7 +50,10 @@ public static class PropertyMappers
             FurnishedDescription = dto.FurnishedDescription,
             Street = dto.Street,
             PostalCode = dto.PostalCode,
-            City = dto.City,
+            Municipality = dto.Municipality,
+            Parish = dto.Parish,
+            District = dto.District,
+            DoorNumber = dto.DoorNumber,
             Latitude = dto.Latitude,
             Longitude = dto.Longitude,
             IsPublic = dto.IsPublic,
@@ -75,9 +80,25 @@ public static class PropertyMappers
         property.FurnishedDescription = dto.FurnishedDescription;
         property.Street = dto.Street;
         property.PostalCode = dto.PostalCode;
-        property.City = dto.City;
+        property.Municipality = dto.Municipality;
+        property.Parish = dto.Parish;
+        property.District = dto.District;
+        property.DoorNumber = dto.DoorNumber;
         property.Latitude = dto.Latitude;
         property.Longitude = dto.Longitude;
         property.IsPublic = dto.IsPublic;
+    }
+
+    public static PropertySearchDto ToSearchDto(this Property p)
+    {
+        return new PropertySearchDto(
+            p.Id,
+            p.Title,
+            p.Municipality,
+            p.Parish,
+            p.Price, p.PropertyType, p.Typology,
+            p.Area, p.Rooms, p.Bathrooms, p.AllowsPets,
+            p.Images.FirstOrDefault(i => i.IsMain)?.Url ?? ""
+        );
     }
 }

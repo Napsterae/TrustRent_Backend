@@ -1,4 +1,5 @@
-﻿using TrustRent.Modules.Catalog.Models;
+﻿using TrustRent.Modules.Catalog.Contracts.DTOs;
+using TrustRent.Modules.Catalog.Models;
 
 namespace TrustRent.Modules.Catalog.Contracts.Interfaces;
 
@@ -11,4 +12,5 @@ public interface IPropertyRepository
     Task AddAsync(Property property);
     Task AddImageAsync(PropertyImage image);
     void RemoveImages(IEnumerable<PropertyImage> images);
+    Task<(IEnumerable<Property> Items, int TotalCount)> SearchAsync(PropertySearchQuery query);
 }

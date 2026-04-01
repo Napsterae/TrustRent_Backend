@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Models;
 
@@ -31,4 +32,55 @@ public class PropertyRepository : IPropertyRepository
 
     public void RemoveImages(IEnumerable<PropertyImage> images) =>
         _context.PropertyImages.RemoveRange(images);
+
+    public async Task<(IEnumerable<Property> Items, int TotalCount)> SearchAsync(PropertySearchQuery query)
+    {
+        // Apenas listamos imóveis públicos
+        var q = _context.Properties.Include(p => p.Images).Where(p => p.IsPublic);
+
+        if (!string.IsNullOrWhiteSpace(query.SearchTerm))
+            q = q.Where(p => 
+            p.Title.ToLower().Contains(query.SearchTerm.ToLower()) ||
+            p.District.ToLower().Contains(query.SearchTerm.ToLower()));
+
+        if (!string.IsNullOrWhiteSpace(query.Type) && query.Type != "Todos")
+            q = q.Where(p => p.PropertyType == query.Type);
+
+        if (!string.IsNullOrWhiteSpace(query.Typologies))
+        {
+            var types = query.Typologies.Split(',').Select(t => t.Trim()).ToList();
+            q = q.Where(p => types.Contains(p.Typology));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Locations))
+        {
+            var locs = query.Locations.Split(',').Select(l => l.Trim().ToLower()).ToList();
+
+            q = q.Where(p =>
+                locs.Contains(p.District.ToLower()) ||
+                locs.Contains(p.Municipality.ToLower()) ||
+                locs.Contains(p.Parish.ToLower())
+            );
+        }
+
+        if (query.MinPrice.HasValue) q = q.Where(p => p.Price >= query.MinPrice.Value);
+        if (query.MaxPrice.HasValue) q = q.Where(p => p.Price <= query.MaxPrice.Value);
+
+        // Toggles de Comodidades
+        if (query.HasElevator == true) q = q.Where(p => p.HasElevator);
+        if (query.HasAirConditioning == true) q = q.Where(p => p.HasAirConditioning);
+        if (query.HasGarage == true) q = q.Where(p => p.HasGarage);
+        if (query.AllowsPets == true) q = q.Where(p => p.AllowsPets);
+        if (query.IsFurnished == true) q = q.Where(p => p.IsFurnished);
+
+        var totalCount = await q.CountAsync();
+
+        // Aplica a Paginação
+        var items = await q.OrderByDescending(p => p.CreatedAt)
+                           .Skip((query.Page - 1) * query.PageSize)
+                           .Take(query.PageSize)
+                           .ToListAsync();
+
+        return (items, totalCount);
+    }
 }

@@ -27,9 +27,12 @@ public class Property
     public string? FurnishedDescription { get; set; }
 
     // Localização
+    public string District { get; set; } = string.Empty;
+    public string Municipality { get; set; } = string.Empty;
+    public string Parish { get; set; } = string.Empty;
+    public string DoorNumber { get; set; } = string.Empty;
     public string Street { get; set; } = string.Empty;
     public string PostalCode { get; set; } = string.Empty;
-    public string City { get; set; } = string.Empty;
     public double Latitude { get; set; }
     public double Longitude { get; set; }
 

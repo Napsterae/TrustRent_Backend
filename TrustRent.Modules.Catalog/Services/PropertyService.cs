@@ -150,4 +150,17 @@ public class PropertyService : IPropertyService
             );
         }
     }
+
+    public async Task<PagedResult<PropertySearchDto>> SearchPropertiesAsync(PropertySearchQuery query)
+    {
+        var (items, totalCount) = await _uow.Properties.SearchAsync(query);
+
+        return new PagedResult<PropertySearchDto>
+        {
+            Items = items.Select(p => p.ToSearchDto()),
+            TotalCount = totalCount,
+            Page = query.Page,
+            PageSize = query.PageSize
+        };
+    }
 }

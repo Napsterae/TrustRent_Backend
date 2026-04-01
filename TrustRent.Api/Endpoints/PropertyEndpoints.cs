@@ -34,7 +34,10 @@ public static class PropertyEndpoints
                     Floor = form["floor"].ToString(),
                     Street = form["street"].ToString(),
                     PostalCode = form["postalCode"].ToString(),
-                    City = form["city"].ToString(),
+                    District = form["district"].ToString(),
+                    Municipality = form["municipality"].ToString(),
+                    Parish = form["parish"].ToString(),
+                    DoorNumber = form["doorNumber"].ToString(),
                     FurnishedDescription = form["furnishedDescription"].ToString(),
 
                     // Conversões seguras de números (se falhar, mete 0)
@@ -127,7 +130,10 @@ public static class PropertyEndpoints
                     Floor = form["floor"].ToString(),
                     Street = form["street"].ToString(),
                     PostalCode = form["postalCode"].ToString(),
-                    City = form["city"].ToString(),
+                    District = form["district"].ToString(),
+                    Municipality = form["municipality"].ToString(),
+                    Parish = form["parish"].ToString(),
+                    DoorNumber = form["doorNumber"].ToString(),
                     FurnishedDescription = form["furnishedDescription"].ToString(),
                     Price = decimal.TryParse(form["price"], out var p) ? p : 0,
                     Area = decimal.TryParse(form["area"], out var a) ? a : 0,
@@ -193,6 +199,19 @@ public static class PropertyEndpoints
                 return Results.BadRequest(new { Error = ex.Message });
             }
         }).DisableAntiforgery();
+
+        app.MapGet("/api/properties", async ([AsParameters] PropertySearchQuery query, IPropertyService propertyService) =>
+        {
+            try
+            {
+                var result = await propertyService.SearchPropertiesAsync(query);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
 
     }
 }
