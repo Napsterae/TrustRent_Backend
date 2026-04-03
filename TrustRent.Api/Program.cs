@@ -1,4 +1,15 @@
-using Hangfire;
+﻿using Hangfire;
+using Hangfire.PostgreSql;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using TrustRent.Api.Endpoints;
+using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Modules.Catalog.Jobs;
+﻿using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
@@ -17,6 +28,8 @@ using TrustRent.Modules.Identity.Repositories;
 using TrustRent.Modules.Identity.Services;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Services;
+using TrustRent.Modules.Identity.Seeds;
+using TrustRent.Modules.Catalog.Seeds;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -40,7 +53,7 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1"
     });
 
-    // CORRE��O AQUI: Usar OpenApiSecurityScheme em vez de OpenApiInfo
+    // CORREÇÃO AQUI: Usar OpenApiSecurityScheme em vez de OpenApiInfo
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -95,6 +108,7 @@ builder.Services.AddScoped<IPropertyUploadJob, PropertyUploadJob>();
 builder.Services.AddScoped<IDocumentExtractionService, DocumentExtractionService>();
 builder.Services.AddScoped<IPropertyRepository, PropertyRepository>();
 builder.Services.AddScoped<ICatalogUnitOfWork, CatalogUnitOfWork>();
+builder.Services.AddScoped<IApplicationService, ApplicationService>();
 
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -150,5 +164,17 @@ app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapAuthUserEndpoints();
 app.MapPropertyEndpoints();
+app.MapApplicationEndpoints();
+
+// Seeding automático em Development
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var identityDb = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+    var catalogDb = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+
+    await IdentitySeeder.SeedAsync(identityDb);
+    await CatalogSeeder.SeedAsync(catalogDb);
+}
 
 app.Run();

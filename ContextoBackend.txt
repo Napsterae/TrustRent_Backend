@@ -523,6 +523,7 @@ using System.Security.Claims;
 using System.Text.RegularExpressions;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Shared.Contracts.Interfaces;
 
 namespace TrustRent.Api.Endpoints;
@@ -626,12 +627,7 @@ public static class PropertyEndpoints
             }
         });
 
-        // 1. GET: Obter detalhes do imóvel
-        propertyGroup.MapGet("/{id:guid}", async (Guid id, IPropertyService propertyService) =>
-        {
-            var property = await propertyService.GetPropertyByIdAsync(id);
-            return property is not null ? Results.Ok(property) : Results.NotFound();
-        });
+
 
         // 2. PUT: Atualizar o imóvel
         propertyGroup.MapPut("/{id:guid}", async (Guid id, HttpRequest request, ClaimsPrincipal userClaims, IPropertyService propertyService) =>
@@ -732,6 +728,62 @@ public static class PropertyEndpoints
             {
                 return Results.BadRequest(new { Error = ex.Message });
             }
+        });
+
+        // GET: Obter detalhes do imóvel
+        app.MapGet("/api/properties/{id:guid}", async (Guid id, IPropertyService propertyService, IUserService userService) =>
+        {
+            // 1. Ir buscar o imóvel ao Catalog
+            var property = await propertyService.GetPropertyByIdAsync(id);
+            if (property is null) return Results.NotFound();
+
+            // 2. Ir buscar o senhorio ao Identity (usando o LandlordId guardado no imóvel)
+            var landlord = await userService.GetProfileAsync(property.LandlordId);
+
+            // 3. Compor a resposta final (Enrichment)
+            // Criamos um objeto anónimo ou um record local para não vazar dados sensíveis do utilizador
+            var response = new
+            {
+                property.Id,
+                property.Title,
+                property.Description,
+                property.Price,
+                property.PropertyType,
+                property.Typology,
+                property.Area,
+                property.Rooms,
+                property.Bathrooms,
+                property.Floor,
+                property.HasElevator,
+                property.HasAirConditioning,
+                property.HasGarage,
+                property.AllowsPets,
+                property.IsFurnished,
+                property.FurnishedDescription,
+                property.Street,
+                property.Parish,
+                property.Municipality,
+                property.District,
+                property.Latitude,
+                property.Longitude,
+                Images = property.Images.Select(img => new {
+                    img.Id,
+                    img.Url,
+                    img.Category,
+                    img.IsMain
+                }),
+                Landlord = new
+                {
+                    Name = landlord?.Name ?? "Senhorio Desconhecido",
+                    Avatar = landlord?.ProfilePictureUrl,
+                    IsVerified = landlord?.IsIdentityVerified ?? false,
+                    IsTransparent = landlord?.IsNoDebtVerified ?? false,
+                    TrustScore = landlord?.TrustScore ?? 0,
+                    JoinedAt = landlord?.CreatedAt
+                }
+            };
+
+            return Results.Ok(response);
         });
 
     }

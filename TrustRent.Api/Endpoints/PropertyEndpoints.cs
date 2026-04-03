@@ -11,14 +11,14 @@ public static class PropertyEndpoints
 {
     public static void MapPropertyEndpoints(this IEndpointRouteBuilder app)
     {
-        // Agrupamos os endpoints e exigimos que o utilizador esteja autenticado (Token JWT válido)
+        // Agrupamos os endpoints e exigimos que o utilizador esteja autenticado (Token JWT vÃ¡lido)
         var propertyGroup = app.MapGroup("/api/properties").RequireAuthorization();
 
         propertyGroup.MapPost("/", async (HttpRequest request, ClaimsPrincipal userClaims, IPropertyService propertyService) =>
         {
             try
             {
-                // 1. Identificar quem está a fazer o pedido
+                // 1. Identificar quem estÃ¡ a fazer o pedido
                 var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
                 // 2. Ler o FormData enviado pelo React
@@ -41,7 +41,7 @@ public static class PropertyEndpoints
                     DoorNumber = form["doorNumber"].ToString(),
                     FurnishedDescription = form["furnishedDescription"].ToString(),
 
-                    // Conversões seguras de números (se falhar, mete 0)
+                    // ConversÃµes seguras de nÃºmeros (se falhar, mete 0)
                     Price = decimal.TryParse(form["price"], out var p) ? p : 0,
                     Area = decimal.TryParse(form["area"], out var a) ? a : 0,
                     Rooms = int.TryParse(form["rooms"], out var r) ? r : 0,
@@ -49,7 +49,7 @@ public static class PropertyEndpoints
                     Latitude = double.TryParse(form["latitude"], out var lat) ? lat : 0,
                     Longitude = double.TryParse(form["longitude"], out var lon) ? lon : 0,
 
-                    // Conversões de booleanos (o React envia como strings "true" ou "false")
+                    // ConversÃµes de booleanos (o React envia como strings "true" ou "false")
                     HasElevator = form["hasElevator"] == "true",
                     HasAirConditioning = form["hasAirConditioning"] == "true",
                     HasGarage = form["hasGarage"] == "true",
@@ -74,21 +74,21 @@ public static class PropertyEndpoints
                     .Select(c => c!)
                     .ToList();
 
-                // 5. Chamar a nossa lógica de negócio (O motor que criámos no Passo 2)
+                // 5. Chamar a nossa lÃ³gica de negÃ³cio (O motor que criÃ¡mos no Passo 2)
                 var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, mainImageIndex, documentFiles);
 
                 return Results.Ok(new
                 {
-                    Message = "Imóvel criado com sucesso!",
+                    Message = "ImÃ³vel criado com sucesso!",
                     PropertyId = propertyId
                 });
             }
             catch (Exception ex)
             {
-                // Se algo falhar (ex: erro na conversão ou no upload da Cloud), devolvemos o erro ao React
+                // Se algo falhar (ex: erro na conversÃ£o ou no upload da Cloud), devolvemos o erro ao React
                 return Results.BadRequest(new { Error = ex.Message });
             }
-        }).DisableAntiforgery(); // Necessário para aceitar multipart/form-data nas Minimal APIs
+        }).DisableAntiforgery(); // NecessÃ¡rio para aceitar multipart/form-data nas Minimal APIs
 
 
         propertyGroup.MapGet("/my-properties", async (ClaimsPrincipal userClaims, IPropertyService propertyService) =>
@@ -108,7 +108,7 @@ public static class PropertyEndpoints
 
 
 
-        // 2. PUT: Atualizar o imóvel
+        // 2. PUT: Atualizar o imÃ³vel
         propertyGroup.MapPut("/{id:guid}", async (Guid id, HttpRequest request, ClaimsPrincipal userClaims, IPropertyService propertyService) =>
         {
             try
@@ -146,7 +146,7 @@ public static class PropertyEndpoints
                     //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
                 };
 
-                // Apanhar apenas as NOVAS imagens adicionadas na edição
+                // Apanhar apenas as NOVAS imagens adicionadas na ediÃ§Ã£o
                 var newImageFiles = form.Files.GetFiles("images")
                     .Select(f => new FileDto(f.OpenReadStream(), f.FileName)).ToList();
 
@@ -166,7 +166,7 @@ public static class PropertyEndpoints
 
                 await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories, retainedImageIds, mainImageIndex, mainRetainedImageId);
 
-                return Results.Ok(new { Message = "Imóvel atualizado com sucesso!" });
+                return Results.Ok(new { Message = "ImÃ³vel atualizado com sucesso!" });
             }
             catch (Exception ex)
             {
@@ -209,21 +209,22 @@ public static class PropertyEndpoints
             }
         });
 
-        // GET: Obter detalhes do imóvel
+        // GET: Obter detalhes do imÃ³vel
         app.MapGet("/api/properties/{id:guid}", async (Guid id, IPropertyService propertyService, IUserService userService) =>
         {
-            // 1. Ir buscar o imóvel ao Catalog
+            // 1. Ir buscar o imÃ³vel ao Catalog
             var property = await propertyService.GetPropertyByIdAsync(id);
             if (property is null) return Results.NotFound();
 
-            // 2. Ir buscar o senhorio ao Identity (usando o LandlordId guardado no imóvel)
+            // 2. Ir buscar o senhorio ao Identity (usando o LandlordId guardado no imÃ³vel)
             var landlord = await userService.GetProfileAsync(property.LandlordId);
 
             // 3. Compor a resposta final (Enrichment)
-            // Criamos um objeto anónimo ou um record local para não vazar dados sensíveis do utilizador
+            // Criamos um objeto anÃ³nimo ou um record local para nÃ£o vazar dados sensÃ­veis do utilizador
             var response = new
             {
                 property.Id,
+                property.LandlordId,
                 property.Title,
                 property.Description,
                 property.Price,
@@ -245,6 +246,10 @@ public static class PropertyEndpoints
                 property.District,
                 property.Latitude,
                 property.Longitude,
+                property.MatrixArticle,
+                property.EnergyClass,
+                property.EnergyCertificateNumber,
+                property.AtRegistrationNumber,
                 Images = property.Images.Select(img => new {
                     img.Id,
                     img.Url,

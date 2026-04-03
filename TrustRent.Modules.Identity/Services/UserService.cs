@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
@@ -22,6 +22,21 @@ public class UserService : IUserService
 
     public async Task<User?> GetProfileAsync(Guid userId)
         => await _uow.Users.GetByIdAsync(userId);
+
+    public async Task<PublicUserProfileDto?> GetPublicProfileAsync(Guid userId)
+    {
+        var user = await _uow.Users.GetByIdAsync(userId);
+        if (user == null) return null;
+
+        return new PublicUserProfileDto(
+            user.Id,
+            user.Name,
+            user.ProfilePictureUrl,
+            user.TrustScore,
+            user.IsIdentityVerified,
+            user.IsNoDebtVerified
+        );
+    }
 
     public async Task UpdateProfileAsync(Guid userId, UpdateProfileDto request)
     {

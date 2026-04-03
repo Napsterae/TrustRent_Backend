@@ -18,6 +18,13 @@ public static class UserEndpoints
             return user is not null ? Results.Ok(user) : Results.NotFound();
         });
 
+        // Public profile (no auth needed for now, or just limit to authenticated users? They are in the userGroup which requires auth, which is fine)
+        userGroup.MapGet("/{id:guid}/public", async (Guid id, IUserService userService) =>
+        {
+            var profile = await userService.GetPublicProfileAsync(id);
+            return profile is not null ? Results.Ok(profile) : Results.NotFound();
+        });
+
         userGroup.MapPut("/profile", async (ClaimsPrincipal userClaims, [FromBody] UpdateProfileDto request, IUserService userService) =>
         {
             try

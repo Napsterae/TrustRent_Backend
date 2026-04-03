@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TrustRent.Modules.Catalog.Contracts.Database;
@@ -11,9 +12,11 @@ using TrustRent.Modules.Catalog.Contracts.Database;
 namespace TrustRent.Modules.Catalog.Migrations
 {
     [DbContext(typeof(CatalogDbContext))]
-    partial class CatalogDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260403145921_AddApplications")]
+    partial class AddApplications
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -69,39 +72,6 @@ namespace TrustRent.Modules.Catalog.Migrations
                     b.HasIndex("PropertyId");
 
                     b.ToTable("Applications", "catalog");
-                });
-
-            modelBuilder.Entity("TrustRent.Modules.Catalog.Models.ApplicationHistory", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<Guid>("ActorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ApplicationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("EventData")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Message")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ApplicationId");
-
-                    b.ToTable("ApplicationHistories", "catalog");
                 });
 
             modelBuilder.Entity("TrustRent.Modules.Catalog.Models.Property", b =>
@@ -269,15 +239,6 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("TrustRent.Modules.Catalog.Models.ApplicationHistory", b =>
-                {
-                    b.HasOne("TrustRent.Modules.Catalog.Models.Application", null)
-                        .WithMany("History")
-                        .HasForeignKey("ApplicationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("TrustRent.Modules.Catalog.Models.PropertyImage", b =>
                 {
                     b.HasOne("TrustRent.Modules.Catalog.Models.Property", null)
@@ -285,11 +246,6 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasForeignKey("PropertyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("TrustRent.Modules.Catalog.Models.Application", b =>
-                {
-                    b.Navigation("History");
                 });
 
             modelBuilder.Entity("TrustRent.Modules.Catalog.Models.Property", b =>

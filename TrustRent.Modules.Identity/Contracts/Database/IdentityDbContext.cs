@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Identity.Models;
 using TrustRent.Shared.Security;
 
@@ -24,18 +24,6 @@ public class IdentityDbContext : DbContext
             v => v == null ? null : EncryptionHelper.Encrypt(v),
             v => v == null ? null : EncryptionHelper.Decrypt(v)
         );
-
-
-        // SEED: Criar um utilizador de teste quando a base de dados for gerada
-        var adminId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-        modelBuilder.Entity<User>().HasData(new User
-        {
-            Id = adminId,
-            Name = "João Silva",
-            Email = "joao.silva@email.pt",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("TrustRent2026!"),
-            TrustScore = 85
-        });
 
         base.OnModelCreating(modelBuilder);
     }

@@ -1,4 +1,4 @@
-﻿
+
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Models;
 
@@ -10,6 +10,8 @@ public class CatalogDbContext : DbContext
 
     public DbSet<Property> Properties { get; set; }
     public DbSet<PropertyImage> PropertyImages { get; set; }
+    public DbSet<Application> Applications { get; set; }
+    public DbSet<ApplicationHistory> ApplicationHistories { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -35,6 +37,19 @@ public class CatalogDbContext : DbContext
         {
             builder.HasKey(i => i.Id);
             builder.Property(i => i.Url).IsRequired();
+        });
+
+        modelBuilder.Entity<Application>(builder =>
+        {
+            builder.HasKey(a => a.Id);
+            builder.HasOne<Property>().WithMany().HasForeignKey(a => a.PropertyId).OnDelete(DeleteBehavior.Cascade);
+            builder.HasMany(a => a.History).WithOne().HasForeignKey(h => h.ApplicationId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ApplicationHistory>(builder =>
+        {
+            builder.HasKey(h => h.Id);
+            builder.Property(h => h.Action).IsRequired().HasMaxLength(100);
         });
 
         base.OnModelCreating(modelBuilder);
