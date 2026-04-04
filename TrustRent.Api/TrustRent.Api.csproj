@@ -24,6 +24,7 @@
     <ProjectReference Include="..\TrustRent.Modules.Catalog\TrustRent.Modules.Catalog.csproj" />
     <ProjectReference Include="..\TrustRent.Modules.Identity\TrustRent.Modules.Identity.csproj" />
     <ProjectReference Include="..\TrustRent.Modules.Leasing\TrustRent.Modules.Leasing.csproj" />
+    <ProjectReference Include="..\TrustRent.Modules.Communications\TrustRent.Modules.Communications.csproj" />
   </ItemGroup>
 
   <ItemGroup>

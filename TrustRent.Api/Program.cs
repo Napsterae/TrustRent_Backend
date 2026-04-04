@@ -1,4 +1,4 @@
-﻿using Hangfire;
+using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
@@ -22,6 +22,9 @@ using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Jobs;
 using TrustRent.Modules.Catalog.Repositories;
 using TrustRent.Modules.Catalog.Services;
+using TrustRent.Modules.Communications.Contracts.Database;
+using TrustRent.Modules.Communications.Endpoints;
+using TrustRent.Modules.Communications.Hubs;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Repositories;
@@ -91,6 +94,12 @@ builder.Services.AddDbContext<IdentityDbContext>(options =>
 builder.Services.AddDbContext<CatalogDbContext>(options =>
     options.UseNpgsql(connectionString));
 
+// 4. Registar o Contexto de Communications
+builder.Services.AddDbContext<CommunicationsDbContext>(options =>
+    options.UseNpgsql(connectionString));
+
+builder.Services.AddSignalR();
+
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -109,6 +118,7 @@ builder.Services.AddScoped<IDocumentExtractionService, DocumentExtractionService
 builder.Services.AddScoped<IPropertyRepository, PropertyRepository>();
 builder.Services.AddScoped<ICatalogUnitOfWork, CatalogUnitOfWork>();
 builder.Services.AddScoped<IApplicationService, ApplicationService>();
+builder.Services.AddScoped<IApplicationStatusValidator, ApplicationStatusValidator>();
 
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -143,7 +153,8 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins("http://localhost:5173") 
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
@@ -165,6 +176,9 @@ app.MapAuthEndpoints();
 app.MapAuthUserEndpoints();
 app.MapPropertyEndpoints();
 app.MapApplicationEndpoints();
+app.MapCommunicationsEndpoints();
+
+app.MapHub<ApplicationChatHub>("/api/chathub");
 
 // Seeding automático em Development
 if (app.Environment.IsDevelopment())
