@@ -105,7 +105,6 @@ public class ApplicationService : IApplicationService
 
         var history = new ApplicationHistory
         {
-            Id = Guid.NewGuid(),
             ApplicationId = application.Id,
             ActorId = userId
         };
@@ -113,7 +112,7 @@ public class ApplicationService : IApplicationService
         switch (dto.Action)
         {
             case "CounterPropose":
-                application.LandlordProposedDate = dto.LandlordProposedDate;
+                application.LandlordProposedDate = dto.LandlordProposedDate?.ToUniversalTime();
                 application.Status = ApplicationStatus.VisitCounterProposed;
                 history.Action = "Senhorio Contra-Propôs";
                 history.EventData = dto.LandlordProposedDate?.ToString("O");
@@ -121,14 +120,18 @@ public class ApplicationService : IApplicationService
             case "AcceptTenantDate":
                 if (dto.SelectedTenantDate != null && DateTime.TryParse(dto.SelectedTenantDate, out var dt))
                 {
-                    application.FinalVisitDate = dt;
+                    application.FinalVisitDate = dt.ToUniversalTime();
                     application.Status = ApplicationStatus.VisitAccepted;
                     history.Action = "Senhorio Aceitou Data do Inquilino";
                     history.EventData = dt.ToString("O");
                 }
+                else
+                {
+                    throw new Exception("Data de visita inválida ou não selecionada.");
+                }
                 break;
             case "AcceptCounterProposal":
-                application.FinalVisitDate = application.LandlordProposedDate;
+                application.FinalVisitDate = application.LandlordProposedDate?.ToUniversalTime();
                 application.Status = ApplicationStatus.VisitAccepted;
                 history.Action = "Inquilino Aceitou Contra-Proposta";
                 history.EventData = application.LandlordProposedDate?.ToString("O");
@@ -142,21 +145,57 @@ public class ApplicationService : IApplicationService
                 break;
             case "Reject":
                 application.Status = ApplicationStatus.Rejected;
-                history.Action = "Rejeitada";
+                history.Action = "Candidatura Rejeitada";
                 break;
-            case "FinalAccept":
+            case "TenantConfirmInterest":
+                if (application.Status != ApplicationStatus.VisitAccepted)
+                    throw new Exception("Tenant can only confirm interest after visit is accepted.");
+                application.Status = ApplicationStatus.InterestConfirmed;
+                history.Action = "Inquilino Confirmou Interesse";
+                history.Message = "O inquilino expressou o desejo de avançar com o aluguer após a visita.";
+                break;
+                // Em fase final, o senhorio aprova o contrato.
+                // Regra: Senhorio só pode aceitar se o inquilino confirmou interesse pós-visita
+                if (application.Status != ApplicationStatus.InterestConfirmed && application.Status != ApplicationStatus.Pending)
+                    throw new Exception("Final acceptance can only happen after interest confirmation.");
+                
                 application.Status = ApplicationStatus.Accepted;
-                history.Action = "Candidatura Aceite";
+                history.Action = "Candidatura Aprovada (Contrato)";
+
+                // Cancelar outras candidaturas ativas para o mesmo imóvel
+                var otherApplications = await _context.Applications
+                    .Where(a => a.PropertyId == application.PropertyId && a.Id != application.Id && a.Status != ApplicationStatus.Rejected && a.Status != ApplicationStatus.Accepted)
+                    .ToListAsync();
+                
+                foreach(var otherApp in otherApplications)
+                {
+                    otherApp.Status = ApplicationStatus.Rejected;
+                    otherApp.UpdatedAt = DateTime.UtcNow;
+                    _context.ApplicationHistories.Add(new ApplicationHistory
+                    {
+                        ApplicationId = otherApp.Id,
+                        ActorId = userId,
+                        Action = "Candidatura Rejeitada Ausente",
+                        Message = "Esta candidatura foi automaticamente cancelada porque o imóvel foi arrendado a outro candidato."
+                    });
+                }
                 break;
             default:
                 throw new Exception("Invalid action");
         }
 
-        application.History.Add(history);
+        _context.ApplicationHistories.Add(history);
         application.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
 
         var property = await _context.Properties.FindAsync(application.PropertyId);
+
+        if (application.Status == ApplicationStatus.Accepted && property != null)
+        {
+            property.TenantId = application.TenantId;
+        }
+
+        await _context.SaveChangesAsync();
+
         return application.ToDto(property?.LandlordId ?? Guid.Empty);
     }
 }

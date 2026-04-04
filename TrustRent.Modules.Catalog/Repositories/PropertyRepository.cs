@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
@@ -23,6 +23,9 @@ public class PropertyRepository : IPropertyRepository
 
     public async Task<IEnumerable<Property>> GetByLandlordIdWithImagesAsync(Guid landlordId) =>
         await _context.Properties.Include(p => p.Images).Where(p => p.LandlordId == landlordId).OrderByDescending(p => p.CreatedAt).ToListAsync();
+
+    public async Task<IEnumerable<Property>> GetByTenantIdWithImagesAsync(Guid tenantId) =>
+        await _context.Properties.Include(p => p.Images).Where(p => p.TenantId == tenantId).OrderByDescending(p => p.CreatedAt).ToListAsync();
 
     public async Task AddAsync(Property property) =>
         await _context.Properties.AddAsync(property);

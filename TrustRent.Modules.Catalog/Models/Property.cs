@@ -1,9 +1,10 @@
-﻿namespace TrustRent.Modules.Catalog.Models;
+namespace TrustRent.Modules.Catalog.Models;
 
 public class Property
 {
     public Guid Id { get; set; }
     public Guid LandlordId { get; set; } // Relacionamento (simulado) com o dono do imóvel
+    public Guid? TenantId { get; set; }   // Relacionamento (simulado) com o inquilino atual
 
     // Informações Básicas
     public string Title { get; set; } = string.Empty;

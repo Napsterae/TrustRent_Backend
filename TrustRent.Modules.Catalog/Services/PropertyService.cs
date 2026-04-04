@@ -1,4 +1,4 @@
-﻿using Hangfire;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
@@ -162,5 +162,11 @@ public class PropertyService : IPropertyService
             Page = query.Page,
             PageSize = query.PageSize
         };
+    }
+
+    public async Task<IEnumerable<PropertySummaryDto>> GetPropertiesByTenantAsync(Guid tenantId)
+    {
+        var properties = await _uow.Properties.GetByTenantIdWithImagesAsync(tenantId);
+        return properties.ToSummaryDtoList();
     }
 }

@@ -28,6 +28,7 @@ public enum ApplicationStatus
     Pending,
     VisitCounterProposed,
     VisitAccepted,
+    InterestConfirmed,
     Accepted,
     Rejected
 }

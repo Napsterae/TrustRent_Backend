@@ -106,6 +106,21 @@ public static class PropertyEndpoints
             }
         });
 
+        propertyGroup.MapGet("/my-rented-properties", async (ClaimsPrincipal userClaims, IPropertyService propertyService) =>
+        {
+            try
+            {
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                var properties = await propertyService.GetPropertiesByTenantAsync(userId);
+
+                return Results.Ok(properties);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
 
 
         // 2. PUT: Atualizar o imóvel
@@ -210,17 +225,40 @@ public static class PropertyEndpoints
         });
 
         // GET: Obter detalhes do imóvel
-        app.MapGet("/api/properties/{id:guid}", async (Guid id, IPropertyService propertyService, IUserService userService) =>
+        app.MapGet("/api/properties/{id:guid}", async (Guid id, IPropertyService propertyService, IUserService userService, IApplicationService applicationService, ClaimsPrincipal userClaims) =>
         {
-            // 1. Ir buscar o imóvel ao Catalog
+            // 1. Identificar o utilizador (se autenticado)
+            var userIdString = userClaims.FindFirstValue(ClaimTypes.NameIdentifier);
+            var currentUserId = string.IsNullOrEmpty(userIdString) ? Guid.Empty : Guid.Parse(userIdString);
+
+            // 2. Ir buscar o imóvel ao Catalog
             var property = await propertyService.GetPropertyByIdAsync(id);
             if (property is null) return Results.NotFound();
 
-            // 2. Ir buscar o senhorio ao Identity (usando o LandlordId guardado no imóvel)
+            // 3. Verificar permissões para ver a morada completa
+            var showFullAddress = false;
+            if (currentUserId != Guid.Empty)
+            {
+                if (currentUserId == property.LandlordId)
+                {
+                    showFullAddress = true;
+                }
+                else
+                {
+                    // Verificar se o inquilino tem uma candidatura com visita aceite ou superior
+                    var tenantApps = await applicationService.GetApplicationsForTenantAsync(currentUserId);
+                    var app = tenantApps.FirstOrDefault(a => a.PropertyId == id);
+                    if (app != null && (app.Status == "VisitAccepted" || app.Status == "InterestConfirmed" || app.Status == "Accepted"))
+                    {
+                        showFullAddress = true;
+                    }
+                }
+            }
+
+            // 4. Ir buscar o senhorio ao Identity
             var landlord = await userService.GetProfileAsync(property.LandlordId);
 
-            // 3. Compor a resposta final (Enrichment)
-            // Criamos um objeto anónimo ou um record local para não vazar dados sensíveis do utilizador
+            // 5. Compor a resposta final (Enrichment)
             var response = new
             {
                 property.Id,
@@ -240,7 +278,12 @@ public static class PropertyEndpoints
                 property.AllowsPets,
                 property.IsFurnished,
                 property.FurnishedDescription,
-                property.Street,
+                
+                // Dados Sensíveis (Mascarados se não tiver permissão)
+                Street = showFullAddress ? property.Street : "Morada visível após agendamento de visita",
+                DoorNumber = showFullAddress ? property.DoorNumber : "***",
+                PostalCode = showFullAddress ? property.PostalCode : "****-***",
+                
                 property.Parish,
                 property.Municipality,
                 property.District,

@@ -2,187 +2,195 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Models;
+using TrustRent.Modules.Identity.Seeds;
 
 namespace TrustRent.Modules.Catalog.Seeds;
 
 public static class CatalogSeeder
 {
-    // IDs de utilizadores (do IdentitySeeder)
-    private static readonly Guid LandlordId  = Guid.Parse("11111111-1111-1111-1111-111111111111");
-    private static readonly Guid TenantId    = Guid.Parse("22222222-2222-2222-2222-222222222222");
-    private static readonly Guid Tenant2Id   = Guid.Parse("33333333-3333-3333-3333-333333333333");
-    private static readonly Guid Landlord2Id = Guid.Parse("44444444-4444-4444-4444-444444444444");
-
-    // IDs fixos para propriedades — Carlos
+    // IDs fixos para propriedades "Core" para manter consistência nos testes manuais
     public static readonly Guid Property1Id = Guid.Parse("aaaa1111-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     public static readonly Guid Property2Id = Guid.Parse("aaaa2222-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-
-    // IDs fixos para propriedades — Sofia
     public static readonly Guid Property3Id = Guid.Parse("aaaa3333-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     public static readonly Guid Property4Id = Guid.Parse("aaaa4444-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-
-    // IDs fixos para candidaturas
-    public static readonly Guid Application1Id = Guid.Parse("bbbb1111-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
-    public static readonly Guid Application2Id = Guid.Parse("bbbb2222-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    public static readonly Guid Property5Id = Guid.Parse("aaaa5555-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    public static readonly Guid Property6Id = Guid.Parse("aaaa6666-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     public static async Task SeedAsync(CatalogDbContext context)
     {
+        // Se já temos as propriedades core, assumimos que o seed já correu
         if (await context.Properties.AnyAsync(p => p.Id == Property1Id))
         {
-            Console.WriteLine("[SEED] Catalog: Dados de teste já existem, a ignorar.");
+            var count = await context.Properties.CountAsync();
+            Console.WriteLine($"[SEED] Catalog: Já existem {count} imóveis. A ignorar.");
             return;
         }
 
-        // ═══════════════════════════════════════════
-        //  PROPRIEDADES — Carlos Mendes (Landlord 1)
-        // ═══════════════════════════════════════════
-        var properties = new List<Property>
+        var userIds = IdentitySeeder.AllGeneratedUserIds;
+        if (userIds.Count == 0)
         {
-            new()
-            {
-                Id = Property1Id,
-                LandlordId = LandlordId,
-                Title = "T2 Renovado no Chiado com Vista Rio",
-                Description = "Apartamento completamente renovado em 2024, com acabamentos de alta qualidade. Cozinha equipada, 2 quartos com roupeiros embutidos, sala ampla com vista para o Tejo. Edifício com elevador.",
-                Price = 1200, PropertyType = "Apartamento", Typology = "T2",
-                Area = 85, Rooms = 2, Bathrooms = 1, Floor = "3",
-                HasElevator = true, HasAirConditioning = true, HasGarage = false,
-                AllowsPets = true, IsFurnished = true,
-                FurnishedDescription = "Totalmente mobilado com mobiliário moderno.",
-                District = "Lisboa", Municipality = "Lisboa", Parish = "Santa Maria Maior",
-                DoorNumber = "42", Street = "Rua do Alecrim", PostalCode = "1200-018",
-                Latitude = 38.7095, Longitude = -9.1420,
-                IsPublic = true, IsUnderMaintenance = false,
-                EnergyClass = "B", EnergyCertificateNumber = "SCE-123456789",
-                EnergyCertificateExpiryDate = new DateTime(2030, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-                AtRegistrationNumber = "AT-LIS-2024-001", MatrixArticle = "U-1234", PropertyFraction = "A",
-                Images = new List<PropertyImage>
-                {
-                    new() { Id = Guid.NewGuid(), PropertyId = Property1Id, Url = "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80", Category = "Sala", IsMain = true },
-                    new() { Id = Guid.NewGuid(), PropertyId = Property1Id, Url = "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80", Category = "Quarto", IsMain = false },
-                    new() { Id = Guid.NewGuid(), PropertyId = Property1Id, Url = "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=800&q=80", Category = "Cozinha", IsMain = false },
-                }
-            },
-            new()
-            {
-                Id = Property2Id,
-                LandlordId = LandlordId,
-                Title = "T1 Moderno em Arroios com Terraço",
-                Description = "Estúdio moderno com terraço privativo de 15m², ideal para jovens profissionais. Zona muito central com metro a 2 minutos.",
-                Price = 850, PropertyType = "Apartamento", Typology = "T1",
-                Area = 55, Rooms = 1, Bathrooms = 1, Floor = "5",
-                HasElevator = true, HasAirConditioning = false, HasGarage = false,
-                AllowsPets = false, IsFurnished = false,
-                District = "Lisboa", Municipality = "Lisboa", Parish = "Arroios",
-                DoorNumber = "7B", Street = "Rua Morais Soares", PostalCode = "1900-341",
-                Latitude = 38.7320, Longitude = -9.1330,
-                IsPublic = true, IsUnderMaintenance = false, EnergyClass = "C",
-                Images = new List<PropertyImage>
-                {
-                    new() { Id = Guid.NewGuid(), PropertyId = Property2Id, Url = "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80", Category = "Sala", IsMain = true },
-                }
-            },
+            // Fallback se por acaso a lista estiver vazia (não deve acontecer se correr em ordem)
+            userIds = new List<Guid> { IdentitySeeder.LandlordId, IdentitySeeder.Landlord2Id, IdentitySeeder.TenantId, IdentitySeeder.Tenant2Id };
+        }
 
-            // ═══════════════════════════════════════════
-            //  PROPRIEDADES — Sofia Rodrigues (Landlord 2)
-            // ═══════════════════════════════════════════
-            new()
-            {
-                Id = Property3Id,
-                LandlordId = Landlord2Id,
-                Title = "T3 Familiar em Cascais com Jardim",
-                Description = "Moradia geminada com jardim privativo, ideal para famílias. 3 quartos (1 suite), sala espaçosa com lareira, cozinha totalmente equipada, garagem para 2 carros. Zona residencial tranquila a 10 minutos da praia.",
-                Price = 1800, PropertyType = "Moradia", Typology = "T3",
-                Area = 140, Rooms = 3, Bathrooms = 2, Floor = "R/C + 1",
-                HasElevator = false, HasAirConditioning = true, HasGarage = true,
-                AllowsPets = true, IsFurnished = true,
-                FurnishedDescription = "Mobilado com peças de design escandinavo. Inclui máquina de lavar loiça, roupa e forno.",
-                District = "Lisboa", Municipality = "Cascais", Parish = "Cascais e Estoril",
-                DoorNumber = "15", Street = "Rua das Flores", PostalCode = "2750-342",
-                Latitude = 38.6979, Longitude = -9.4215,
-                IsPublic = true, IsUnderMaintenance = false,
-                EnergyClass = "A", EnergyCertificateNumber = "SCE-987654321",
-                EnergyCertificateExpiryDate = new DateTime(2032, 6, 1, 0, 0, 0, DateTimeKind.Utc),
-                AtRegistrationNumber = "AT-CAS-2025-001", MatrixArticle = "U-5678", PropertyFraction = "UNICA",
-                Images = new List<PropertyImage>
-                {
-                    new() { Id = Guid.NewGuid(), PropertyId = Property3Id, Url = "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80", Category = "Exterior", IsMain = true },
-                    new() { Id = Guid.NewGuid(), PropertyId = Property3Id, Url = "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=800&q=80", Category = "Sala", IsMain = false },
-                    new() { Id = Guid.NewGuid(), PropertyId = Property3Id, Url = "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=800&q=80", Category = "Cozinha", IsMain = false },
-                    new() { Id = Guid.NewGuid(), PropertyId = Property3Id, Url = "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80", Category = "Jardim", IsMain = false },
-                }
-            },
-            new()
-            {
-                Id = Property4Id,
-                LandlordId = Landlord2Id,
-                Title = "Estúdio Loft no Porto - Ribeira",
-                Description = "Loft industrial reconvertido em pleno centro histórico do Porto, com vista para o rio Douro. Tetos altos de 4m, vigas de ferro originais, chão em madeira maciça. Espaço aberto com cozinha americana. A 5 minutos da Ponte D. Luís.",
-                Price = 950, PropertyType = "Apartamento", Typology = "T0",
-                Area = 45, Rooms = 0, Bathrooms = 1, Floor = "2",
-                HasElevator = false, HasAirConditioning = true, HasGarage = false,
-                AllowsPets = false, IsFurnished = true,
-                FurnishedDescription = "Decoração industrial-chic com mobiliário vintage curado. Inclui smart TV 55\" e sistema de som.",
-                District = "Porto", Municipality = "Porto", Parish = "Cedofeita",
-                DoorNumber = "88", Street = "Rua de Miragaia", PostalCode = "4050-387",
-                Latitude = 41.1413, Longitude = -8.6239,
-                IsPublic = true, IsUnderMaintenance = false,
-                EnergyClass = "B-", EnergyCertificateNumber = "SCE-456789123",
-                EnergyCertificateExpiryDate = new DateTime(2031, 9, 1, 0, 0, 0, DateTimeKind.Utc),
-                AtRegistrationNumber = "AT-PRT-2025-042",
-                Images = new List<PropertyImage>
-                {
-                    new() { Id = Guid.NewGuid(), PropertyId = Property4Id, Url = "https://images.unsplash.com/photo-1536376072261-38c75010e6c9?auto=format&fit=crop&w=800&q=80", Category = "Sala", IsMain = true },
-                    new() { Id = Guid.NewGuid(), PropertyId = Property4Id, Url = "https://images.unsplash.com/photo-1600210492493-0946911123ea?auto=format&fit=crop&w=800&q=80", Category = "Quarto", IsMain = false },
-                }
-            }
+        var random = new Random(42); // Seed fixa para os imóveis também
+        var properties = new List<Property>();
+
+        var adjectives = new[] { "Acolhedor", "Moderno", "Espaçoso", "Elegante", "Rústico", "Luminoso", "Central", "Luxuoso" };
+        var imageUrls = new[] {
+            "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267",
+            "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688",
+            "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2",
+            "https://images.unsplash.com/photo-1484154218962-a197022b5858",
+            "https://images.unsplash.com/photo-1493809842364-78817add7ffb",
+            "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6",
+            "https://images.unsplash.com/photo-1527359443443-84a18accb60d"
         };
 
-        // ═══ CANDIDATURAS ═══
-        var proposedDates = JsonSerializer.Serialize(new List<string> { "2026-05-10", "2026-05-12", "2026-05-15" });
+        // 1. ADICIONAR AS 6 PROPRIEDADES CORE (Com IDs fixos)
+        properties.Add(new Property { Id = Property1Id, LandlordId = IdentitySeeder.LandlordId, Title = "T2 Renovado no Chiado com Vista Rio", Street = "Rua Garrett", DoorNumber = "10", PostalCode = "1200-204", Description = "Apartamento de luxo no coração de Lisboa.", Price = 1200, PropertyType = "Apartamento", Typology = "T2", Area = 85, Rooms = 2, Bathrooms = 1, District = "Lisboa", Municipality = "Lisboa", IsPublic = true, IsUnderMaintenance = false });
+        properties.Add(new Property { Id = Property2Id, LandlordId = IdentitySeeder.LandlordId, Title = "T1 Moderno em Arroios", Street = "Rua Almirante Reis", DoorNumber = "45", PostalCode = "1000-002", Description = "Estúdio ideal para nómadas digitais.", Price = 850, PropertyType = "Apartamento", Typology = "T1", Area = 50, Rooms = 1, Bathrooms = 1, District = "Lisboa", Municipality = "Lisboa", IsPublic = true, IsUnderMaintenance = false });
+        properties.Add(new Property { Id = Property3Id, LandlordId = IdentitySeeder.Landlord2Id, Title = "T3 Familiar em Cascais com Jardim", Street = "Avenida Marginal", DoorNumber = "105", PostalCode = "2750-001", Description = "Moradia espaçosa perto da praia.", Price = 1800, PropertyType = "Moradia", Typology = "T3", Area = 150, Rooms = 3, Bathrooms = 2, District = "Lisboa", Municipality = "Cascais", IsPublic = true, IsUnderMaintenance = false });
+        properties.Add(new Property { Id = Property4Id, LandlordId = IdentitySeeder.Landlord2Id, Title = "Estúdio Loft no Porto - Ribeira", Street = "Rua das Flores", DoorNumber = "20", PostalCode = "4050-262", Description = "Design industrial e vista Douro.", Price = 950, PropertyType = "Apartamento", Typology = "T0", Area = 45, Rooms = 0, Bathrooms = 1, District = "Porto", Municipality = "Porto", IsPublic = true, IsUnderMaintenance = false });
+        
+        // 🏠 Core Rented (Já ocupadas)
+        properties.Add(new Property { Id = Property5Id, LandlordId = IdentitySeeder.LandlordId, TenantId = IdentitySeeder.TenantId, Title = "Apartamento Luxo nas Torres do Colombo", Street = "Avenida Lusíada", DoorNumber = "1", PostalCode = "1500-392", Description = "Propriedade ocupada pela Ana Ferreira.", Price = 2500, PropertyType = "Apartamento", Typology = "T3", Area = 160, District = "Lisboa", Municipality = "Lisboa", IsPublic = false });
+        properties.Add(new Property { Id = Property6Id, LandlordId = IdentitySeeder.Landlord2Id, TenantId = IdentitySeeder.Tenant2Id, Title = "Moradia T2 em Tavira com Piscina", Street = "Rua Direita", DoorNumber = "22", PostalCode = "8800-001", Description = "Propriedade ocupada pelo Miguel Costa.", Price = 1100, PropertyType = "Moradia", Typology = "T2", Area = 90, District = "Faro", Municipality = "Tavira", IsPublic = false });
 
-        var applications = new List<Application>
+        // 2. GERAR MAIS 64 PROPRIEDADES (Total 70)
+        var cities = new[] { "Lisboa", "Porto", "Coimbra", "Braga", "Faro", "Aveiro", "Setúbal", "Viseu", "Évora", "Leiria" };
+        var types = new[] { "Apartamento", "Moradia", "Quarto" };
+        var typologies = new[] { "T0", "T1", "T2", "T3", "T4" };
+
+        for (int i = 0; i < 64; i++)
         {
-            new()
+            var city = cities[random.Next(cities.Length)];
+            var type = types[random.Next(types.Length)];
+            var typo = typologies[random.Next(typologies.Length)];
+            var adj = adjectives[random.Next(adjectives.Length)];
+            var price = random.Next(4, 25) * 100;
+            
+            var p = new Property
             {
-                Id = Application1Id, PropertyId = Property1Id, TenantId = TenantId,
-                Message = "Olá Carlos! Sou a Ana, tenho 28 anos e trabalho como designer no centro de Lisboa. Estou à procura de um T2 perto do trabalho e o seu imóvel parece perfeito. Sou uma inquilina responsável e silenciosa. Gostaria muito de agendar uma visita!",
-                ShareProfile = true, WantsVisit = true, TenantProposedDates = proposedDates,
-                Status = ApplicationStatus.Pending,
-                History = new List<ApplicationHistory>
-                {
-                    new() { Id = Guid.NewGuid(), ApplicationId = Application1Id, ActorId = TenantId, Action = "Criada", Message = "Candidatura submetida pela inquilina.", EventData = proposedDates, CreatedAt = DateTime.UtcNow.AddDays(-2) }
-                }
-            },
-            new()
+                Id = Guid.NewGuid(),
+                LandlordId = userIds[random.Next(userIds.Count)],
+                Title = $"{typo} {adj} em {city}",
+                Description = $"Excelente {type.ToLower()} {adj.ToLower()} situado em zona calma de {city}. Perto de serviços e transportes.",
+                Price = price,
+                PropertyType = type,
+                Typology = typo,
+                Area = random.Next(40, 200),
+                Rooms = random.Next(0, 5),
+                Bathrooms = random.Next(1, 3),
+                District = city,
+                Municipality = city,
+                Street = $"Rua {adj} de {city}",
+                DoorNumber = random.Next(1, 200).ToString(),
+                PostalCode = $"{random.Next(1000, 9000)}-{random.Next(100, 999)}",
+                IsPublic = true,
+                IsUnderMaintenance = false,
+                CreatedAt = DateTime.UtcNow.AddDays(-random.Next(1, 60))
+            };
+
+            properties.Add(p);
+        }
+
+        // Adicionar imagem obrigatória aos imóveis que não têm.
+        foreach(var p in properties) 
+        {
+            if(p.Images.Count == 0)
             {
-                Id = Application2Id, PropertyId = Property2Id, TenantId = Tenant2Id,
-                Message = "Bom dia! Chamo-me Miguel e sou estudante de mestrado na NOVA. Procuro um T1 acessível e perto do metro. Tenho referências do meu senhorio atual se necessário.",
-                ShareProfile = true, WantsVisit = true,
-                TenantProposedDates = JsonSerializer.Serialize(new List<string> { "2026-05-08", "2026-05-09" }),
-                LandlordProposedDate = new DateTime(2026, 5, 11, 15, 0, 0, DateTimeKind.Utc),
-                Status = ApplicationStatus.VisitCounterProposed,
-                History = new List<ApplicationHistory>
+                p.Images.Add(new PropertyImage
                 {
-                    new() { Id = Guid.NewGuid(), ApplicationId = Application2Id, ActorId = Tenant2Id, Action = "Criada", Message = "Candidatura submetida pelo inquilino.", EventData = JsonSerializer.Serialize(new List<string> { "2026-05-08", "2026-05-09" }), CreatedAt = DateTime.UtcNow.AddDays(-3) },
-                    new() { Id = Guid.NewGuid(), ApplicationId = Application2Id, ActorId = LandlordId, Action = "Senhorio Contra-Propôs", EventData = new DateTime(2026, 5, 11, 15, 0, 0, DateTimeKind.Utc).ToString("O"), CreatedAt = DateTime.UtcNow.AddDays(-1) }
-                }
+                    Id = Guid.NewGuid(),
+                    PropertyId = p.Id,
+                    Url = imageUrls[random.Next(imageUrls.Length)] + "?auto=format&fit=crop&w=800&q=80",
+                    Category = "Principal",
+                    IsMain = true
+                });
             }
-        };
+        }
+
+        // 3. MARCAR MAIS 8 PROPRIEDADES COMO ALUGADAS (Total 10 rented)
+        // Escolhemos 8 das geradas (que não as core) e atribuímos um TenantId aleatório
+        var generatedProperties = properties.Skip(6).ToList();
+        for (int i = 0; i < 8; i++)
+        {
+            var p = generatedProperties[i];
+            p.TenantId = userIds[random.Next(userIds.Count)];
+            p.IsPublic = false; // Casas ocupadas geralmente não estão públicas
+        }
+
+        // 4. GERAR CANDIDATURAS
+        var applications = new List<Application>();
+        
+        // Candidaturas Aceites para as casas já alugadas (histórico)
+        foreach (var p in properties.Where(p => p.TenantId.HasValue))
+        {
+            var app = new Application
+            {
+                Id = Guid.NewGuid(),
+                PropertyId = p.Id,
+                TenantId = p.TenantId.Value,
+                Message = "Gostaria de alugar este imóvel.",
+                Status = ApplicationStatus.Accepted,
+                CreatedAt = p.CreatedAt.AddDays(5)
+            };
+            app.History.Add(new ApplicationHistory { Id = Guid.NewGuid(), ApplicationId = app.Id, ActorId = p.LandlordId, Action = "Candidatura Aceite", CreatedAt = app.CreatedAt.AddDays(1) });
+            applications.Add(app);
+        }
+
+        // Gerar mais 30 candidaturas pendentes em casas variadas para teste de listas
+        var availableProperties = properties.Where(p => !p.TenantId.HasValue).ToList();
+        for (int i = 0; i < 30; i++)
+        {
+            var p = availableProperties[random.Next(availableProperties.Count)];
+            var tId = userIds[random.Next(userIds.Count)];
+            
+            // Evitar que o landlord se candidate a si próprio
+            if (tId == p.LandlordId) continue;
+
+            var proposedDates = new List<string> { 
+                DateTime.UtcNow.AddDays(random.Next(2, 5)).ToString("yyyy-MM-dd") + "T10:00:00Z",
+                DateTime.UtcNow.AddDays(random.Next(6, 10)).ToString("yyyy-MM-dd") + "T16:00:00Z"
+            };
+
+            var app = new Application
+            {
+                Id = Guid.NewGuid(),
+                PropertyId = p.Id,
+                TenantId = tId,
+                Message = "Tenho muito interesse em visitar este imóvel. Sou uma pessoa responsável.",
+                WantsVisit = true,
+                TenantProposedDates = JsonSerializer.Serialize(proposedDates),
+                Status = random.NextDouble() > 0.7 ? ApplicationStatus.VisitCounterProposed : ApplicationStatus.Pending,
+                CreatedAt = DateTime.UtcNow.AddDays(-random.Next(0, 10))
+            };
+            app.History.Add(new ApplicationHistory { 
+                Id = Guid.NewGuid(), 
+                ApplicationId = app.Id, 
+                ActorId = tId, 
+                Action = "Criada", 
+                Message = app.Message, 
+                EventData = app.TenantProposedDates, 
+                CreatedAt = app.CreatedAt 
+            });
+            applications.Add(app);
+        }
 
         try
         {
             context.Properties.AddRange(properties);
             await context.SaveChangesAsync();
-            Console.WriteLine($"[SEED] Catalog: {properties.Count} imóveis criados.");
+            Console.WriteLine($"[SEED] Catalog: {properties.Count} imóveis criados (6 cores + 64 dinâmicos).");
 
             context.Applications.AddRange(applications);
             await context.SaveChangesAsync();
-            Console.WriteLine($"[SEED] Catalog: {applications.Count} candidaturas de teste criadas.");
+            Console.WriteLine($"[SEED] Catalog: {applications.Count} candidaturas criadas (10 aceites + 30 pendentes/propostas).");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[SEED] Catalog: Seed ignorada — {ex.InnerException?.Message ?? ex.Message}");
+            Console.WriteLine($"[SEED] Catalog: Erro no Seed — {ex.InnerException?.Message ?? ex.Message}");
         }
     }
 }
