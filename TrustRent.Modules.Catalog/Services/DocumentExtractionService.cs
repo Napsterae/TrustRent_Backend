@@ -25,11 +25,15 @@ public class DocumentExtractionService : IDocumentExtractionService
         {
             var matchArtigo = Regex.Match(normalizedText, @"ARTIGO MATRICIAL[:\s]*(\d+)");
             var matchFracao = Regex.Match(normalizedText, @"FRAÇÃO[:\s]*([A-Z0-9]+)");
+            var matchFreguesia = Regex.Match(normalizedText, @"FREGUESIA[/\s]*(CONCELHO)[:\s]*(.+?)(?=\s{2,}|$)");
+            if (!matchFreguesia.Success)
+                matchFreguesia = Regex.Match(normalizedText, @"(?:FREGUESIA|CONCELHO)[:\s]*(.+?)(?=\s{2,}|ARTIGO|FRAÇÃO|$)");
 
             result = result with
             {
                 MatrixArticle = matchArtigo.Success ? matchArtigo.Groups[1].Value : null,
-                PropertyFraction = matchFracao.Success ? matchFracao.Groups[1].Value : null
+                PropertyFraction = matchFracao.Success ? matchFracao.Groups[1].Value : null,
+                ParishConcelho = matchFreguesia.Success ? matchFreguesia.Groups[matchFreguesia.Groups.Count - 1].Value.Trim() : null
             };
         }
         else if (docType == "certificado")
@@ -50,6 +54,30 @@ public class DocumentExtractionService : IDocumentExtractionService
             result = result with
             {
                 AtRegistrationNumber = matchReg.Success ? matchReg.Groups[1].Value : null
+            };
+        }
+        else if (docType == "certidao")
+        {
+            var matchDescricao = Regex.Match(normalizedText, @"(?:DESCRI[ÇC][ÃA]O|N[ºO]\s*DE\s*DESCRI[ÇC][ÃA]O)[:\s]*([\d/\-]+)");
+            var matchConservatoria = Regex.Match(normalizedText, @"CONSERVAT[ÓO]RIA[:\s]*(?:DE\s*)?(.+?)(?=\s{2,}|N[ºO]|$)");
+
+            result = result with
+            {
+                PermanentCertNumber = matchDescricao.Success ? matchDescricao.Groups[1].Value.Trim() : null,
+                PermanentCertOffice = matchConservatoria.Success ? matchConservatoria.Groups[1].Value.Trim() : null
+            };
+        }
+        else if (docType == "licenca")
+        {
+            var matchLicenca = Regex.Match(normalizedText, @"(?:ALVAR[ÁA]|LICEN[ÇC]A)\s*N[ºO][:\s]*([\d/\-]+)");
+            var matchData = Regex.Match(normalizedText, @"(?:DATA\s*(?:DE\s*)?EMISS[ÃA]O|EMITID[OA]\s*(?:EM|A))[:\s]*(\d{2}[/\-]\d{2}[/\-]\d{4})");
+            var matchCamara = Regex.Match(normalizedText, @"C[ÂA]MARA\s*MUNICIPAL[:\s]*(?:DE\s*)?(.+?)(?=\s{2,}|ALVAR|LICEN|$)");
+
+            result = result with
+            {
+                LicenseNumber = matchLicenca.Success ? matchLicenca.Groups[1].Value.Trim() : null,
+                LicenseDate = matchData.Success ? matchData.Groups[1].Value.Trim() : null,
+                LicenseIssuer = matchCamara.Success ? matchCamara.Groups[1].Value.Trim() : null
             };
         }
 

@@ -58,6 +58,21 @@ public static class PropertyEndpoints
 
                     IsPublic = form["isPublic"] == "true",
                     //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
+
+                    // Documentos extraídos via IA
+                    ParishConcelho = form["parishConcelho"].ToString(),
+                    PermanentCertNumber = form["permanentCertNumber"].ToString(),
+                    PermanentCertOffice = form["permanentCertOffice"].ToString(),
+                    UsageLicenseNumber = form["licenseNumber"].ToString(),
+                    UsageLicenseDate = form["licenseDate"].ToString(),
+                    UsageLicenseIssuer = form["licenseIssuer"].ToString(),
+
+                    // Caução e Despesas
+                    Deposit = decimal.TryParse(form["deposit"], out var dep) ? dep : null,
+                    CondominiumFeesPaidBy = form["condominiumFeesPaidBy"].ToString() is { Length: > 0 } condo ? condo : "Inquilino",
+                    WaterPaidBy = form["waterPaidBy"].ToString() is { Length: > 0 } water ? water : "Inquilino",
+                    ElectricityPaidBy = form["electricityPaidBy"].ToString() is { Length: > 0 } elec ? elec : "Inquilino",
+                    GasPaidBy = form["gasPaidBy"].ToString() is { Length: > 0 } gas ? gas : "Inquilino",
                 };
 
                 var mainImageIndex = int.TryParse(form["mainImageIndex"], out var mii) ? mii : 0;
@@ -159,6 +174,21 @@ public static class PropertyEndpoints
                     IsFurnished = form["isFurnished"] == "true",
                     IsPublic = form["isPublic"] == "true",
                     //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
+
+                    // Documentos extraídos via IA
+                    ParishConcelho = form["parishConcelho"].ToString(),
+                    PermanentCertNumber = form["permanentCertNumber"].ToString(),
+                    PermanentCertOffice = form["permanentCertOffice"].ToString(),
+                    UsageLicenseNumber = form["licenseNumber"].ToString(),
+                    UsageLicenseDate = form["licenseDate"].ToString(),
+                    UsageLicenseIssuer = form["licenseIssuer"].ToString(),
+
+                    // Caução e Despesas
+                    Deposit = decimal.TryParse(form["deposit"], out var dep) ? dep : null,
+                    CondominiumFeesPaidBy = form["condominiumFeesPaidBy"].ToString() is { Length: > 0 } condo ? condo : "Inquilino",
+                    WaterPaidBy = form["waterPaidBy"].ToString() is { Length: > 0 } water ? water : "Inquilino",
+                    ElectricityPaidBy = form["electricityPaidBy"].ToString() is { Length: > 0 } elec ? elec : "Inquilino",
+                    GasPaidBy = form["gasPaidBy"].ToString() is { Length: > 0 } gas ? gas : "Inquilino",
                 };
 
                 // Apanhar apenas as NOVAS imagens adicionadas na edição
@@ -290,9 +320,21 @@ public static class PropertyEndpoints
                 property.Latitude,
                 property.Longitude,
                 property.MatrixArticle,
+                property.PropertyFraction,
+                property.ParishConcelho,
                 property.EnergyClass,
                 property.EnergyCertificateNumber,
                 property.AtRegistrationNumber,
+                property.PermanentCertNumber,
+                property.PermanentCertOffice,
+                property.UsageLicenseNumber,
+                property.UsageLicenseDate,
+                property.UsageLicenseIssuer,
+                property.Deposit,
+                property.CondominiumFeesPaidBy,
+                property.WaterPaidBy,
+                property.ElectricityPaidBy,
+                property.GasPaidBy,
                 Images = property.Images.Select(img => new {
                     img.Id,
                     img.Url,

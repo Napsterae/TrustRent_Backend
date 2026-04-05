@@ -43,6 +43,25 @@ public class CreatePropertyDto
 
     // Registo AT
     public string? AtRegistrationNumber { get; set; }
+
+    // Caderneta - Freguesia/Concelho
+    public string? ParishConcelho { get; set; }
+
+    // Certidão Permanente
+    public string? PermanentCertNumber { get; set; }
+    public string? PermanentCertOffice { get; set; }
+
+    // Licença de Utilização
+    public string? UsageLicenseNumber { get; set; }
+    public string? UsageLicenseDate { get; set; }
+    public string? UsageLicenseIssuer { get; set; }
+
+    // Caução e Despesas
+    public decimal? Deposit { get; set; }
+    public string CondominiumFeesPaidBy { get; set; } = "Inquilino";
+    public string WaterPaidBy { get; set; } = "Inquilino";
+    public string ElectricityPaidBy { get; set; } = "Inquilino";
+    public string GasPaidBy { get; set; } = "Inquilino";
 }
 
 // Pequeno record para transportar os ficheiros do Endpoint para o Serviço sem quebrar o Clean Architecture

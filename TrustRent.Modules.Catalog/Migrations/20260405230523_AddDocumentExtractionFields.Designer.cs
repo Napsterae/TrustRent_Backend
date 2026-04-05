@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TrustRent.Modules.Catalog.Contracts.Database;
@@ -11,9 +12,11 @@ using TrustRent.Modules.Catalog.Contracts.Database;
 namespace TrustRent.Modules.Catalog.Migrations
 {
     [DbContext(typeof(CatalogDbContext))]
-    partial class CatalogDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260405230523_AddDocumentExtractionFields")]
+    partial class AddDocumentExtractionFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -123,15 +126,8 @@ namespace TrustRent.Modules.Catalog.Migrations
                     b.Property<int>("Bathrooms")
                         .HasColumnType("integer");
 
-                    b.Property<string>("CondominiumFeesPaidBy")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal?>("Deposit")
-                        .HasColumnType("numeric");
 
                     b.Property<string>("Description")
                         .IsRequired()
@@ -142,10 +138,6 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("DoorNumber")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ElectricityPaidBy")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -165,10 +157,6 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("FurnishedDescription")
-                        .HasColumnType("text");
-
-                    b.Property<string>("GasPaidBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("HasAirConditioning")
@@ -262,10 +250,6 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("UsageLicenseNumber")
-                        .HasColumnType("text");
-
-                    b.Property<string>("WaterPaidBy")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");

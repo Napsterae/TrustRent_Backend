@@ -57,6 +57,17 @@ public static class PropertyMappers
             Latitude = dto.Latitude,
             Longitude = dto.Longitude,
             IsPublic = dto.IsPublic,
+            ParishConcelho = dto.ParishConcelho,
+            PermanentCertNumber = dto.PermanentCertNumber,
+            PermanentCertOffice = dto.PermanentCertOffice,
+            UsageLicenseNumber = dto.UsageLicenseNumber,
+            UsageLicenseDate = dto.UsageLicenseDate,
+            UsageLicenseIssuer = dto.UsageLicenseIssuer,
+            Deposit = dto.Deposit,
+            CondominiumFeesPaidBy = dto.CondominiumFeesPaidBy,
+            WaterPaidBy = dto.WaterPaidBy,
+            ElectricityPaidBy = dto.ElectricityPaidBy,
+            GasPaidBy = dto.GasPaidBy,
         };
     }
 
@@ -87,6 +98,17 @@ public static class PropertyMappers
         property.Latitude = dto.Latitude;
         property.Longitude = dto.Longitude;
         property.IsPublic = dto.IsPublic;
+        property.ParishConcelho = dto.ParishConcelho;
+        property.PermanentCertNumber = dto.PermanentCertNumber;
+        property.PermanentCertOffice = dto.PermanentCertOffice;
+        property.UsageLicenseNumber = dto.UsageLicenseNumber;
+        property.UsageLicenseDate = dto.UsageLicenseDate;
+        property.UsageLicenseIssuer = dto.UsageLicenseIssuer;
+        property.Deposit = dto.Deposit;
+        property.CondominiumFeesPaidBy = dto.CondominiumFeesPaidBy;
+        property.WaterPaidBy = dto.WaterPaidBy;
+        property.ElectricityPaidBy = dto.ElectricityPaidBy;
+        property.GasPaidBy = dto.GasPaidBy;
     }
 
     public static PropertySearchDto ToSearchDto(this Property p)
