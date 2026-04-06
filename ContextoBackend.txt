@@ -1,9 +1,11 @@
 ======================================================
 ESTRUTURA DO PROJETO
 ======================================================
+.agent
 .github
 TrustRent.Api
 TrustRent.Modules.Catalog
+TrustRent.Modules.Communications
 TrustRent.Modules.Identity
 TrustRent.Modules.Leasing
 TrustRent.Shared
@@ -11,7 +13,10 @@ TrustRent.Shared
 ContextoBackend.txt
 GerarContexto.ps1
 README.md
+ResetDatabase.ps1
 TrustRent.sln
+.agent\workflows
+.agent\workflows\reseed-database.md
 .github\workflows
 TrustRent.Api\Endpoints
 TrustRent.Api\Properties
@@ -23,6 +28,7 @@ TrustRent.Api\TrustRent.Api.csproj
 TrustRent.Api\TrustRent.Api.csproj.Backup.tmp
 TrustRent.Api\TrustRent.Api.csproj.user
 TrustRent.Api\TrustRent.Api.http
+TrustRent.Api\Endpoints\ApplicationEndpoints.cs
 TrustRent.Api\Endpoints\AuthEndpoints.cs
 TrustRent.Api\Endpoints\PropertyEndpoints.cs
 TrustRent.Api\Endpoints\UserEndpoints.cs
@@ -30,6 +36,7 @@ TrustRent.Api\Properties\launchSettings.json
 TrustRent.Api\wwwroot\temp-uploads
 TrustRent.Api\wwwroot\uploads
 TrustRent.Api\wwwroot\temp-uploads\0289c585-7b3e-4dc4-9bc5-b77a5ddbe624
+TrustRent.Api\wwwroot\temp-uploads\aaaa3333-aaaa-aaaa-aaaa-aaaaaaaaaaaa
 TrustRent.Api\wwwroot\uploads\profiles
 TrustRent.Api\wwwroot\uploads\profiles\12232557-7de5-493a-84d5-e9b8291a58ca_1774486198.png
 TrustRent.Api\wwwroot\uploads\profiles\12232557-7de5-493a-84d5-e9b8291a58ca_1774486214.png
@@ -38,30 +45,56 @@ TrustRent.Modules.Catalog\Jobs
 TrustRent.Modules.Catalog\Mappers
 TrustRent.Modules.Catalog\Models
 TrustRent.Modules.Catalog\Repositories
+TrustRent.Modules.Catalog\Seeds
 TrustRent.Modules.Catalog\Services
 TrustRent.Modules.Catalog\TrustRent.Modules.Catalog.csproj
 TrustRent.Modules.Catalog\Contracts\Database
 TrustRent.Modules.Catalog\Contracts\DTOs
 TrustRent.Modules.Catalog\Contracts\Interfaces
 TrustRent.Modules.Catalog\Contracts\Database\CatalogDbContext.cs
+TrustRent.Modules.Catalog\Contracts\DTOs\ApplicationDto.cs
+TrustRent.Modules.Catalog\Contracts\DTOs\ApplicationHistoryDto.cs
 TrustRent.Modules.Catalog\Contracts\DTOs\CreatePropertyDto.cs
 TrustRent.Modules.Catalog\Contracts\DTOs\DocumentExtractionResultDto.cs
 TrustRent.Modules.Catalog\Contracts\DTOs\PropertySearchQuery.cs
 TrustRent.Modules.Catalog\Contracts\DTOs\PropertySummaryDto.cs
+TrustRent.Modules.Catalog\Contracts\DTOs\SubmitApplicationDto.cs
+TrustRent.Modules.Catalog\Contracts\DTOs\UpdateApplicationVisitDto.cs
+TrustRent.Modules.Catalog\Contracts\Interfaces\IApplicationService.cs
 TrustRent.Modules.Catalog\Contracts\Interfaces\ICatalogUnitOfWork.cs
 TrustRent.Modules.Catalog\Contracts\Interfaces\IDocumentExtractionService.cs
 TrustRent.Modules.Catalog\Contracts\Interfaces\IPropertyRepository.cs
 TrustRent.Modules.Catalog\Contracts\Interfaces\IPropertyService.cs
 TrustRent.Modules.Catalog\Jobs\PropertyUploadJob.cs
+TrustRent.Modules.Catalog\Mappers\ApplicationMappers.cs
 TrustRent.Modules.Catalog\Mappers\PropertyMappers.cs
+TrustRent.Modules.Catalog\Models\Amenity.cs
+TrustRent.Modules.Catalog\Models\Application.cs
+TrustRent.Modules.Catalog\Models\ApplicationHistory.cs
 TrustRent.Modules.Catalog\Models\Property.cs
+TrustRent.Modules.Catalog\Models\PropertyAmenity.cs
 TrustRent.Modules.Catalog\Repositories\CatalogUnitOfWork.cs
 TrustRent.Modules.Catalog\Repositories\PropertyRepository.cs
+TrustRent.Modules.Catalog\Seeds\CatalogSeeder.cs
+TrustRent.Modules.Catalog\Services\ApplicationService.cs
+TrustRent.Modules.Catalog\Services\ApplicationStatusValidator.cs
 TrustRent.Modules.Catalog\Services\DocumentExtractionService.cs
 TrustRent.Modules.Catalog\Services\PropertyService.cs
+TrustRent.Modules.Communications\Contracts
+TrustRent.Modules.Communications\Endpoints
+TrustRent.Modules.Communications\Hubs
+TrustRent.Modules.Communications\Models
+TrustRent.Modules.Communications\Class1.cs
+TrustRent.Modules.Communications\TrustRent.Modules.Communications.csproj
+TrustRent.Modules.Communications\Contracts\Database
+TrustRent.Modules.Communications\Contracts\Database\CommunicationsDbContext.cs
+TrustRent.Modules.Communications\Endpoints\CommunicationsEndpoints.cs
+TrustRent.Modules.Communications\Hubs\ApplicationChatHub.cs
+TrustRent.Modules.Communications\Models\Message.cs
 TrustRent.Modules.Identity\Contracts
 TrustRent.Modules.Identity\Models
 TrustRent.Modules.Identity\Repositories
+TrustRent.Modules.Identity\Seeds
 TrustRent.Modules.Identity\Services
 TrustRent.Modules.Identity\TrustRent.Modules.Identity.csproj
 TrustRent.Modules.Identity\Contracts\Database
@@ -74,6 +107,7 @@ TrustRent.Modules.Identity\Contracts\Interfaces\IUserService.cs
 TrustRent.Modules.Identity\Models\User.cs
 TrustRent.Modules.Identity\Repositories\UnitOfWork.cs
 TrustRent.Modules.Identity\Repositories\UserRepository.cs
+TrustRent.Modules.Identity\Seeds\IdentitySeeder.cs
 TrustRent.Modules.Identity\Services\AuthService.cs
 TrustRent.Modules.Identity\Services\UserService.cs
 TrustRent.Modules.Leasing\Class1.cs
@@ -83,6 +117,7 @@ TrustRent.Shared\Security
 TrustRent.Shared\Services
 TrustRent.Shared\TrustRent.Shared.csproj
 TrustRent.Shared\Contracts\Interfaces
+TrustRent.Shared\Contracts\Interfaces\IApplicationStatusValidator.cs
 TrustRent.Shared\Contracts\Interfaces\IEmailService.cs
 TrustRent.Shared\Contracts\Interfaces\IImageService.cs
 TrustRent.Shared\Contracts\Interfaces\INotificationService.cs
@@ -118,6 +153,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TrustRent.Modules.Identity", "TrustRent.Modules.Identity\TrustRent.Modules.Identity.csproj", "{94811437-284A-4E50-8875-95ED6072D594}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TrustRent.Modules.Leasing", "TrustRent.Modules.Leasing\TrustRent.Modules.Leasing.csproj", "{7773D8A0-F727-4CF7-9714-1FF13450441D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TrustRent.Modules.Communications", "TrustRent.Modules.Communications\TrustRent.Modules.Communications.csproj", "{76DED55F-F9E6-4D06-8233-05E4B2B273A1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -189,6 +226,18 @@ Global
 		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Release|x64.Build.0 = Release|Any CPU
 		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Release|x86.ActiveCfg = Release|Any CPU
 		{7773D8A0-F727-4CF7-9714-1FF13450441D}.Release|x86.Build.0 = Release|Any CPU
+		{76DED55F-F9E6-4D06-8233-05E4B2B273A1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{76DED55F-F9E6-4D06-8233-05E4B2B273A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{76DED55F-F9E6-4D06-8233-05E4B2B273A1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{76DED55F-F9E6-4D06-8233-05E4B2B273A1}.Debug|x64.Build.0 = Debug|Any CPU
+		{76DED55F-F9E6-4D06-8233-05E4B2B273A1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{76DED55F-F9E6-4D06-8233-05E4B2B273A1}.Debug|x86.Build.0 = Debug|Any CPU
+		{76DED55F-F9E6-4D06-8233-05E4B2B273A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{76DED55F-F9E6-4D06-8233-05E4B2B273A1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{76DED55F-F9E6-4D06-8233-05E4B2B273A1}.Release|x64.ActiveCfg = Release|Any CPU
+		{76DED55F-F9E6-4D06-8233-05E4B2B273A1}.Release|x64.Build.0 = Release|Any CPU
+		{76DED55F-F9E6-4D06-8233-05E4B2B273A1}.Release|x86.ActiveCfg = Release|Any CPU
+		{76DED55F-F9E6-4D06-8233-05E4B2B273A1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -277,14 +326,30 @@ using TrustRent.Api.Endpoints;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Jobs;
+Ôªøusing Hangfire;
+using Hangfire.PostgreSql;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using TrustRent.Api.Endpoints;
+using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Modules.Catalog.Jobs;
 using TrustRent.Modules.Catalog.Repositories;
 using TrustRent.Modules.Catalog.Services;
+using TrustRent.Modules.Communications.Contracts.Database;
+using TrustRent.Modules.Communications.Endpoints;
+using TrustRent.Modules.Communications.Hubs;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Repositories;
 using TrustRent.Modules.Identity.Services;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Services;
+using TrustRent.Modules.Identity.Seeds;
+using TrustRent.Modules.Catalog.Seeds;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -308,7 +373,7 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1"
     });
 
-    // CORRE«√O AQUI: Usar OpenApiSecurityScheme em vez de OpenApiInfo
+    // CORRE√á√ÉO AQUI: Usar OpenApiSecurityScheme em vez de OpenApiInfo
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -346,6 +411,12 @@ builder.Services.AddDbContext<IdentityDbContext>(options =>
 builder.Services.AddDbContext<CatalogDbContext>(options =>
     options.UseNpgsql(connectionString));
 
+// 4. Registar o Contexto de Communications
+builder.Services.AddDbContext<CommunicationsDbContext>(options =>
+    options.UseNpgsql(connectionString));
+
+builder.Services.AddSignalR();
+
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -363,6 +434,8 @@ builder.Services.AddScoped<IPropertyUploadJob, PropertyUploadJob>();
 builder.Services.AddScoped<IDocumentExtractionService, DocumentExtractionService>();
 builder.Services.AddScoped<IPropertyRepository, PropertyRepository>();
 builder.Services.AddScoped<ICatalogUnitOfWork, CatalogUnitOfWork>();
+builder.Services.AddScoped<IApplicationService, ApplicationService>();
+builder.Services.AddScoped<IApplicationStatusValidator, ApplicationStatusValidator>();
 
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -397,7 +470,8 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins("http://localhost:5173") 
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
@@ -418,8 +492,24 @@ app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapAuthUserEndpoints();
 app.MapPropertyEndpoints();
+app.MapApplicationEndpoints();
+app.MapCommunicationsEndpoints();
+
+app.MapHub<ApplicationChatHub>("/api/chathub");
+
+// Seeding autom√°tico em Development
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var identityDb = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+    var catalogDb = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+
+    await IdentitySeeder.SeedAsync(identityDb);
+    await CatalogSeeder.SeedAsync(catalogDb);
+}
 
 app.Run();
+
 
 
 ================================================
@@ -451,6 +541,7 @@ FICHEIRO: .\TrustRent.Api\TrustRent.Api.csproj
     <ProjectReference Include="..\TrustRent.Modules.Catalog\TrustRent.Modules.Catalog.csproj" />
     <ProjectReference Include="..\TrustRent.Modules.Identity\TrustRent.Modules.Identity.csproj" />
     <ProjectReference Include="..\TrustRent.Modules.Leasing\TrustRent.Modules.Leasing.csproj" />
+    <ProjectReference Include="..\TrustRent.Modules.Communications\TrustRent.Modules.Communications.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -458,6 +549,84 @@ FICHEIRO: .\TrustRent.Api\TrustRent.Api.csproj
   </ItemGroup>
 
 </Project>
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Api\Endpoints\ApplicationEndpoints.cs
+================================================
+using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
+using TrustRent.Modules.Catalog.Contracts.DTOs;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
+
+namespace TrustRent.Api.Endpoints;
+
+public static class ApplicationEndpoints
+{
+    public static void MapApplicationEndpoints(this WebApplication app)
+    {
+        var group = app.MapGroup("/api");
+
+        // Tenant submits an application
+        group.MapPost("/properties/{propertyId:guid}/applications", async (Guid propertyId, [FromBody] SubmitApplicationDto dto, IApplicationService service, ClaimsPrincipal user) =>
+        {
+            var userIdString = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdString, out Guid tenantId))
+                return Results.Unauthorized();
+
+            var application = await service.SubmitApplicationAsync(propertyId, tenantId, dto);
+            return Results.Ok(application);
+        }).RequireAuthorization();
+
+        // Landlord gets applications for a property
+        group.MapGet("/properties/{propertyId:guid}/applications", async (Guid propertyId, IApplicationService service, ClaimsPrincipal user) =>
+        {
+            var userIdString = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdString, out Guid landlordId))
+                return Results.Unauthorized();
+
+            var applications = await service.GetApplicationsForPropertyAsync(propertyId, landlordId);
+            return Results.Ok(applications);
+        }).RequireAuthorization();
+
+        // Tenant gets their own applications
+        group.MapGet("/applications/tenant", async (IApplicationService service, ClaimsPrincipal user) =>
+        {
+            var userIdString = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdString, out Guid tenantId))
+                return Results.Unauthorized();
+
+            var applications = await service.GetApplicationsForTenantAsync(tenantId);
+            return Results.Ok(applications);
+        }).RequireAuthorization();
+
+        // Specific Application Action (Landlord or Tenant update visit logic)
+        group.MapGet("/applications/{id:guid}", async (Guid id, IApplicationService service, ClaimsPrincipal user) =>
+        {
+            var userIdString = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdString, out Guid userId))
+                return Results.Unauthorized();
+
+            // Needs to be added to IApplicationService
+            var application = await service.GetApplicationByIdAsync(id, userId);
+            
+            if (application == null) return Results.NotFound();
+
+            return Results.Ok(application);
+        }).RequireAuthorization();
+
+        group.MapPut("/applications/{id:guid}/visit", async (Guid id, [FromBody] UpdateApplicationVisitDto dto, IApplicationService service, ClaimsPrincipal user) =>
+        {
+            var userIdString = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdString, out Guid userId))
+                return Results.Unauthorized();
+
+            var result = await service.UpdateVisitStatusAsync(id, userId, dto);
+            return Results.Ok(result);
+        }).RequireAuthorization();
+    }
+}
 
 
 
@@ -532,14 +701,14 @@ public static class PropertyEndpoints
 {
     public static void MapPropertyEndpoints(this IEndpointRouteBuilder app)
     {
-        // Agrupamos os endpoints e exigimos que o utilizador esteja autenticado (Token JWT v·lido)
+        // Agrupamos os endpoints e exigimos que o utilizador esteja autenticado (Token JWT v√°lido)
         var propertyGroup = app.MapGroup("/api/properties").RequireAuthorization();
 
         propertyGroup.MapPost("/", async (HttpRequest request, ClaimsPrincipal userClaims, IPropertyService propertyService) =>
         {
             try
             {
-                // 1. Identificar quem est· a fazer o pedido
+                // 1. Identificar quem est√° a fazer o pedido
                 var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
                 // 2. Ler o FormData enviado pelo React
@@ -562,7 +731,7 @@ public static class PropertyEndpoints
                     DoorNumber = form["doorNumber"].ToString(),
                     FurnishedDescription = form["furnishedDescription"].ToString(),
 
-                    // Conversıes seguras de n˙meros (se falhar, mete 0)
+                    // Convers√µes seguras de n√∫meros (se falhar, mete 0)
                     Price = decimal.TryParse(form["price"], out var p) ? p : 0,
                     Area = decimal.TryParse(form["area"], out var a) ? a : 0,
                     Rooms = int.TryParse(form["rooms"], out var r) ? r : 0,
@@ -570,7 +739,7 @@ public static class PropertyEndpoints
                     Latitude = double.TryParse(form["latitude"], out var lat) ? lat : 0,
                     Longitude = double.TryParse(form["longitude"], out var lon) ? lon : 0,
 
-                    // Conversıes de booleanos (o React envia como strings "true" ou "false")
+                    // Convers√µes de booleanos (o React envia como strings "true" ou "false")
                     HasElevator = form["hasElevator"] == "true",
                     HasAirConditioning = form["hasAirConditioning"] == "true",
                     HasGarage = form["hasGarage"] == "true",
@@ -579,6 +748,21 @@ public static class PropertyEndpoints
 
                     IsPublic = form["isPublic"] == "true",
                     //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
+
+                    // Documentos extra√≠dos via IA
+                    ParishConcelho = form["parishConcelho"].ToString(),
+                    PermanentCertNumber = form["permanentCertNumber"].ToString(),
+                    PermanentCertOffice = form["permanentCertOffice"].ToString(),
+                    UsageLicenseNumber = form["licenseNumber"].ToString(),
+                    UsageLicenseDate = form["licenseDate"].ToString(),
+                    UsageLicenseIssuer = form["licenseIssuer"].ToString(),
+
+                    // Cau√ß√£o e Despesas
+                    Deposit = decimal.TryParse(form["deposit"], out var dep) ? dep : null,
+                    CondominiumFeesPaidBy = form["condominiumFeesPaidBy"].ToString() is { Length: > 0 } condo ? condo : "Inquilino",
+                    WaterPaidBy = form["waterPaidBy"].ToString() is { Length: > 0 } water ? water : "Inquilino",
+                    ElectricityPaidBy = form["electricityPaidBy"].ToString() is { Length: > 0 } elec ? elec : "Inquilino",
+                    GasPaidBy = form["gasPaidBy"].ToString() is { Length: > 0 } gas ? gas : "Inquilino",
                 };
 
                 var mainImageIndex = int.TryParse(form["mainImageIndex"], out var mii) ? mii : 0;
@@ -595,21 +779,31 @@ public static class PropertyEndpoints
                     .Select(c => c!)
                     .ToList();
 
-                // 5. Chamar a nossa lÛgica de negÛcio (O motor que cri·mos no Passo 2)
-                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, mainImageIndex, documentFiles);
+                // Comodidades selecionadas
+                var amenityIds = new List<Guid>();
+                if (form.TryGetValue("amenityIds", out var amenityValues))
+                {
+                    amenityIds = amenityValues
+                        .Where(v => !string.IsNullOrEmpty(v))
+                        .Select(v => Guid.Parse(v!))
+                        .ToList();
+                }
+
+                // 5. Chamar a nossa l√≥gica de neg√≥cio (O motor que cri√°mos no Passo 2)
+                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, mainImageIndex, documentFiles, amenityIds);
 
                 return Results.Ok(new
                 {
-                    Message = "ImÛvel criado com sucesso!",
+                    Message = "Im√≥vel criado com sucesso!",
                     PropertyId = propertyId
                 });
             }
             catch (Exception ex)
             {
-                // Se algo falhar (ex: erro na convers„o ou no upload da Cloud), devolvemos o erro ao React
+                // Se algo falhar (ex: erro na convers√£o ou no upload da Cloud), devolvemos o erro ao React
                 return Results.BadRequest(new { Error = ex.Message });
             }
-        }).DisableAntiforgery(); // Necess·rio para aceitar multipart/form-data nas Minimal APIs
+        }).DisableAntiforgery(); // Necess√°rio para aceitar multipart/form-data nas Minimal APIs
 
 
         propertyGroup.MapGet("/my-properties", async (ClaimsPrincipal userClaims, IPropertyService propertyService) =>
@@ -627,9 +821,24 @@ public static class PropertyEndpoints
             }
         });
 
+        propertyGroup.MapGet("/my-rented-properties", async (ClaimsPrincipal userClaims, IPropertyService propertyService) =>
+        {
+            try
+            {
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                var properties = await propertyService.GetPropertiesByTenantAsync(userId);
+
+                return Results.Ok(properties);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
 
 
-        // 2. PUT: Atualizar o imÛvel
+
+        // 2. PUT: Atualizar o im√≥vel
         propertyGroup.MapPut("/{id:guid}", async (Guid id, HttpRequest request, ClaimsPrincipal userClaims, IPropertyService propertyService) =>
         {
             try
@@ -665,9 +874,24 @@ public static class PropertyEndpoints
                     IsFurnished = form["isFurnished"] == "true",
                     IsPublic = form["isPublic"] == "true",
                     //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
+
+                    // Documentos extra√≠dos via IA
+                    ParishConcelho = form["parishConcelho"].ToString(),
+                    PermanentCertNumber = form["permanentCertNumber"].ToString(),
+                    PermanentCertOffice = form["permanentCertOffice"].ToString(),
+                    UsageLicenseNumber = form["licenseNumber"].ToString(),
+                    UsageLicenseDate = form["licenseDate"].ToString(),
+                    UsageLicenseIssuer = form["licenseIssuer"].ToString(),
+
+                    // Cau√ß√£o e Despesas
+                    Deposit = decimal.TryParse(form["deposit"], out var dep) ? dep : null,
+                    CondominiumFeesPaidBy = form["condominiumFeesPaidBy"].ToString() is { Length: > 0 } condo ? condo : "Inquilino",
+                    WaterPaidBy = form["waterPaidBy"].ToString() is { Length: > 0 } water ? water : "Inquilino",
+                    ElectricityPaidBy = form["electricityPaidBy"].ToString() is { Length: > 0 } elec ? elec : "Inquilino",
+                    GasPaidBy = form["gasPaidBy"].ToString() is { Length: > 0 } gas ? gas : "Inquilino",
                 };
 
-                // Apanhar apenas as NOVAS imagens adicionadas na ediÁ„o
+                // Apanhar apenas as NOVAS imagens adicionadas na edi√ß√£o
                 var newImageFiles = form.Files.GetFiles("images")
                     .Select(f => new FileDto(f.OpenReadStream(), f.FileName)).ToList();
 
@@ -685,9 +909,19 @@ public static class PropertyEndpoints
                     retainedImageIds = ids.Select(id => Guid.Parse(id!.ToString())).ToList();
                 }
 
-                await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories, retainedImageIds, mainImageIndex, mainRetainedImageId);
+                // Comodidades selecionadas
+                var amenityIds = new List<Guid>();
+                if (form.TryGetValue("amenityIds", out var amenityValues))
+                {
+                    amenityIds = amenityValues
+                        .Where(v => !string.IsNullOrEmpty(v))
+                        .Select(v => Guid.Parse(v!))
+                        .ToList();
+                }
 
-                return Results.Ok(new { Message = "ImÛvel atualizado com sucesso!" });
+                await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories, retainedImageIds, mainImageIndex, mainRetainedImageId, amenityIds);
+
+                return Results.Ok(new { Message = "Im√≥vel atualizado com sucesso!" });
             }
             catch (Exception ex)
             {
@@ -730,21 +964,45 @@ public static class PropertyEndpoints
             }
         });
 
-        // GET: Obter detalhes do imÛvel
-        app.MapGet("/api/properties/{id:guid}", async (Guid id, IPropertyService propertyService, IUserService userService) =>
+        // GET: Obter detalhes do im√≥vel
+        app.MapGet("/api/properties/{id:guid}", async (Guid id, IPropertyService propertyService, IUserService userService, IApplicationService applicationService, ClaimsPrincipal userClaims) =>
         {
-            // 1. Ir buscar o imÛvel ao Catalog
+            // 1. Identificar o utilizador (se autenticado)
+            var userIdString = userClaims.FindFirstValue(ClaimTypes.NameIdentifier);
+            var currentUserId = string.IsNullOrEmpty(userIdString) ? Guid.Empty : Guid.Parse(userIdString);
+
+            // 2. Ir buscar o im√≥vel ao Catalog
             var property = await propertyService.GetPropertyByIdAsync(id);
             if (property is null) return Results.NotFound();
 
-            // 2. Ir buscar o senhorio ao Identity (usando o LandlordId guardado no imÛvel)
+            // 3. Verificar permiss√µes para ver a morada completa
+            var showFullAddress = false;
+            if (currentUserId != Guid.Empty)
+            {
+                if (currentUserId == property.LandlordId)
+                {
+                    showFullAddress = true;
+                }
+                else
+                {
+                    // Verificar se o inquilino tem uma candidatura com visita aceite ou superior
+                    var tenantApps = await applicationService.GetApplicationsForTenantAsync(currentUserId);
+                    var app = tenantApps.FirstOrDefault(a => a.PropertyId == id);
+                    if (app != null && (app.Status == "VisitAccepted" || app.Status == "InterestConfirmed" || app.Status == "Accepted"))
+                    {
+                        showFullAddress = true;
+                    }
+                }
+            }
+
+            // 4. Ir buscar o senhorio ao Identity
             var landlord = await userService.GetProfileAsync(property.LandlordId);
 
-            // 3. Compor a resposta final (Enrichment)
-            // Criamos um objeto anÛnimo ou um record local para n„o vazar dados sensÌveis do utilizador
+            // 5. Compor a resposta final (Enrichment)
             var response = new
             {
                 property.Id,
+                property.LandlordId,
                 property.Title,
                 property.Description,
                 property.Price,
@@ -760,17 +1018,44 @@ public static class PropertyEndpoints
                 property.AllowsPets,
                 property.IsFurnished,
                 property.FurnishedDescription,
-                property.Street,
+                
+                // Dados Sens√≠veis (Mascarados se n√£o tiver permiss√£o)
+                Street = showFullAddress ? property.Street : "Morada vis√≠vel ap√≥s agendamento de visita",
+                DoorNumber = showFullAddress ? property.DoorNumber : "***",
+                PostalCode = showFullAddress ? property.PostalCode : "****-***",
+                
                 property.Parish,
                 property.Municipality,
                 property.District,
                 property.Latitude,
                 property.Longitude,
+                property.MatrixArticle,
+                property.PropertyFraction,
+                property.ParishConcelho,
+                property.EnergyClass,
+                property.EnergyCertificateNumber,
+                property.AtRegistrationNumber,
+                property.PermanentCertNumber,
+                property.PermanentCertOffice,
+                property.UsageLicenseNumber,
+                property.UsageLicenseDate,
+                property.UsageLicenseIssuer,
+                property.Deposit,
+                property.CondominiumFeesPaidBy,
+                property.WaterPaidBy,
+                property.ElectricityPaidBy,
+                property.GasPaidBy,
                 Images = property.Images.Select(img => new {
                     img.Id,
                     img.Url,
                     img.Category,
                     img.IsMain
+                }),
+                Amenities = property.Amenities.Select(pa => new {
+                    pa.Amenity.Id,
+                    pa.Amenity.Name,
+                    pa.Amenity.IconName,
+                    pa.Amenity.Category
                 }),
                 Landlord = new
                 {
@@ -784,6 +1069,19 @@ public static class PropertyEndpoints
             };
 
             return Results.Ok(response);
+        });
+
+        // GET: Lista de todas as comodidades dispon√≠veis
+        app.MapGet("/api/amenities", async (IPropertyService propertyService) =>
+        {
+            var amenities = await propertyService.GetAllAmenitiesAsync();
+            return Results.Ok(amenities.Select(a => new
+            {
+                a.Id,
+                a.Name,
+                a.IconName,
+                a.Category
+            }));
         });
 
     }
@@ -811,6 +1109,13 @@ public static class UserEndpoints
             var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var user = await userService.GetProfileAsync(userId);
             return user is not null ? Results.Ok(user) : Results.NotFound();
+        });
+
+        // Public profile (no auth needed for now, or just limit to authenticated users? They are in the userGroup which requires auth, which is fine)
+        userGroup.MapGet("/{id:guid}/public", async (Guid id, IUserService userService) =>
+        {
+            var profile = await userService.GetPublicProfileAsync(id);
+            return profile is not null ? Results.Ok(profile) : Results.NotFound();
         });
 
         userGroup.MapPut("/profile", async (ClaimsPrincipal userClaims, [FromBody] UpdateProfileDto request, IUserService userService) =>
@@ -958,6 +1263,10 @@ public class CatalogDbContext : DbContext
 
     public DbSet<Property> Properties { get; set; }
     public DbSet<PropertyImage> PropertyImages { get; set; }
+    public DbSet<Application> Applications { get; set; }
+    public DbSet<ApplicationHistory> ApplicationHistories { get; set; }
+    public DbSet<Amenity> Amenities { get; set; }
+    public DbSet<PropertyAmenity> PropertyAmenities { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -985,10 +1294,116 @@ public class CatalogDbContext : DbContext
             builder.Property(i => i.Url).IsRequired();
         });
 
+        modelBuilder.Entity<Application>(builder =>
+        {
+            builder.HasKey(a => a.Id);
+            builder.HasOne<Property>().WithMany().HasForeignKey(a => a.PropertyId).OnDelete(DeleteBehavior.Cascade);
+            builder.HasMany(a => a.History).WithOne().HasForeignKey(h => h.ApplicationId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ApplicationHistory>(builder =>
+        {
+            builder.HasKey(h => h.Id);
+            builder.Property(h => h.Action).IsRequired().HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<Amenity>(builder =>
+        {
+            builder.HasKey(a => a.Id);
+            builder.Property(a => a.Name).IsRequired().HasMaxLength(100);
+            builder.Property(a => a.IconName).IsRequired().HasMaxLength(50);
+            builder.Property(a => a.Category).IsRequired().HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<PropertyAmenity>(builder =>
+        {
+            builder.HasKey(pa => new { pa.PropertyId, pa.AmenityId });
+
+            builder.HasOne(pa => pa.Property)
+                   .WithMany(p => p.Amenities)
+                   .HasForeignKey(pa => pa.PropertyId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasOne(pa => pa.Amenity)
+                   .WithMany()
+                   .HasForeignKey(pa => pa.AmenityId)
+                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Seed de Comodidades
+        modelBuilder.Entity<Amenity>().HasData(
+            // B√°sico
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000001"), Name = "Wifi", IconName = "Wifi", Category = "B√°sico" },
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000002"), Name = "Cozinha Equipada", IconName = "Utensils", Category = "B√°sico" },
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000003"), Name = "M√°quina de Lavar", IconName = "WashingMachine", Category = "B√°sico" },
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000004"), Name = "Ferro de Engomar", IconName = "Iron", Category = "B√°sico" },
+            // Conforto
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000005"), Name = "Ar Condicionado", IconName = "Wind", Category = "Conforto" },
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000006"), Name = "Aquecimento Central", IconName = "Thermometer", Category = "Conforto" },
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000007"), Name = "Televis√£o", IconName = "Tv", Category = "Conforto" },
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000008"), Name = "Ber√ßo", IconName = "Baby", Category = "Conforto" },
+            // Lazer
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000009"), Name = "Piscina", IconName = "Waves", Category = "Lazer" },
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000a"), Name = "Jacuzzi", IconName = "Bath", Category = "Lazer" },
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000b"), Name = "Gin√°sio", IconName = "Dumbbell", Category = "Lazer" },
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000c"), Name = "Churrasqueira", IconName = "Flame", Category = "Lazer" },
+            // Seguran√ßa
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000d"), Name = "Extintor", IconName = "FireExtinguisher", Category = "Seguran√ßa" },
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000e"), Name = "Detetor de Fumo", IconName = "Siren", Category = "Seguran√ßa" },
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000f"), Name = "Alarme", IconName = "ShieldAlert", Category = "Seguran√ßa" },
+            // Extra
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000010"), Name = "Aceita Animais", IconName = "Dog", Category = "Extra" },
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000011"), Name = "Pr√≥ximo de Supermercado", IconName = "ShoppingCart", Category = "Extra" },
+            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000012"), Name = "Pr√≥ximo de Transporte", IconName = "Bus", Category = "Extra" }
+        );
+
         base.OnModelCreating(modelBuilder);
     }
 }
 
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\DTOs\ApplicationDto.cs
+================================================
+using TrustRent.Modules.Catalog.Models;
+
+namespace TrustRent.Modules.Catalog.Contracts.DTOs;
+
+public class ApplicationDto
+{
+    public Guid Id { get; set; }
+    public Guid PropertyId { get; set; }
+    public Guid TenantId { get; set; }
+    public Guid LandlordId { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public bool ShareProfile { get; set; }
+    public bool WantsVisit { get; set; }
+    public List<string> TenantProposedDates { get; set; } = new();
+    public DateTime? LandlordProposedDate { get; set; }
+    public DateTime? FinalVisitDate { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public List<ApplicationHistoryDto> History { get; set; } = new();
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\DTOs\ApplicationHistoryDto.cs
+================================================
+namespace TrustRent.Modules.Catalog.Contracts.DTOs;
+
+public class ApplicationHistoryDto
+{
+    public Guid Id { get; set; }
+    public Guid ActorId { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public string? Message { get; set; }
+    public string? EventData { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
 
 
 
@@ -1040,6 +1455,25 @@ public class CreatePropertyDto
 
     // Registo AT
     public string? AtRegistrationNumber { get; set; }
+
+    // Caderneta - Freguesia/Concelho
+    public string? ParishConcelho { get; set; }
+
+    // Certid„o Permanente
+    public string? PermanentCertNumber { get; set; }
+    public string? PermanentCertOffice { get; set; }
+
+    // LicenÁa de UtilizaÁ„o
+    public string? UsageLicenseNumber { get; set; }
+    public string? UsageLicenseDate { get; set; }
+    public string? UsageLicenseIssuer { get; set; }
+
+    // CauÁ„o e Despesas
+    public decimal? Deposit { get; set; }
+    public string CondominiumFeesPaidBy { get; set; } = "Inquilino";
+    public string WaterPaidBy { get; set; } = "Inquilino";
+    public string ElectricityPaidBy { get; set; } = "Inquilino";
+    public string GasPaidBy { get; set; } = "Inquilino";
 }
 
 // Pequeno record para transportar os ficheiros do Endpoint para o ServiÁo sem quebrar o Clean Architecture
@@ -1054,9 +1488,15 @@ namespace TrustRent.Modules.Catalog.Contracts.DTOs;
 public record DocumentExtractionResultDto(
     string? MatrixArticle = null,
     string? PropertyFraction = null,
+    string? ParishConcelho = null,
     string? EnergyClass = null,
     string? EnergyCertNumber = null,
-    string? AtRegistrationNumber = null
+    string? AtRegistrationNumber = null,
+    string? PermanentCertNumber = null,
+    string? PermanentCertOffice = null,
+    string? LicenseNumber = null,
+    string? LicenseDate = null,
+    string? LicenseIssuer = null
 );
 
 
@@ -1132,6 +1572,54 @@ public record PropertySummaryDto(
 
 
 ================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\DTOs\SubmitApplicationDto.cs
+================================================
+namespace TrustRent.Modules.Catalog.Contracts.DTOs;
+
+public class SubmitApplicationDto
+{
+    public string Message { get; set; } = string.Empty;
+    public bool ShareProfile { get; set; }
+    public bool WantsVisit { get; set; }
+    public List<string> SelectedDates { get; set; } = new();
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\DTOs\UpdateApplicationVisitDto.cs
+================================================
+namespace TrustRent.Modules.Catalog.Contracts.DTOs;
+
+public class UpdateApplicationVisitDto
+{
+    public string Action { get; set; } = string.Empty; // "Accept", "CounterPropose", "Reject", "TenantCounterPropose"
+    public DateTime? LandlordProposedDate { get; set; }
+    public string? SelectedTenantDate { get; set; } // The exact date from TenantProposedDates the Landlord wants to accept
+    public List<string>? TenantProposedDates { get; set; }
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\Interfaces\IApplicationService.cs
+================================================
+using TrustRent.Modules.Catalog.Contracts.DTOs;
+
+namespace TrustRent.Modules.Catalog.Contracts.Interfaces;
+
+public interface IApplicationService
+{
+    Task<ApplicationDto> SubmitApplicationAsync(Guid propertyId, Guid tenantId, SubmitApplicationDto dto);
+    Task<ApplicationDto?> GetApplicationByIdAsync(Guid applicationId, Guid userId);
+    Task<IEnumerable<ApplicationDto>> GetApplicationsForPropertyAsync(Guid propertyId, Guid landlordId);
+    Task<IEnumerable<ApplicationDto>> GetApplicationsForTenantAsync(Guid tenantId);
+    Task<ApplicationDto> UpdateVisitStatusAsync(Guid applicationId, Guid userId, UpdateApplicationVisitDto dto);
+}
+
+
+
+================================================
 FICHEIRO: .\TrustRent.Modules.Catalog\Contracts\Interfaces\ICatalogUnitOfWork.cs
 ================================================
 namespace TrustRent.Modules.Catalog.Contracts.Interfaces;
@@ -1170,10 +1658,12 @@ public interface IPropertyRepository
     Task<Property?> GetByIdWithImagesAsync(Guid id);
     Task<Property?> GetByIdAndLandlordWithImagesAsync(Guid id, Guid landlordId);
     Task<IEnumerable<Property>> GetByLandlordIdWithImagesAsync(Guid landlordId);
+    Task<IEnumerable<Property>> GetByTenantIdWithImagesAsync(Guid tenantId);
     Task AddAsync(Property property);
     Task AddImageAsync(PropertyImage image);
     void RemoveImages(IEnumerable<PropertyImage> images);
     Task<(IEnumerable<Property> Items, int TotalCount)> SearchAsync(PropertySearchQuery query);
+    Task<IEnumerable<Amenity>> GetAllAmenitiesAsync();
 }
 
 
@@ -1187,11 +1677,13 @@ namespace TrustRent.Modules.Catalog.Contracts.Interfaces;
 
 public interface IPropertyService
 {
-    Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IList<string> imageCategories, int mainImageIndex, IEnumerable<FileDto> documents);
+    Task<Guid> CreatePropertyAsync(Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> images, IList<string> imageCategories, int mainImageIndex, IEnumerable<FileDto> documents, IList<Guid>? amenityIds = null);
     Task<IEnumerable<PropertySummaryDto>> GetPropertiesByLandlordAsync(Guid landlordId);
     Task<Property?> GetPropertyByIdAsync(Guid propertyId);
-    Task UpdatePropertyAsync(Guid propertyId, Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> newImages, IList<string> imageCategories, IList<Guid> retainedImageIds, int mainImageIndex, Guid? mainRetainedImageId);
+    Task UpdatePropertyAsync(Guid propertyId, Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> newImages, IList<string> imageCategories, IList<Guid> retainedImageIds, int mainImageIndex, Guid? mainRetainedImageId, IList<Guid>? amenityIds = null);
     Task<PagedResult<PropertySearchDto>> SearchPropertiesAsync(PropertySearchQuery query);
+    Task<IEnumerable<PropertySummaryDto>> GetPropertiesByTenantAsync(Guid tenantId);
+    Task<IEnumerable<Amenity>> GetAllAmenitiesAsync();
 }
 
 
@@ -1379,6 +1871,61 @@ public class PropertyUploadJob : IPropertyUploadJob
 
 
 ================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Mappers\ApplicationMappers.cs
+================================================
+using System.Text.Json;
+using TrustRent.Modules.Catalog.Contracts.DTOs;
+using TrustRent.Modules.Catalog.Models;
+
+namespace TrustRent.Modules.Catalog.Mappers;
+
+public static class ApplicationMappers
+{
+    public static ApplicationDto ToDto(this Application application, Guid landlordId = default)
+    {
+        List<string> dates = new();
+        if (!string.IsNullOrWhiteSpace(application.TenantProposedDates))
+        {
+            try
+            {
+                dates = JsonSerializer.Deserialize<List<string>>(application.TenantProposedDates) ?? new();
+            }
+            catch
+            {
+                dates = application.TenantProposedDates.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+            }
+        }
+
+        return new ApplicationDto
+        {
+            Id = application.Id,
+            PropertyId = application.PropertyId,
+            TenantId = application.TenantId,
+            LandlordId = landlordId,
+            Message = application.Message,
+            ShareProfile = application.ShareProfile,
+            WantsVisit = application.WantsVisit,
+            TenantProposedDates = dates,
+            LandlordProposedDate = application.LandlordProposedDate,
+            FinalVisitDate = application.FinalVisitDate,
+            Status = application.Status.ToString(),
+            CreatedAt = application.CreatedAt,
+            History = application.History?.Select(h => new ApplicationHistoryDto
+            {
+                Id = h.Id,
+                ActorId = h.ActorId,
+                Action = h.Action,
+                Message = h.Message,
+                EventData = h.EventData,
+                CreatedAt = h.CreatedAt
+            }).OrderBy(h => h.CreatedAt).ToList() ?? new()
+        };
+    }
+}
+
+
+
+================================================
 FICHEIRO: .\TrustRent.Modules.Catalog\Mappers\PropertyMappers.cs
 ================================================
 using TrustRent.Modules.Catalog.Contracts.DTOs;
@@ -1440,6 +1987,17 @@ public static class PropertyMappers
             Latitude = dto.Latitude,
             Longitude = dto.Longitude,
             IsPublic = dto.IsPublic,
+            ParishConcelho = dto.ParishConcelho,
+            PermanentCertNumber = dto.PermanentCertNumber,
+            PermanentCertOffice = dto.PermanentCertOffice,
+            UsageLicenseNumber = dto.UsageLicenseNumber,
+            UsageLicenseDate = dto.UsageLicenseDate,
+            UsageLicenseIssuer = dto.UsageLicenseIssuer,
+            Deposit = dto.Deposit,
+            CondominiumFeesPaidBy = dto.CondominiumFeesPaidBy,
+            WaterPaidBy = dto.WaterPaidBy,
+            ElectricityPaidBy = dto.ElectricityPaidBy,
+            GasPaidBy = dto.GasPaidBy,
         };
     }
 
@@ -1470,6 +2028,17 @@ public static class PropertyMappers
         property.Latitude = dto.Latitude;
         property.Longitude = dto.Longitude;
         property.IsPublic = dto.IsPublic;
+        property.ParishConcelho = dto.ParishConcelho;
+        property.PermanentCertNumber = dto.PermanentCertNumber;
+        property.PermanentCertOffice = dto.PermanentCertOffice;
+        property.UsageLicenseNumber = dto.UsageLicenseNumber;
+        property.UsageLicenseDate = dto.UsageLicenseDate;
+        property.UsageLicenseIssuer = dto.UsageLicenseIssuer;
+        property.Deposit = dto.Deposit;
+        property.CondominiumFeesPaidBy = dto.CondominiumFeesPaidBy;
+        property.WaterPaidBy = dto.WaterPaidBy;
+        property.ElectricityPaidBy = dto.ElectricityPaidBy;
+        property.GasPaidBy = dto.GasPaidBy;
     }
 
     public static PropertySearchDto ToSearchDto(this Property p)
@@ -1488,6 +2057,88 @@ public static class PropertyMappers
 
 
 ================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Models\Amenity.cs
+================================================
+namespace TrustRent.Modules.Catalog.Models;
+
+public class Amenity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string IconName { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Models\Application.cs
+================================================
+namespace TrustRent.Modules.Catalog.Models;
+
+public class Application
+{
+    public Guid Id { get; set; }
+    public Guid PropertyId { get; set; }
+    public Guid TenantId { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public bool ShareProfile { get; set; }
+    public bool WantsVisit { get; set; }
+    
+    // Lista de datas no formato string "YYYY-MM-DD" separadas por virgula ou JSON (para simplificar, array mapeado em json ou string delimitada)
+    public string TenantProposedDates { get; set; } = string.Empty; 
+    
+    public DateTime? LandlordProposedDate { get; set; }
+    public DateTime? FinalVisitDate { get; set; }
+    
+    public ApplicationStatus Status { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAt { get; set; }
+
+    public List<ApplicationHistory> History { get; set; } = new();
+}
+
+public enum ApplicationStatus
+{
+    Pending,
+    VisitCounterProposed,
+    VisitAccepted,
+    InterestConfirmed,
+    Accepted,
+    Rejected
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Models\ApplicationHistory.cs
+================================================
+namespace TrustRent.Modules.Catalog.Models;
+
+public class ApplicationHistory
+{
+    public Guid Id { get; set; }
+    public Guid ApplicationId { get; set; }
+    
+    // Who did the action?
+    public Guid ActorId { get; set; }
+
+    // Action that triggered the history entry (e.g., "Created", "TenantProposedDates", "LandlordCounterProposed", "VisitAccepted")
+    public string Action { get; set; } = string.Empty;
+
+    // Optional message from the actor
+    public string? Message { get; set; }
+
+    // The raw data or date proposed in this step, to keep history
+    public string? EventData { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+
+
+================================================
 FICHEIRO: .\TrustRent.Modules.Catalog\Models\Property.cs
 ================================================
 namespace TrustRent.Modules.Catalog.Models;
@@ -1495,16 +2146,17 @@ namespace TrustRent.Modules.Catalog.Models;
 public class Property
 {
     public Guid Id { get; set; }
-    public Guid LandlordId { get; set; } // Relacionamento (simulado) com o dono do imÛvel
+    public Guid LandlordId { get; set; } // Relacionamento (simulado) com o dono do im√≥vel
+    public Guid? TenantId { get; set; }   // Relacionamento (simulado) com o inquilino atual
 
-    // InformaÁıes B·sicas
+    // Informa√ß√µes B√°sicas
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public string PropertyType { get; set; } = string.Empty;
     public string Typology { get; set; } = string.Empty;
 
-    // CaracterÌsticas
+    // Caracter√≠sticas
     public decimal Area { get; set; }
     public int Rooms { get; set; }
     public int Bathrooms { get; set; }
@@ -1518,7 +2170,7 @@ public class Property
     public bool IsFurnished { get; set; }
     public string? FurnishedDescription { get; set; }
 
-    // LocalizaÁ„o
+    // Localiza√ß√£o
     public string District { get; set; } = string.Empty;
     public string Municipality { get; set; } = string.Empty;
     public string Parish { get; set; } = string.Empty;
@@ -1537,18 +2189,40 @@ public class Property
     // Relacionamentos (As listas de imagens)
     public List<PropertyImage> Images { get; set; } = new();
 
+    // Relacionamentos (Comodidades / Benef√≠cios)
+    public ICollection<PropertyAmenity> Amenities { get; set; } = new List<PropertyAmenity>();
+
 
     // Caderneta
     public string? MatrixArticle { get; set; }
     public string? PropertyFraction { get; set; }
 
-    // Certificado EnergÈtico
+    // Certificado Energ√©tico
     public string? EnergyClass { get; set; }
     public string? EnergyCertificateNumber { get; set; }
     public DateTime? EnergyCertificateExpiryDate { get; set; }
 
     // Registo AT
     public string? AtRegistrationNumber { get; set; }
+
+    // Caderneta - Freguesia/Concelho
+    public string? ParishConcelho { get; set; }
+
+    // Certid√£o Permanente
+    public string? PermanentCertNumber { get; set; }
+    public string? PermanentCertOffice { get; set; }
+
+    // Licen√ßa de Utiliza√ß√£o
+    public string? UsageLicenseNumber { get; set; }
+    public string? UsageLicenseDate { get; set; }
+    public string? UsageLicenseIssuer { get; set; }
+
+    // Cau√ß√£o e Despesas
+    public decimal? Deposit { get; set; }
+    public string CondominiumFeesPaidBy { get; set; } = "Inquilino";
+    public string WaterPaidBy { get; set; } = "Inquilino";
+    public string ElectricityPaidBy { get; set; } = "Inquilino";
+    public string GasPaidBy { get; set; } = "Inquilino";
 }
 
 // Classe para guardar a Galeria de Imagens
@@ -1558,10 +2232,25 @@ public class PropertyImage
     public Guid PropertyId { get; set; }
     public string Url { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
-    public bool IsMain { get; set; } // Diz se È a foto de Capa
+    public bool IsMain { get; set; } // Diz se √© a foto de Capa
 }
 
 
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Models\PropertyAmenity.cs
+================================================
+namespace TrustRent.Modules.Catalog.Models;
+
+public class PropertyAmenity
+{
+    public Guid PropertyId { get; set; }
+    public Guid AmenityId { get; set; }
+
+    public Property Property { get; set; } = null!;
+    public Amenity Amenity { get; set; } = null!;
+}
 
 
 ================================================
@@ -1608,13 +2297,25 @@ public class PropertyRepository : IPropertyRepository
         await _context.Properties.FindAsync(id);
 
     public async Task<Property?> GetByIdWithImagesAsync(Guid id) =>
-        await _context.Properties.Include(p => p.Images).FirstOrDefaultAsync(p => p.Id == id);
+        await _context.Properties
+            .Include(p => p.Images)
+            .Include(p => p.Amenities).ThenInclude(pa => pa.Amenity)
+            .FirstOrDefaultAsync(p => p.Id == id);
 
     public async Task<Property?> GetByIdAndLandlordWithImagesAsync(Guid id, Guid landlordId) =>
-        await _context.Properties.Include(p => p.Images).FirstOrDefaultAsync(p => p.Id == id && p.LandlordId == landlordId);
+        await _context.Properties
+            .Include(p => p.Images)
+            .Include(p => p.Amenities).ThenInclude(pa => pa.Amenity)
+            .FirstOrDefaultAsync(p => p.Id == id && p.LandlordId == landlordId);
+
+    public async Task<IEnumerable<Amenity>> GetAllAmenitiesAsync() =>
+        await _context.Amenities.OrderBy(a => a.Category).ThenBy(a => a.Name).ToListAsync();
 
     public async Task<IEnumerable<Property>> GetByLandlordIdWithImagesAsync(Guid landlordId) =>
         await _context.Properties.Include(p => p.Images).Where(p => p.LandlordId == landlordId).OrderByDescending(p => p.CreatedAt).ToListAsync();
+
+    public async Task<IEnumerable<Property>> GetByTenantIdWithImagesAsync(Guid tenantId) =>
+        await _context.Properties.Include(p => p.Images).Where(p => p.TenantId == tenantId).OrderByDescending(p => p.CreatedAt).ToListAsync();
 
     public async Task AddAsync(Property property) =>
         await _context.Properties.AddAsync(property);
@@ -1627,7 +2328,7 @@ public class PropertyRepository : IPropertyRepository
 
     public async Task<(IEnumerable<Property> Items, int TotalCount)> SearchAsync(PropertySearchQuery query)
     {
-        // Apenas listamos imÛveis p˙blicos
+        // Apenas listamos im√≥veis p√∫blicos
         var q = _context.Properties.Include(p => p.Images).Where(p => p.IsPublic);
 
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
@@ -1667,7 +2368,7 @@ public class PropertyRepository : IPropertyRepository
 
         var totalCount = await q.CountAsync();
 
-        // Aplica a PaginaÁ„o
+        // Aplica a Pagina√ß√£o
         var items = await q.OrderByDescending(p => p.CreatedAt)
                            .Skip((query.Page - 1) * query.PageSize)
                            .Take(query.PageSize)
@@ -1676,6 +2377,446 @@ public class PropertyRepository : IPropertyRepository
         return (items, totalCount);
     }
 }
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Seeds\CatalogSeeder.cs
+================================================
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Models;
+using TrustRent.Modules.Identity.Seeds;
+
+namespace TrustRent.Modules.Catalog.Seeds;
+
+public static class CatalogSeeder
+{
+    // IDs fixos para propriedades "Core" para manter consist√™ncia nos testes manuais
+    public static readonly Guid Property1Id = Guid.Parse("aaaa1111-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    public static readonly Guid Property2Id = Guid.Parse("aaaa2222-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    public static readonly Guid Property3Id = Guid.Parse("aaaa3333-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    public static readonly Guid Property4Id = Guid.Parse("aaaa4444-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    public static readonly Guid Property5Id = Guid.Parse("aaaa5555-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    public static readonly Guid Property6Id = Guid.Parse("aaaa6666-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
+    public static async Task SeedAsync(CatalogDbContext context)
+    {
+        // Se j√° temos as propriedades core, assumimos que o seed j√° correu
+        if (await context.Properties.AnyAsync(p => p.Id == Property1Id))
+        {
+            var count = await context.Properties.CountAsync();
+            Console.WriteLine($"[SEED] Catalog: J√° existem {count} im√≥veis. A ignorar.");
+            return;
+        }
+
+        var userIds = IdentitySeeder.AllGeneratedUserIds;
+        if (userIds.Count == 0)
+        {
+            // Fallback se por acaso a lista estiver vazia (n√£o deve acontecer se correr em ordem)
+            userIds = new List<Guid> { IdentitySeeder.LandlordId, IdentitySeeder.Landlord2Id, IdentitySeeder.TenantId, IdentitySeeder.Tenant2Id };
+        }
+
+        var random = new Random(42); // Seed fixa para os im√≥veis tamb√©m
+        var properties = new List<Property>();
+
+        var adjectives = new[] { "Acolhedor", "Moderno", "Espa√ßoso", "Elegante", "R√∫stico", "Luminoso", "Central", "Luxuoso" };
+        var imageUrls = new[] {
+            "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267",
+            "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688",
+            "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2",
+            "https://images.unsplash.com/photo-1484154218962-a197022b5858",
+            "https://images.unsplash.com/photo-1493809842364-78817add7ffb",
+            "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6",
+            "https://images.unsplash.com/photo-1527359443443-84a18accb60d"
+        };
+
+        // 1. ADICIONAR AS 6 PROPRIEDADES CORE (Com IDs fixos)
+        properties.Add(new Property { Id = Property1Id, LandlordId = IdentitySeeder.LandlordId, Title = "T2 Renovado no Chiado com Vista Rio", Street = "Rua Garrett", DoorNumber = "10", PostalCode = "1200-204", Description = "Apartamento de luxo no cora√ß√£o de Lisboa.", Price = 1200, PropertyType = "Apartamento", Typology = "T2", Area = 85, Rooms = 2, Bathrooms = 1, District = "Lisboa", Municipality = "Lisboa", IsPublic = true, IsUnderMaintenance = false });
+        properties.Add(new Property { Id = Property2Id, LandlordId = IdentitySeeder.LandlordId, Title = "T1 Moderno em Arroios", Street = "Rua Almirante Reis", DoorNumber = "45", PostalCode = "1000-002", Description = "Est√∫dio ideal para n√≥madas digitais.", Price = 850, PropertyType = "Apartamento", Typology = "T1", Area = 50, Rooms = 1, Bathrooms = 1, District = "Lisboa", Municipality = "Lisboa", IsPublic = true, IsUnderMaintenance = false });
+        properties.Add(new Property { Id = Property3Id, LandlordId = IdentitySeeder.Landlord2Id, Title = "T3 Familiar em Cascais com Jardim", Street = "Avenida Marginal", DoorNumber = "105", PostalCode = "2750-001", Description = "Moradia espa√ßosa perto da praia.", Price = 1800, PropertyType = "Moradia", Typology = "T3", Area = 150, Rooms = 3, Bathrooms = 2, District = "Lisboa", Municipality = "Cascais", IsPublic = true, IsUnderMaintenance = false });
+        properties.Add(new Property { Id = Property4Id, LandlordId = IdentitySeeder.Landlord2Id, Title = "Est√∫dio Loft no Porto - Ribeira", Street = "Rua das Flores", DoorNumber = "20", PostalCode = "4050-262", Description = "Design industrial e vista Douro.", Price = 950, PropertyType = "Apartamento", Typology = "T0", Area = 45, Rooms = 0, Bathrooms = 1, District = "Porto", Municipality = "Porto", IsPublic = true, IsUnderMaintenance = false });
+        
+        // üè† Core Rented (J√° ocupadas)
+        properties.Add(new Property { Id = Property5Id, LandlordId = IdentitySeeder.LandlordId, TenantId = IdentitySeeder.TenantId, Title = "Apartamento Luxo nas Torres do Colombo", Street = "Avenida Lus√≠ada", DoorNumber = "1", PostalCode = "1500-392", Description = "Propriedade ocupada pela Ana Ferreira.", Price = 2500, PropertyType = "Apartamento", Typology = "T3", Area = 160, District = "Lisboa", Municipality = "Lisboa", IsPublic = false });
+        properties.Add(new Property { Id = Property6Id, LandlordId = IdentitySeeder.Landlord2Id, TenantId = IdentitySeeder.Tenant2Id, Title = "Moradia T2 em Tavira com Piscina", Street = "Rua Direita", DoorNumber = "22", PostalCode = "8800-001", Description = "Propriedade ocupada pelo Miguel Costa.", Price = 1100, PropertyType = "Moradia", Typology = "T2", Area = 90, District = "Faro", Municipality = "Tavira", IsPublic = false });
+
+        // 2. GERAR MAIS 64 PROPRIEDADES (Total 70)
+        var cities = new[] { "Lisboa", "Porto", "Coimbra", "Braga", "Faro", "Aveiro", "Set√∫bal", "Viseu", "√âvora", "Leiria" };
+        var types = new[] { "Apartamento", "Moradia", "Quarto" };
+        var typologies = new[] { "T0", "T1", "T2", "T3", "T4" };
+
+        for (int i = 0; i < 64; i++)
+        {
+            var city = cities[random.Next(cities.Length)];
+            var type = types[random.Next(types.Length)];
+            var typo = typologies[random.Next(typologies.Length)];
+            var adj = adjectives[random.Next(adjectives.Length)];
+            var price = random.Next(4, 25) * 100;
+            
+            var p = new Property
+            {
+                Id = Guid.NewGuid(),
+                LandlordId = userIds[random.Next(userIds.Count)],
+                Title = $"{typo} {adj} em {city}",
+                Description = $"Excelente {type.ToLower()} {adj.ToLower()} situado em zona calma de {city}. Perto de servi√ßos e transportes.",
+                Price = price,
+                PropertyType = type,
+                Typology = typo,
+                Area = random.Next(40, 200),
+                Rooms = random.Next(0, 5),
+                Bathrooms = random.Next(1, 3),
+                District = city,
+                Municipality = city,
+                Street = $"Rua {adj} de {city}",
+                DoorNumber = random.Next(1, 200).ToString(),
+                PostalCode = $"{random.Next(1000, 9000)}-{random.Next(100, 999)}",
+                IsPublic = true,
+                IsUnderMaintenance = false,
+                CreatedAt = DateTime.UtcNow.AddDays(-random.Next(1, 60))
+            };
+
+            properties.Add(p);
+        }
+
+        // Adicionar imagem obrigat√≥ria aos im√≥veis que n√£o t√™m.
+        foreach(var p in properties) 
+        {
+            if(p.Images.Count == 0)
+            {
+                p.Images.Add(new PropertyImage
+                {
+                    Id = Guid.NewGuid(),
+                    PropertyId = p.Id,
+                    Url = imageUrls[random.Next(imageUrls.Length)] + "?auto=format&fit=crop&w=800&q=80",
+                    Category = "Principal",
+                    IsMain = true
+                });
+            }
+        }
+
+        // 3. MARCAR MAIS 8 PROPRIEDADES COMO ALUGADAS (Total 10 rented)
+        // Escolhemos 8 das geradas (que n√£o as core) e atribu√≠mos um TenantId aleat√≥rio
+        var generatedProperties = properties.Skip(6).ToList();
+        for (int i = 0; i < 8; i++)
+        {
+            var p = generatedProperties[i];
+            p.TenantId = userIds[random.Next(userIds.Count)];
+            p.IsPublic = false; // Casas ocupadas geralmente n√£o est√£o p√∫blicas
+        }
+
+        // 4. GERAR CANDIDATURAS
+        var applications = new List<Application>();
+        
+        // Candidaturas Aceites para as casas j√° alugadas (hist√≥rico)
+        foreach (var p in properties.Where(p => p.TenantId.HasValue))
+        {
+            var app = new Application
+            {
+                Id = Guid.NewGuid(),
+                PropertyId = p.Id,
+                TenantId = p.TenantId.Value,
+                Message = "Gostaria de alugar este im√≥vel.",
+                Status = ApplicationStatus.Accepted,
+                CreatedAt = p.CreatedAt.AddDays(5)
+            };
+            app.History.Add(new ApplicationHistory { Id = Guid.NewGuid(), ApplicationId = app.Id, ActorId = p.LandlordId, Action = "Candidatura Aceite", CreatedAt = app.CreatedAt.AddDays(1) });
+            applications.Add(app);
+        }
+
+        // Gerar mais 30 candidaturas pendentes em casas variadas para teste de listas
+        var availableProperties = properties.Where(p => !p.TenantId.HasValue).ToList();
+        for (int i = 0; i < 30; i++)
+        {
+            var p = availableProperties[random.Next(availableProperties.Count)];
+            var tId = userIds[random.Next(userIds.Count)];
+            
+            // Evitar que o landlord se candidate a si pr√≥prio
+            if (tId == p.LandlordId) continue;
+
+            var proposedDates = new List<string> { 
+                DateTime.UtcNow.AddDays(random.Next(2, 5)).ToString("yyyy-MM-dd") + "T10:00:00Z",
+                DateTime.UtcNow.AddDays(random.Next(6, 10)).ToString("yyyy-MM-dd") + "T16:00:00Z"
+            };
+
+            var app = new Application
+            {
+                Id = Guid.NewGuid(),
+                PropertyId = p.Id,
+                TenantId = tId,
+                Message = "Tenho muito interesse em visitar este im√≥vel. Sou uma pessoa respons√°vel.",
+                WantsVisit = true,
+                TenantProposedDates = JsonSerializer.Serialize(proposedDates),
+                Status = random.NextDouble() > 0.7 ? ApplicationStatus.VisitCounterProposed : ApplicationStatus.Pending,
+                CreatedAt = DateTime.UtcNow.AddDays(-random.Next(0, 10))
+            };
+            app.History.Add(new ApplicationHistory { 
+                Id = Guid.NewGuid(), 
+                ApplicationId = app.Id, 
+                ActorId = tId, 
+                Action = "Criada", 
+                Message = app.Message, 
+                EventData = app.TenantProposedDates, 
+                CreatedAt = app.CreatedAt 
+            });
+            applications.Add(app);
+        }
+
+        try
+        {
+            context.Properties.AddRange(properties);
+            await context.SaveChangesAsync();
+            Console.WriteLine($"[SEED] Catalog: {properties.Count} im√≥veis criados (6 cores + 64 din√¢micos).");
+
+            context.Applications.AddRange(applications);
+            await context.SaveChangesAsync();
+            Console.WriteLine($"[SEED] Catalog: {applications.Count} candidaturas criadas (10 aceites + 30 pendentes/propostas).");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SEED] Catalog: Erro no Seed ‚Äî {ex.InnerException?.Message ?? ex.Message}");
+        }
+    }
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Services\ApplicationService.cs
+================================================
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Contracts.DTOs;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Modules.Catalog.Mappers;
+using TrustRent.Modules.Catalog.Models;
+
+namespace TrustRent.Modules.Catalog.Services;
+
+public class ApplicationService : IApplicationService
+{
+    private readonly CatalogDbContext _context;
+
+    public ApplicationService(CatalogDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<ApplicationDto> SubmitApplicationAsync(Guid propertyId, Guid tenantId, SubmitApplicationDto dto)
+    {
+        var property = await _context.Properties.FindAsync(propertyId);
+        if (property == null) throw new Exception("Property not found");
+
+        // Valida√ß√£o: o propriet√°rio n√£o se pode candidatar ao seu pr√≥prio im√≥vel
+        if (property.LandlordId == tenantId)
+            throw new Exception("N√£o te podes candidatar a um im√≥vel do qual √©s propriet√°rio.");
+
+        var application = new Application
+        {
+            Id = Guid.NewGuid(),
+            PropertyId = propertyId,
+            TenantId = tenantId,
+            Message = dto.Message,
+            ShareProfile = dto.ShareProfile,
+            WantsVisit = dto.WantsVisit,
+            TenantProposedDates = JsonSerializer.Serialize(dto.SelectedDates),
+            Status = ApplicationStatus.Pending
+        };
+
+        var history = new ApplicationHistory
+        {
+            Id = Guid.NewGuid(),
+            ApplicationId = application.Id,
+            ActorId = tenantId,
+            Action = "Criada",
+            Message = dto.Message,
+            EventData = application.TenantProposedDates
+        };
+
+        application.History.Add(history);
+
+        _context.Applications.Add(application);
+        await _context.SaveChangesAsync();
+
+        return application.ToDto(property.LandlordId);
+    }
+
+    public async Task<IEnumerable<ApplicationDto>> GetApplicationsForPropertyAsync(Guid propertyId, Guid landlordId)
+    {
+        var apps = await _context.Applications
+            .Include(a => a.History)
+            .Where(a => a.PropertyId == propertyId)
+            .OrderByDescending(a => a.CreatedAt)
+            .ToListAsync();
+
+        return apps.Select(a => a.ToDto(landlordId));
+    }
+
+    public async Task<IEnumerable<ApplicationDto>> GetApplicationsForTenantAsync(Guid tenantId)
+    {
+        var apps = await _context.Applications
+            .Include(a => a.History)
+            .Where(a => a.TenantId == tenantId)
+            .OrderByDescending(a => a.CreatedAt)
+            .ToListAsync();
+
+        // For each application, look up the property's LandlordId
+        var propertyIds = apps.Select(a => a.PropertyId).Distinct().ToList();
+        var properties = await _context.Properties
+            .Where(p => propertyIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, p => p.LandlordId);
+
+        return apps.Select(a => a.ToDto(properties.GetValueOrDefault(a.PropertyId)));
+    }
+
+    public async Task<ApplicationDto?> GetApplicationByIdAsync(Guid applicationId, Guid userId)
+    {
+        var application = await _context.Applications
+            .Include(a => a.History)
+            .FirstOrDefaultAsync(a => a.Id == applicationId);
+
+        if (application == null) return null;
+
+        var property = await _context.Properties.FindAsync(application.PropertyId);
+        var landlordId = property?.LandlordId ?? Guid.Empty;
+
+        return application.ToDto(landlordId);
+    }
+
+    public async Task<ApplicationDto> UpdateVisitStatusAsync(Guid applicationId, Guid userId, UpdateApplicationVisitDto dto)
+    {
+        var application = await _context.Applications.Include(a => a.History).FirstOrDefaultAsync(a => a.Id == applicationId);
+        if (application == null) throw new Exception("Application not found");
+
+        var history = new ApplicationHistory
+        {
+            ApplicationId = application.Id,
+            ActorId = userId
+        };
+
+        switch (dto.Action)
+        {
+            case "CounterPropose":
+                application.LandlordProposedDate = dto.LandlordProposedDate?.ToUniversalTime();
+                application.Status = ApplicationStatus.VisitCounterProposed;
+                history.Action = "Senhorio Contra-Prop√¥s";
+                history.EventData = dto.LandlordProposedDate?.ToString("O");
+                break;
+            case "AcceptTenantDate":
+                if (dto.SelectedTenantDate != null && DateTime.TryParse(dto.SelectedTenantDate, out var dt))
+                {
+                    application.FinalVisitDate = dt.ToUniversalTime();
+                    application.Status = ApplicationStatus.VisitAccepted;
+                    history.Action = "Senhorio Aceitou Data do Inquilino";
+                    history.EventData = dt.ToString("O");
+                }
+                else
+                {
+                    throw new Exception("Data de visita inv√°lida ou n√£o selecionada.");
+                }
+                break;
+            case "AcceptCounterProposal":
+                application.FinalVisitDate = application.LandlordProposedDate?.ToUniversalTime();
+                application.Status = ApplicationStatus.VisitAccepted;
+                history.Action = "Inquilino Aceitou Contra-Proposta";
+                history.EventData = application.LandlordProposedDate?.ToString("O");
+                break;
+            case "TenantCounterPropose":
+                application.LandlordProposedDate = null;
+                application.TenantProposedDates = JsonSerializer.Serialize(dto.TenantProposedDates);
+                application.Status = ApplicationStatus.Pending;
+                history.Action = "Inquilino Sugeriu Novas Datas";
+                history.EventData = application.TenantProposedDates;
+                break;
+            case "Reject":
+                application.Status = ApplicationStatus.Rejected;
+                history.Action = "Candidatura Rejeitada";
+                break;
+            case "TenantConfirmInterest":
+                if (application.Status != ApplicationStatus.VisitAccepted)
+                    throw new Exception("Tenant can only confirm interest after visit is accepted.");
+                application.Status = ApplicationStatus.InterestConfirmed;
+                history.Action = "Inquilino Confirmou Interesse";
+                history.Message = "O inquilino expressou o desejo de avan√ßar com o aluguer ap√≥s a visita.";
+                break;
+                // Em fase final, o senhorio aprova o contrato.
+                // Regra: Senhorio s√≥ pode aceitar se o inquilino confirmou interesse p√≥s-visita
+                if (application.Status != ApplicationStatus.InterestConfirmed && application.Status != ApplicationStatus.Pending)
+                    throw new Exception("Final acceptance can only happen after interest confirmation.");
+                
+                application.Status = ApplicationStatus.Accepted;
+                history.Action = "Candidatura Aprovada (Contrato)";
+
+                // Cancelar outras candidaturas ativas para o mesmo im√≥vel
+                var otherApplications = await _context.Applications
+                    .Where(a => a.PropertyId == application.PropertyId && a.Id != application.Id && a.Status != ApplicationStatus.Rejected && a.Status != ApplicationStatus.Accepted)
+                    .ToListAsync();
+                
+                foreach(var otherApp in otherApplications)
+                {
+                    otherApp.Status = ApplicationStatus.Rejected;
+                    otherApp.UpdatedAt = DateTime.UtcNow;
+                    _context.ApplicationHistories.Add(new ApplicationHistory
+                    {
+                        ApplicationId = otherApp.Id,
+                        ActorId = userId,
+                        Action = "Candidatura Rejeitada Ausente",
+                        Message = "Esta candidatura foi automaticamente cancelada porque o im√≥vel foi arrendado a outro candidato."
+                    });
+                }
+                break;
+            default:
+                throw new Exception("Invalid action");
+        }
+
+        _context.ApplicationHistories.Add(history);
+        application.UpdatedAt = DateTime.UtcNow;
+
+        var property = await _context.Properties.FindAsync(application.PropertyId);
+
+        if (application.Status == ApplicationStatus.Accepted && property != null)
+        {
+            property.TenantId = application.TenantId;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return application.ToDto(property?.LandlordId ?? Guid.Empty);
+    }
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Catalog\Services\ApplicationStatusValidator.cs
+================================================
+using Microsoft.EntityFrameworkCore;
+using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Models;
+using TrustRent.Shared.Contracts.Interfaces;
+
+namespace TrustRent.Modules.Catalog.Services;
+
+public class ApplicationStatusValidator : IApplicationStatusValidator
+{
+    private readonly CatalogDbContext _context;
+
+    public ApplicationStatusValidator(CatalogDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<bool> IsApplicationChatLockedAsync(Guid applicationId)
+    {
+        var application = await _context.Applications.FirstOrDefaultAsync(a => a.Id == applicationId);
+        if (application == null) return true; // Seguran√ßa: Se n√£o encontrar, tranca.
+
+        return application.Status == ApplicationStatus.Rejected || 
+               application.Status == ApplicationStatus.Accepted;
+    }
+}
+
 
 
 ================================================
@@ -1708,11 +2849,15 @@ public class DocumentExtractionService : IDocumentExtractionService
         {
             var matchArtigo = Regex.Match(normalizedText, @"ARTIGO MATRICIAL[:\s]*(\d+)");
             var matchFracao = Regex.Match(normalizedText, @"FRA«√O[:\s]*([A-Z0-9]+)");
+            var matchFreguesia = Regex.Match(normalizedText, @"FREGUESIA[/\s]*(CONCELHO)[:\s]*(.+?)(?=\s{2,}|$)");
+            if (!matchFreguesia.Success)
+                matchFreguesia = Regex.Match(normalizedText, @"(?:FREGUESIA|CONCELHO)[:\s]*(.+?)(?=\s{2,}|ARTIGO|FRA«√O|$)");
 
             result = result with
             {
                 MatrixArticle = matchArtigo.Success ? matchArtigo.Groups[1].Value : null,
-                PropertyFraction = matchFracao.Success ? matchFracao.Groups[1].Value : null
+                PropertyFraction = matchFracao.Success ? matchFracao.Groups[1].Value : null,
+                ParishConcelho = matchFreguesia.Success ? matchFreguesia.Groups[matchFreguesia.Groups.Count - 1].Value.Trim() : null
             };
         }
         else if (docType == "certificado")
@@ -1733,6 +2878,30 @@ public class DocumentExtractionService : IDocumentExtractionService
             result = result with
             {
                 AtRegistrationNumber = matchReg.Success ? matchReg.Groups[1].Value : null
+            };
+        }
+        else if (docType == "certidao")
+        {
+            var matchDescricao = Regex.Match(normalizedText, @"(?:DESCRI[«C][√A]O|N[∫O]\s*DE\s*DESCRI[«C][√A]O)[:\s]*([\d/\-]+)");
+            var matchConservatoria = Regex.Match(normalizedText, @"CONSERVAT[”O]RIA[:\s]*(?:DE\s*)?(.+?)(?=\s{2,}|N[∫O]|$)");
+
+            result = result with
+            {
+                PermanentCertNumber = matchDescricao.Success ? matchDescricao.Groups[1].Value.Trim() : null,
+                PermanentCertOffice = matchConservatoria.Success ? matchConservatoria.Groups[1].Value.Trim() : null
+            };
+        }
+        else if (docType == "licenca")
+        {
+            var matchLicenca = Regex.Match(normalizedText, @"(?:ALVAR[¡A]|LICEN[«C]A)\s*N[∫O][:\s]*([\d/\-]+)");
+            var matchData = Regex.Match(normalizedText, @"(?:DATA\s*(?:DE\s*)?EMISS[√A]O|EMITID[OA]\s*(?:EM|A))[:\s]*(\d{2}[/\-]\d{2}[/\-]\d{4})");
+            var matchCamara = Regex.Match(normalizedText, @"C[¬A]MARA\s*MUNICIPAL[:\s]*(?:DE\s*)?(.+?)(?=\s{2,}|ALVAR|LICEN|$)");
+
+            result = result with
+            {
+                LicenseNumber = matchLicenca.Success ? matchLicenca.Groups[1].Value.Trim() : null,
+                LicenseDate = matchData.Success ? matchData.Groups[1].Value.Trim() : null,
+                LicenseIssuer = matchCamara.Success ? matchCamara.Groups[1].Value.Trim() : null
             };
         }
 
@@ -1767,15 +2936,25 @@ public class PropertyService : IPropertyService
     }
 
     public async Task<Guid> CreatePropertyAsync(
-        Guid landlordId, 
-        CreatePropertyDto dto, 
-        IEnumerable<FileDto> images, 
-        IList<string> imageCategories, 
-        int mainImageIndex, 
-        IEnumerable<FileDto> documents)
+        Guid landlordId,
+        CreatePropertyDto dto,
+        IEnumerable<FileDto> images,
+        IList<string> imageCategories,
+        int mainImageIndex,
+        IEnumerable<FileDto> documents,
+        IList<Guid>? amenityIds = null)
     {
         // 1. Mapear o DTO para o nosso Modelo da Base de Dados
         var property = dto.ToEntity(landlordId);
+
+        // Adicionar comodidades selecionadas
+        if (amenityIds != null)
+        {
+            foreach (var amenityId in amenityIds)
+            {
+                property.Amenities.Add(new PropertyAmenity { PropertyId = property.Id, AmenityId = amenityId });
+            }
+        }
 
         var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", property.Id.ToString());
         Directory.CreateDirectory(tempFolder);
@@ -1811,7 +2990,7 @@ public class PropertyService : IPropertyService
         return properties.ToSummaryDtoList();
     }
 
-    // Vai buscar o imÛvel e traz as imagens agarradas
+    // Vai buscar o im√≥vel e traz as imagens agarradas
     public async Task<Property?> GetPropertyByIdAsync(Guid propertyId)
     {
         return await _uow.Properties.GetByIdWithImagesAsync(propertyId);
@@ -1819,21 +2998,32 @@ public class PropertyService : IPropertyService
 
     // Atualiza os dados de texto e adiciona novas imagens se existirem
     public async Task UpdatePropertyAsync(
-        Guid propertyId, 
-        Guid landlordId, 
-        CreatePropertyDto dto, 
-        IEnumerable<FileDto> newImages, 
-        IList<string> imageCategories, 
-        IList<Guid> retainedImageIds, 
-        int mainImageIndex, 
-        Guid? mainRetainedImageId)
+        Guid propertyId,
+        Guid landlordId,
+        CreatePropertyDto dto,
+        IEnumerable<FileDto> newImages,
+        IList<string> imageCategories,
+        IList<Guid> retainedImageIds,
+        int mainImageIndex,
+        Guid? mainRetainedImageId,
+        IList<Guid>? amenityIds = null)
     {
         var property = await _uow.Properties.GetByIdAndLandlordWithImagesAsync(propertyId, landlordId);
 
-        if (property == null) throw new Exception("ImÛvel n„o encontrado ou n„o te pertence.");
+        if (property == null) throw new Exception("Im√≥vel n√£o encontrado ou n√£o te pertence.");
 
         // Atualizar campos de texto
         dto.UpdateEntity(property);
+
+        // Atualizar comodidades: limpar as antigas e adicionar as novas
+        if (amenityIds != null)
+        {
+            property.Amenities.Clear();
+            foreach (var amenityId in amenityIds)
+            {
+                property.Amenities.Add(new PropertyAmenity { PropertyId = propertyId, AmenityId = amenityId });
+            }
+        }
 
         var imagesToRemove = property.Images.Where(img => !retainedImageIds.Contains(img.Id)).ToList();
         var urlsToDeleteFromCloud = new List<string>();
@@ -1850,13 +3040,13 @@ public class PropertyService : IPropertyService
             img.IsMain = false;
         }
 
-        // 2. Se a imagem principal for uma das antigas, ativamo-la j· na Base de Dados
+        // 2. Se a imagem principal for uma das antigas, ativamo-la j√° na Base de Dados
         if (mainRetainedImageId.HasValue && mainRetainedImageId.Value != Guid.Empty)
         {
             var mainImg = property.Images.FirstOrDefault(i => i.Id == mainRetainedImageId.Value);
             if (mainImg != null) mainImg.IsMain = true;
         }
-        // Fallback de SeguranÁa: Se n„o h· nova imagem principal E n„o h· imagem retida principal, assumimos a primeira das retidas
+        // Fallback de Seguran√ßa: Se n√£o h√° nova imagem principal E n√£o h√° imagem retida principal, assumimos a primeira das retidas
         else if (mainImageIndex < 0 && property.Images.Any())
         {
             property.Images.First().IsMain = true;
@@ -1909,7 +3099,225 @@ public class PropertyService : IPropertyService
             PageSize = query.PageSize
         };
     }
+
+    public async Task<IEnumerable<PropertySummaryDto>> GetPropertiesByTenantAsync(Guid tenantId)
+    {
+        var properties = await _uow.Properties.GetByTenantIdWithImagesAsync(tenantId);
+        return properties.ToSummaryDtoList();
+    }
+
+    public async Task<IEnumerable<Amenity>> GetAllAmenitiesAsync()
+    {
+        return await _uow.Properties.GetAllAmenitiesAsync();
+    }
 }
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Communications\Class1.cs
+================================================
+namespace TrustRent.Modules.Communications;
+
+public class Class1
+{
+
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Communications\TrustRent.Modules.Communications.csproj
+================================================
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\TrustRent.Shared\TrustRent.Shared.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
+  </ItemGroup>
+</Project>
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Communications\Contracts\Database\CommunicationsDbContext.cs
+================================================
+using Microsoft.EntityFrameworkCore;
+using TrustRent.Modules.Communications.Models;
+
+namespace TrustRent.Modules.Communications.Contracts.Database;
+
+public class CommunicationsDbContext : DbContext
+{
+    public CommunicationsDbContext(DbContextOptions<CommunicationsDbContext> options) : base(options) { }
+
+    public DbSet<Message> Messages { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasDefaultSchema("communications");
+
+        modelBuilder.Entity<Message>(builder =>
+        {
+            builder.HasKey(m => m.Id);
+            builder.HasIndex(m => m.ContextId); // Index para procurar mensagens rapidamente por ApplicationId / TicketId
+        });
+
+        base.OnModelCreating(modelBuilder);
+    }
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Communications\Endpoints\CommunicationsEndpoints.cs
+================================================
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
+using TrustRent.Modules.Communications.Contracts.Database;
+
+namespace TrustRent.Modules.Communications.Endpoints;
+
+public static class CommunicationsEndpoints
+{
+    public static void MapCommunicationsEndpoints(this IEndpointRouteBuilder routes)
+    {
+        var group = routes.MapGroup("/api").WithTags("Communications");
+
+        group.MapGet("/applications/{applicationId:guid}/chat", async (Guid applicationId, CommunicationsDbContext db) =>
+        {
+            var messages = await db.Messages
+                .Where(m => m.ContextId == applicationId && m.ContextType == Models.MessageContextType.Application)
+                .OrderBy(m => m.CreatedAt)
+                .Select(m => new {
+                    m.Id,
+                    m.SenderId,
+                    m.Content,
+                    m.CreatedAt
+                })
+                .ToListAsync();
+
+            return Results.Ok(messages);
+        })
+        .RequireAuthorization();
+    }
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Communications\Hubs\ApplicationChatHub.cs
+================================================
+using Microsoft.AspNetCore.SignalR;
+using TrustRent.Modules.Communications.Contracts.Database;
+using TrustRent.Modules.Communications.Models;
+using TrustRent.Shared.Contracts.Interfaces;
+
+namespace TrustRent.Modules.Communications.Hubs;
+
+public class ApplicationChatHub : Hub
+{
+    private readonly CommunicationsDbContext _context;
+    private readonly IApplicationStatusValidator _statusValidator;
+
+    public ApplicationChatHub(CommunicationsDbContext context, IApplicationStatusValidator statusValidator)
+    {
+        _context = context;
+        _statusValidator = statusValidator;
+    }
+
+    /// <summary>
+    /// Join a room specific to an Application ID
+    /// </summary>
+    public async Task JoinApplicationGroup(Guid applicationId)
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, applicationId.ToString());
+    }
+
+    /// <summary>
+    /// Send a message within an application group
+    /// </summary>
+    public async Task SendMessage(Guid applicationId, Guid senderId, string content)
+    {
+        bool isLocked = await _statusValidator.IsApplicationChatLockedAsync(applicationId);
+        if (isLocked)
+        {
+            throw new HubException("This conversation is strictly locked as the Application has already been accepted or rejected.");
+        }
+
+        // 1. Persistir na base de dados (Comunica√ß√µes)
+        var message = new Message
+        {
+            ContextId = applicationId,
+            ContextType = MessageContextType.Application,
+            SenderId = senderId,
+            Content = content,
+            CreatedAt = DateTime.UtcNow
+        };
+        
+        _context.Messages.Add(message);
+        await _context.SaveChangesAsync();
+
+        // 2. Emitir a todos os utilizadores ligados no quarto atual
+        await Clients.Group(applicationId.ToString()).SendAsync("ReceiveMessage", message);
+    }
+}
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Communications\Models\Message.cs
+================================================
+using System.ComponentModel.DataAnnotations;
+
+namespace TrustRent.Modules.Communications.Models;
+
+public enum MessageContextType
+{
+    Application,
+    Ticket
+}
+
+public class Message
+{
+    [Key]
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    [Required]
+    public Guid ContextId { get; set; }
+
+    [Required]
+    public MessageContextType ContextType { get; set; }
+
+    [Required]
+    public Guid SenderId { get; set; }
+
+    [Required]
+    public string Content { get; set; } = string.Empty;
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
 
 
 ================================================
@@ -1966,18 +3374,6 @@ public class IdentityDbContext : DbContext
             v => v == null ? null : EncryptionHelper.Encrypt(v),
             v => v == null ? null : EncryptionHelper.Decrypt(v)
         );
-
-
-        // SEED: Criar um utilizador de teste quando a base de dados for gerada
-        var adminId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-        modelBuilder.Entity<User>().HasData(new User
-        {
-            Id = adminId,
-            Name = "Jo„o Silva",
-            Email = "joao.silva@email.pt",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("TrustRent2026!"),
-            TrustScore = 85
-        });
 
         base.OnModelCreating(modelBuilder);
     }
@@ -2043,6 +3439,7 @@ namespace TrustRent.Modules.Identity.Contracts.Interfaces;
 public interface IUserService
 {
     Task<User?> GetProfileAsync(Guid userId);
+    Task<PublicUserProfileDto?> GetPublicProfileAsync(Guid userId);
     Task UpdateProfileAsync(Guid userId, UpdateProfileDto request);
     Task UpdatePasswordAsync(Guid userId, string currentPassword, string newPassword);
     Task<string> UpdateAvatarAsync(Guid userId, Stream fileStream, string fileName);
@@ -2052,6 +3449,7 @@ public interface IUserService
 // DTOs
 public record UpdateProfileDto(string Name, string Email, string? Nif, string? CitizenCardNumber, string? Address, string? PostalCode);
 public record VerificationResultDto(bool IsIdentityVerified, DateTime? IdentityExpiryDate, bool IsNoDebtVerified, DateTime? NoDebtExpiryDate, int TrustScore);
+public record PublicUserProfileDto(Guid Id, string Name, string? ProfilePictureUrl, int TrustScore, bool IsIdentityVerified, bool IsNoDebtVerified);
 
 
 ================================================
@@ -2157,6 +3555,87 @@ public class UserRepository : IUserRepository
     }
 }
 
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Modules.Identity\Seeds\IdentitySeeder.cs
+================================================
+using Microsoft.EntityFrameworkCore;
+using TrustRent.Modules.Identity.Contracts.Database;
+using TrustRent.Modules.Identity.Models;
+
+namespace TrustRent.Modules.Identity.Seeds;
+
+public static class IdentitySeeder
+{
+    // IDs fixos para os "Core Users" (sempre presentes)
+    public static readonly Guid LandlordId  = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    public static readonly Guid TenantId    = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    public static readonly Guid Tenant2Id   = Guid.Parse("33333333-3333-3333-3333-333333333333");
+    public static readonly Guid Landlord2Id = Guid.Parse("44444444-4444-4444-4444-444444444444");
+
+    // Lista est√°tica que ser√° preenchida durante o Seed para o Catalog saber os outros user IDs
+    public static List<Guid> AllGeneratedUserIds { get; private set; } = new();
+
+    public static async Task SeedAsync(IdentityDbContext context)
+    {
+        // Se j√° temos os core users, n√£o voltamos a gerar para n√£o duplicar seeder dynamic
+        if (await context.Users.AnyAsync(u => u.Id == LandlordId))
+        {
+            AllGeneratedUserIds = await context.Users.Select(u => u.Id).ToListAsync();
+            Console.WriteLine($"[SEED] Identity: J√° existem {AllGeneratedUserIds.Count} utilizadores. A ignorar.");
+            return;
+        }
+
+        var users = new List<User>();
+        var passwordHash = BCrypt.Net.BCrypt.HashPassword("TrustRent2026!");
+
+        // 1. Adicionar os 4 Core Users
+        users.Add(new User { Id = LandlordId, Name = "Carlos Mendes", Email = "carlos.mendes@email.pt", PasswordHash = passwordHash, IsIdentityVerified = true, IsNoDebtVerified = true, TrustScore = 85, ProfilePictureUrl = "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=256&q=80" });
+        users.Add(new User { Id = TenantId, Name = "Ana Ferreira", Email = "ana.ferreira@email.pt", PasswordHash = passwordHash, IsIdentityVerified = true, TrustScore = 65, ProfilePictureUrl = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=256&q=80" });
+        users.Add(new User { Id = Tenant2Id, Name = "Miguel Costa", Email = "miguel.costa@email.pt", PasswordHash = passwordHash, TrustScore = 50 });
+        users.Add(new User { Id = Landlord2Id, Name = "Sofia Rodrigues", Email = "sofia.rodrigues@email.pt", PasswordHash = passwordHash, IsIdentityVerified = true, IsNoDebtVerified = true, TrustScore = 92, ProfilePictureUrl = "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&q=80" });
+
+        // 2. Gerar mais 16 utilizadores dinamicamente (Total 20)
+        var firstNames = new[] { "Jo√£o", "Maria", "Pedro", "Cl√°udia", "Ricardo", "B√°rbara", "Lu√≠s", "Helena", "Vitor", "Daniela", "Nuno", "Rita", "Andr√©", "In√™s", "Tiago", "Filipa" };
+        var lastNames = new[] { "Santos", "Lopes", "Teixeira", "Vieira", "Oliveira", "Martins", "Pereira", "Silva", "Correia", "Gomes", "Almeida", "Ribeiro", "Soares", "Cunha", "Carvalho", "Sousa" };
+        
+        var random = new Random(42); // Seed fixa para reprodutibilidade
+
+        for (int i = 0; i < 16; i++)
+        {
+            var firstName = firstNames[i];
+            var lastName = lastNames[i];
+            var fullName = $"{firstName} {lastName}";
+            var email = $"{firstName.ToLower()}.{lastName.ToLower()}@trustrent.pt";
+            
+            users.Add(new User
+            {
+                Id = Guid.NewGuid(),
+                Name = fullName,
+                Email = email,
+                PasswordHash = passwordHash,
+                IsIdentityVerified = random.NextDouble() > 0.4,
+                IsNoDebtVerified = random.NextDouble() > 0.6,
+                TrustScore = random.Next(40, 95),
+                CreatedAt = DateTime.UtcNow.AddMonths(-random.Next(1, 12))
+            });
+        }
+
+        try
+        {
+            context.Users.AddRange(users);
+            await context.SaveChangesAsync();
+            AllGeneratedUserIds = users.Select(u => u.Id).ToList();
+            Console.WriteLine($"[SEED] Identity: {users.Count} utilizadores criados (4 cores + 16 din√¢micos).");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SEED] Identity: Erro no Seed ‚Äî {ex.InnerException?.Message ?? ex.Message}");
+        }
+    }
+}
 
 
 
@@ -2272,34 +3751,49 @@ public class UserService : IUserService
     public async Task<User?> GetProfileAsync(Guid userId)
         => await _uow.Users.GetByIdAsync(userId);
 
+    public async Task<PublicUserProfileDto?> GetPublicProfileAsync(Guid userId)
+    {
+        var user = await _uow.Users.GetByIdAsync(userId);
+        if (user == null) return null;
+
+        return new PublicUserProfileDto(
+            user.Id,
+            user.Name,
+            user.ProfilePictureUrl,
+            user.TrustScore,
+            user.IsIdentityVerified,
+            user.IsNoDebtVerified
+        );
+    }
+
     public async Task UpdateProfileAsync(Guid userId, UpdateProfileDto request)
     {
-        var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador n„o encontrado.");
+        var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador n√£o encontrado.");
 
         if (user.IsIdentityVerified)
         {
             if (request.Name != user.Name || request.Nif != user.Nif || request.CitizenCardNumber != user.CitizenCardNumber)
             {
-                throw new Exception("N„o podes alterar o Nome, NIF ou Cart„o de Cidad„o apÛs a validaÁ„o de identidade.");
+                throw new Exception("N√£o podes alterar o Nome, NIF ou Cart√£o de Cidad√£o ap√≥s a valida√ß√£o de identidade.");
             }
         }
 
         if (!string.IsNullOrWhiteSpace(request.Nif))
         {
             if (request.Nif.Length != 9 || !request.Nif.All(char.IsDigit))
-                throw new Exception("O NIF deve conter exatamente 9 n˙meros.");
+                throw new Exception("O NIF deve conter exatamente 9 n√∫meros.");
 
             if (!await _uow.Users.IsNifUniqueAsync(request.Nif, userId))
-                throw new Exception("Este NIF j· est· registado noutra conta.");
+                throw new Exception("Este NIF j√° est√° registado noutra conta.");
         }
 
         if (!string.IsNullOrWhiteSpace(request.CitizenCardNumber))
         {
             if (request.CitizenCardNumber.Length != 8 || !request.CitizenCardNumber.All(char.IsDigit))
-                throw new Exception("O N˙mero do Cart„o de Cidad„o deve conter exatamente os 8 n˙meros principais.");
+                throw new Exception("O N√∫mero do Cart√£o de Cidad√£o deve conter exatamente os 8 n√∫meros principais.");
 
             if (!await _uow.Users.IsCcUniqueAsync(request.CitizenCardNumber, userId))
-                throw new Exception("Este Cart„o de Cidad„o j· est· registado noutra conta.");
+                throw new Exception("Este Cart√£o de Cidad√£o j√° est√° registado noutra conta.");
         }
 
         user.Name = request.Name;
@@ -2314,7 +3808,7 @@ public class UserService : IUserService
 
     public async Task UpdatePasswordAsync(Guid userId, string currentPassword, string newPassword)
     {
-        var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador n„o encontrado.");
+        var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador n√£o encontrado.");
 
         if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.PasswordHash))
             throw new Exception("Password atual incorreta.");
@@ -2325,7 +3819,7 @@ public class UserService : IUserService
 
     public async Task<string> UpdateAvatarAsync(Guid userId, Stream fileStream, string fileName)
     {
-        var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador n„o encontrado.");
+        var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador n√£o encontrado.");
 
         // O ImageService trata da magia toda
         var cloudUrl = await _imageService.UploadImageAsync(fileStream, fileName, "profiles");
@@ -2344,9 +3838,9 @@ public class UserService : IUserService
         Stream? noDebtStream, 
         string? noDebtFileName)
     {
-        var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador n„o encontrado.");
+        var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador n√£o encontrado.");
 
-        // 1. VALIDA«√O DO CART√O DE CIDAD√O (FRENTE E VERSO)
+        // 1. VALIDA√á√ÉO DO CART√ÉO DE CIDAD√ÉO (FRENTE E VERSO)
         if (ccFrontStream != null && ccFrontStream.Length > 0 && ccBackStream != null && ccBackStream.Length > 0)
         {
             // Extrai o texto da Frente
@@ -2369,7 +3863,7 @@ public class UserService : IUserService
 
             if (!hasNif || !hasFirstName || !hasCcNum)
             {
-                throw new Exception("ValidaÁ„o CC Falhou: O Nome ou NIF n„o foram detetados ou n„o coincidem.");
+                throw new Exception("Valida√ß√£o CC Falhou: O Nome ou NIF n√£o foram detetados ou n√£o coincidem.");
             }
 
             user.IsIdentityVerified = true;
@@ -2377,22 +3871,22 @@ public class UserService : IUserService
             user.TrustScore += 20;
         }
 
-        // 2. VALIDA«√O DA CERTID√O DE N√O DÕVIDA
+        // 2. VALIDA√á√ÉO DA CERTID√ÉO DE N√ÉO D√çVIDA
         if (noDebtStream != null && noDebtStream.Length > 0 && !string.IsNullOrEmpty(noDebtFileName))
         {
             var extractedText = await _ocrService.ExtractTextAsync(noDebtStream, noDebtFileName);
             var normalizedText = extractedText.ToUpperInvariant();
 
-            // Verifica se o NIF do utilizador est· no documento
+            // Verifica se o NIF do utilizador est√° no documento
             bool hasNif = !string.IsNullOrEmpty(user.Nif) && normalizedText.Contains(user.Nif);
 
-            // Verifica a frase m·gica da AT (Autoridade Tribut·ria)
-            bool isRegularized = normalizedText.Contains("SITUA«√O TRIBUT¡RIA REGULARIZADA") ||
+            // Verifica a frase m√°gica da AT (Autoridade Tribut√°ria)
+            bool isRegularized = normalizedText.Contains("SITUA√á√ÉO TRIBUT√ÅRIA REGULARIZADA") ||
                                  normalizedText.Contains("SITUACAO TRIBUTARIA REGULARIZADA");
 
             if (!hasNif || !isRegularized)
             {
-                throw new Exception("ValidaÁ„o AT Falhou: Certid„o inv·lida, n„o pertence ao utilizador ou deteta dÌvidas.");
+                throw new Exception("Valida√ß√£o AT Falhou: Certid√£o inv√°lida, n√£o pertence ao utilizador ou deteta d√≠vidas.");
             }
 
             user.IsNoDebtVerified = true;
@@ -2404,14 +3898,14 @@ public class UserService : IUserService
         return new VerificationResultDto(user.IsIdentityVerified, user.IdentityExpiryDate, user.IsNoDebtVerified, user.NoDebtExpiryDate, user.TrustScore);
     }
 
-    // Helper M·gico para extrair datas
+    // Helper M√°gico para extrair datas
     private static DateTime? ExtractExpiryDate(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;
 
-        // 1. Procura Formato PortuguÍs/Europeu: DD MM YYYY (com espaÁos, barras, pontos ou traÁos)
-        // Permite atÈ 50 caracteres de "lixo" (como o n˙mero do CC) entre a palavra "EXPIRY" e a data.
-        var matchPT = Regex.Match(text, @"(?:V[¡A]LID[OA]\s*AT[…E]|VALIDADE|EXPIRY\s*DATE)[\s\S]{1,50}?\b(\d{2})[\s.\-/]+(\d{2})[\s.\-/]+(\d{4})\b", RegexOptions.IgnoreCase);
+        // 1. Procura Formato Portugu√™s/Europeu: DD MM YYYY (com espa√ßos, barras, pontos ou tra√ßos)
+        // Permite at√© 50 caracteres de "lixo" (como o n√∫mero do CC) entre a palavra "EXPIRY" e a data.
+        var matchPT = Regex.Match(text, @"(?:V[√ÅA]LID[OA]\s*AT[√âE]|VALIDADE|EXPIRY\s*DATE)[\s\S]{1,50}?\b(\d{2})[\s.\-/]+(\d{2})[\s.\-/]+(\d{4})\b", RegexOptions.IgnoreCase);
 
         if (matchPT.Success)
         {
@@ -2419,7 +3913,7 @@ public class UserService : IUserService
             var month = matchPT.Groups[2].Value;
             var year = matchPT.Groups[3].Value;
 
-            // ForÁamos o formato DD/MM/YYYY limpo
+            // For√ßamos o formato DD/MM/YYYY limpo
             var dateStr = $"{day}/{month}/{year}";
             if (DateTime.TryParseExact(dateStr, "dd/MM/yyyy", null, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal, out var parsedDate))
             {
@@ -2427,8 +3921,8 @@ public class UserService : IUserService
             }
         }
 
-        // 2. Procura Formato Internacional/AT: YYYY MM DD (muito comum em PDFs das FinanÁas)
-        var matchInt = Regex.Match(text, @"(?:V[¡A]LID[OA]\s*AT[…E]|VALIDADE)[\s\S]{1,50}?\b(\d{4})[\s.\-/]+(\d{2})[\s.\-/]+(\d{2})\b", RegexOptions.IgnoreCase);
+        // 2. Procura Formato Internacional/AT: YYYY MM DD (muito comum em PDFs das Finan√ßas)
+        var matchInt = Regex.Match(text, @"(?:V[√ÅA]LID[OA]\s*AT[√âE]|VALIDADE)[\s\S]{1,50}?\b(\d{4})[\s.\-/]+(\d{2})[\s.\-/]+(\d{2})\b", RegexOptions.IgnoreCase);
 
         if (matchInt.Success)
         {
@@ -2446,7 +3940,7 @@ public class UserService : IUserService
         return null;
     }
 
-    // Helper para remover acentos (ex: "EstÍv„o" vira "Estevao")
+    // Helper para remover acentos (ex: "Est√™v√£o" vira "Estevao")
     private static string RemoveDiacritics(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return text;
@@ -2519,6 +4013,18 @@ FICHEIRO: .\TrustRent.Shared\TrustRent.Shared.csproj
   </ItemGroup>
 
 </Project>
+
+
+
+================================================
+FICHEIRO: .\TrustRent.Shared\Contracts\Interfaces\IApplicationStatusValidator.cs
+================================================
+namespace TrustRent.Shared.Contracts.Interfaces;
+
+public interface IApplicationStatusValidator
+{
+    Task<bool> IsApplicationChatLockedAsync(Guid applicationId);
+}
 
 
 

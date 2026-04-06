@@ -89,8 +89,18 @@ public static class PropertyEndpoints
                     .Select(c => c!)
                     .ToList();
 
+                // Comodidades selecionadas
+                var amenityIds = new List<Guid>();
+                if (form.TryGetValue("amenityIds", out var amenityValues))
+                {
+                    amenityIds = amenityValues
+                        .Where(v => !string.IsNullOrEmpty(v))
+                        .Select(v => Guid.Parse(v!))
+                        .ToList();
+                }
+
                 // 5. Chamar a nossa lógica de negócio (O motor que criámos no Passo 2)
-                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, mainImageIndex, documentFiles);
+                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, mainImageIndex, documentFiles, amenityIds);
 
                 return Results.Ok(new
                 {
@@ -209,7 +219,17 @@ public static class PropertyEndpoints
                     retainedImageIds = ids.Select(id => Guid.Parse(id!.ToString())).ToList();
                 }
 
-                await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories, retainedImageIds, mainImageIndex, mainRetainedImageId);
+                // Comodidades selecionadas
+                var amenityIds = new List<Guid>();
+                if (form.TryGetValue("amenityIds", out var amenityValues))
+                {
+                    amenityIds = amenityValues
+                        .Where(v => !string.IsNullOrEmpty(v))
+                        .Select(v => Guid.Parse(v!))
+                        .ToList();
+                }
+
+                await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories, retainedImageIds, mainImageIndex, mainRetainedImageId, amenityIds);
 
                 return Results.Ok(new { Message = "Imóvel atualizado com sucesso!" });
             }
@@ -341,6 +361,12 @@ public static class PropertyEndpoints
                     img.Category,
                     img.IsMain
                 }),
+                Amenities = property.Amenities.Select(pa => new {
+                    pa.Amenity.Id,
+                    pa.Amenity.Name,
+                    pa.Amenity.IconName,
+                    pa.Amenity.Category
+                }),
                 Landlord = new
                 {
                     Name = landlord?.Name ?? "Senhorio Desconhecido",
@@ -353,6 +379,19 @@ public static class PropertyEndpoints
             };
 
             return Results.Ok(response);
+        });
+
+        // GET: Lista de todas as comodidades disponíveis
+        app.MapGet("/api/amenities", async (IPropertyService propertyService) =>
+        {
+            var amenities = await propertyService.GetAllAmenitiesAsync();
+            return Results.Ok(amenities.Select(a => new
+            {
+                a.Id,
+                a.Name,
+                a.IconName,
+                a.Category
+            }));
         });
 
     }

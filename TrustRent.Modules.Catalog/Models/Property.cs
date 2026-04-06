@@ -46,6 +46,9 @@ public class Property
     // Relacionamentos (As listas de imagens)
     public List<PropertyImage> Images { get; set; } = new();
 
+    // Relacionamentos (Comodidades / Benefícios)
+    public ICollection<PropertyAmenity> Amenities { get; set; } = new List<PropertyAmenity>();
+
 
     // Caderneta
     public string? MatrixArticle { get; set; }

@@ -16,10 +16,19 @@ public class PropertyRepository : IPropertyRepository
         await _context.Properties.FindAsync(id);
 
     public async Task<Property?> GetByIdWithImagesAsync(Guid id) =>
-        await _context.Properties.Include(p => p.Images).FirstOrDefaultAsync(p => p.Id == id);
+        await _context.Properties
+            .Include(p => p.Images)
+            .Include(p => p.Amenities).ThenInclude(pa => pa.Amenity)
+            .FirstOrDefaultAsync(p => p.Id == id);
 
     public async Task<Property?> GetByIdAndLandlordWithImagesAsync(Guid id, Guid landlordId) =>
-        await _context.Properties.Include(p => p.Images).FirstOrDefaultAsync(p => p.Id == id && p.LandlordId == landlordId);
+        await _context.Properties
+            .Include(p => p.Images)
+            .Include(p => p.Amenities).ThenInclude(pa => pa.Amenity)
+            .FirstOrDefaultAsync(p => p.Id == id && p.LandlordId == landlordId);
+
+    public async Task<IEnumerable<Amenity>> GetAllAmenitiesAsync() =>
+        await _context.Amenities.OrderBy(a => a.Category).ThenBy(a => a.Name).ToListAsync();
 
     public async Task<IEnumerable<Property>> GetByLandlordIdWithImagesAsync(Guid landlordId) =>
         await _context.Properties.Include(p => p.Images).Where(p => p.LandlordId == landlordId).OrderByDescending(p => p.CreatedAt).ToListAsync();

@@ -21,15 +21,25 @@ public class PropertyService : IPropertyService
     }
 
     public async Task<Guid> CreatePropertyAsync(
-        Guid landlordId, 
-        CreatePropertyDto dto, 
-        IEnumerable<FileDto> images, 
-        IList<string> imageCategories, 
-        int mainImageIndex, 
-        IEnumerable<FileDto> documents)
+        Guid landlordId,
+        CreatePropertyDto dto,
+        IEnumerable<FileDto> images,
+        IList<string> imageCategories,
+        int mainImageIndex,
+        IEnumerable<FileDto> documents,
+        IList<Guid>? amenityIds = null)
     {
         // 1. Mapear o DTO para o nosso Modelo da Base de Dados
         var property = dto.ToEntity(landlordId);
+
+        // Adicionar comodidades selecionadas
+        if (amenityIds != null)
+        {
+            foreach (var amenityId in amenityIds)
+            {
+                property.Amenities.Add(new PropertyAmenity { PropertyId = property.Id, AmenityId = amenityId });
+            }
+        }
 
         var tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp-uploads", property.Id.ToString());
         Directory.CreateDirectory(tempFolder);
@@ -73,14 +83,15 @@ public class PropertyService : IPropertyService
 
     // Atualiza os dados de texto e adiciona novas imagens se existirem
     public async Task UpdatePropertyAsync(
-        Guid propertyId, 
-        Guid landlordId, 
-        CreatePropertyDto dto, 
-        IEnumerable<FileDto> newImages, 
-        IList<string> imageCategories, 
-        IList<Guid> retainedImageIds, 
-        int mainImageIndex, 
-        Guid? mainRetainedImageId)
+        Guid propertyId,
+        Guid landlordId,
+        CreatePropertyDto dto,
+        IEnumerable<FileDto> newImages,
+        IList<string> imageCategories,
+        IList<Guid> retainedImageIds,
+        int mainImageIndex,
+        Guid? mainRetainedImageId,
+        IList<Guid>? amenityIds = null)
     {
         var property = await _uow.Properties.GetByIdAndLandlordWithImagesAsync(propertyId, landlordId);
 
@@ -88,6 +99,16 @@ public class PropertyService : IPropertyService
 
         // Atualizar campos de texto
         dto.UpdateEntity(property);
+
+        // Atualizar comodidades: limpar as antigas e adicionar as novas
+        if (amenityIds != null)
+        {
+            property.Amenities.Clear();
+            foreach (var amenityId in amenityIds)
+            {
+                property.Amenities.Add(new PropertyAmenity { PropertyId = propertyId, AmenityId = amenityId });
+            }
+        }
 
         var imagesToRemove = property.Images.Where(img => !retainedImageIds.Contains(img.Id)).ToList();
         var urlsToDeleteFromCloud = new List<string>();
@@ -168,5 +189,10 @@ public class PropertyService : IPropertyService
     {
         var properties = await _uow.Properties.GetByTenantIdWithImagesAsync(tenantId);
         return properties.ToSummaryDtoList();
+    }
+
+    public async Task<IEnumerable<Amenity>> GetAllAmenitiesAsync()
+    {
+        return await _uow.Properties.GetAllAmenitiesAsync();
     }
 }

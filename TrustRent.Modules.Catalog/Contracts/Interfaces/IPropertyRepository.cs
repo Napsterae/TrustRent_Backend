@@ -14,4 +14,5 @@ public interface IPropertyRepository
     Task AddImageAsync(PropertyImage image);
     void RemoveImages(IEnumerable<PropertyImage> images);
     Task<(IEnumerable<Property> Items, int TotalCount)> SearchAsync(PropertySearchQuery query);
+    Task<IEnumerable<Amenity>> GetAllAmenitiesAsync();
 }
