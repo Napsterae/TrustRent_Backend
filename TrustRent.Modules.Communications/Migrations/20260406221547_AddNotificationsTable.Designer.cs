@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TrustRent.Modules.Communications.Contracts.Database;
@@ -11,9 +12,11 @@ using TrustRent.Modules.Communications.Contracts.Database;
 namespace TrustRent.Modules.Communications.Migrations
 {
     [DbContext(typeof(CommunicationsDbContext))]
-    partial class CommunicationsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260406221547_AddNotificationsTable")]
+    partial class AddNotificationsTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

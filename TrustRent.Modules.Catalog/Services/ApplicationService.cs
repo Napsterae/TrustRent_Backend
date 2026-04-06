@@ -5,16 +5,19 @@ using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Mappers;
 using TrustRent.Modules.Catalog.Models;
+using TrustRent.Shared.Contracts.Interfaces;
 
 namespace TrustRent.Modules.Catalog.Services;
 
 public class ApplicationService : IApplicationService
 {
     private readonly CatalogDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public ApplicationService(CatalogDbContext context)
+    public ApplicationService(CatalogDbContext context, INotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
     public async Task<ApplicationDto> SubmitApplicationAsync(Guid propertyId, Guid tenantId, SubmitApplicationDto dto)
@@ -52,6 +55,13 @@ public class ApplicationService : IApplicationService
 
         _context.Applications.Add(application);
         await _context.SaveChangesAsync();
+
+        // NOTIFICAR SENHORIO
+        await _notificationService.SendNotificationAsync(
+            property.LandlordId, 
+            "application", 
+            $"Recebeste uma nova candidatura para '{property.Title}'.", 
+            application.Id);
 
         return application.ToDto(property.LandlordId);
     }
@@ -100,14 +110,23 @@ public class ApplicationService : IApplicationService
 
     public async Task<ApplicationDto> UpdateVisitStatusAsync(Guid applicationId, Guid userId, UpdateApplicationVisitDto dto)
     {
-        var application = await _context.Applications.Include(a => a.History).FirstOrDefaultAsync(a => a.Id == applicationId);
+        var application = await _context.Applications
+            .Include(a => a.Property)
+            .Include(a => a.History)
+            .FirstOrDefaultAsync(a => a.Id == applicationId);
+            
         if (application == null) throw new Exception("Application not found");
+        var property = application.Property;
+        if (property == null) throw new Exception("Property associated with application not found");
 
         var history = new ApplicationHistory
         {
             ApplicationId = application.Id,
             ActorId = userId
         };
+
+        Guid recipientId = Guid.Empty;
+        string notificationMsg = "";
 
         switch (dto.Action)
         {
@@ -116,6 +135,8 @@ public class ApplicationService : IApplicationService
                 application.Status = ApplicationStatus.VisitCounterProposed;
                 history.Action = "Senhorio Contra-Propôs";
                 history.EventData = dto.LandlordProposedDate?.ToString("O");
+                recipientId = application.TenantId;
+                notificationMsg = "O senhorio propôs uma nova data de visita.";
                 break;
             case "AcceptTenantDate":
                 if (dto.SelectedTenantDate != null && DateTime.TryParse(dto.SelectedTenantDate, out var dt))
@@ -124,6 +145,8 @@ public class ApplicationService : IApplicationService
                     application.Status = ApplicationStatus.VisitAccepted;
                     history.Action = "Senhorio Aceitou Data do Inquilino";
                     history.EventData = dt.ToString("O");
+                    recipientId = application.TenantId;
+                    notificationMsg = "O senhorio aceitou a tua data de visita!";
                 }
                 else
                 {
@@ -135,6 +158,8 @@ public class ApplicationService : IApplicationService
                 application.Status = ApplicationStatus.VisitAccepted;
                 history.Action = "Inquilino Aceitou Contra-Proposta";
                 history.EventData = application.LandlordProposedDate?.ToString("O");
+                recipientId = property.LandlordId;
+                notificationMsg = "O inquilino aceitou a contra-proposta de visita.";
                 break;
             case "TenantCounterPropose":
                 application.LandlordProposedDate = null;
@@ -142,10 +167,14 @@ public class ApplicationService : IApplicationService
                 application.Status = ApplicationStatus.Pending;
                 history.Action = "Inquilino Sugeriu Novas Datas";
                 history.EventData = application.TenantProposedDates;
+                recipientId = property.LandlordId;
+                notificationMsg = "O inquilino sugeriu novas datas de visita.";
                 break;
             case "Reject":
                 application.Status = ApplicationStatus.Rejected;
                 history.Action = "Candidatura Rejeitada";
+                recipientId = application.TenantId;
+                notificationMsg = "A tua candidatura foi rejeitada.";
                 break;
             case "TenantConfirmInterest":
                 if (application.Status != ApplicationStatus.VisitAccepted)
@@ -153,14 +182,17 @@ public class ApplicationService : IApplicationService
                 application.Status = ApplicationStatus.InterestConfirmed;
                 history.Action = "Inquilino Confirmou Interesse";
                 history.Message = "O inquilino expressou o desejo de avançar com o aluguer após a visita.";
+                recipientId = property.LandlordId;
+                notificationMsg = "O inquilino confirmou interesse após a visita!";
                 break;
-                // Em fase final, o senhorio aprova o contrato.
-                // Regra: Senhorio só pode aceitar se o inquilino confirmou interesse pós-visita
+            case "Accepted":
                 if (application.Status != ApplicationStatus.InterestConfirmed && application.Status != ApplicationStatus.Pending)
                     throw new Exception("Final acceptance can only happen after interest confirmation.");
                 
                 application.Status = ApplicationStatus.Accepted;
                 history.Action = "Candidatura Aprovada (Contrato)";
+                recipientId = application.TenantId;
+                notificationMsg = "Parabéns! A tua candidatura foi aprovada!";
 
                 // Cancelar outras candidaturas ativas para o mesmo imóvel
                 var otherApplications = await _context.Applications
@@ -178,6 +210,9 @@ public class ApplicationService : IApplicationService
                         Action = "Candidatura Rejeitada Ausente",
                         Message = "Esta candidatura foi automaticamente cancelada porque o imóvel foi arrendado a outro candidato."
                     });
+
+                    // Notificar inquilinos rejeitados
+                    await _notificationService.SendNotificationAsync(otherApp.TenantId, "application", "A tua candidatura foi encerrada — o imóvel foi arrendado.", otherApp.Id);
                 }
                 break;
             default:
@@ -187,14 +222,18 @@ public class ApplicationService : IApplicationService
         _context.ApplicationHistories.Add(history);
         application.UpdatedAt = DateTime.UtcNow;
 
-        var property = await _context.Properties.FindAsync(application.PropertyId);
-
         if (application.Status == ApplicationStatus.Accepted && property != null)
         {
             property.TenantId = application.TenantId;
         }
 
         await _context.SaveChangesAsync();
+
+        // Enviar notificação de mudança de estado (se aplicável)
+        if (recipientId != Guid.Empty)
+        {
+            await _notificationService.SendNotificationAsync(recipientId, "application", notificationMsg, application.Id);
+        }
 
         return application.ToDto(property?.LandlordId ?? Guid.Empty);
     }

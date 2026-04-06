@@ -1,4 +1,4 @@
-﻿using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Shared.Contracts.Interfaces;
@@ -64,8 +64,9 @@ public class PropertyUploadJob : IPropertyUploadJob
             // 3. Notificar o Senhorio que o anúncio já está online!
             await _notificationService.SendNotificationAsync(
                 landlordId,
-                "application", // Ícone
-                $"As imagens do teu anúncio '{property.Title}' foram processadas e o imóvel já está público!"
+                "property", // Ícone mais correto
+                $"As imagens do teu anúncio '{property.Title}' foram processadas e o imóvel já está público!",
+                propertyId
             );
         }
         catch (Exception ex)

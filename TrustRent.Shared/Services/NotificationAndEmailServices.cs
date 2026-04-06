@@ -1,4 +1,4 @@
-﻿using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Shared.Contracts.Interfaces;
 
 namespace TrustRent.Shared.Services;
 
@@ -8,16 +8,6 @@ public class EmailService : IEmailService
     {
         // Aqui integras com SendGrid, AWS SES ou Mailgun
         Console.WriteLine($"[EMAIL ENVIADO] Para: {to} | Assunto: {subject}");
-        await Task.CompletedTask;
-    }
-}
-
-public class NotificationService : INotificationService
-{
-    public async Task SendNotificationAsync(Guid userId, string type, string message)
-    {
-        // Futuramente: Gravar na tabela de Notificações ou enviar via WebSockets (SignalR)
-        Console.WriteLine($"[NOTIFICAÇÃO] User: {userId} | Tipo: {type} | Msg: {message}");
         await Task.CompletedTask;
     }
 }

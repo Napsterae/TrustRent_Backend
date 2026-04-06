@@ -22,4 +22,15 @@ public class ApplicationStatusValidator : IApplicationStatusValidator
         return application.Status == ApplicationStatus.Rejected || 
                application.Status == ApplicationStatus.Accepted;
     }
+
+    public async Task<(Guid TenantId, Guid LandlordId)?> GetApplicationParticipantsAsync(Guid applicationId)
+    {
+        var application = await _context.Applications
+            .Include(a => a.Property)
+            .FirstOrDefaultAsync(a => a.Id == applicationId);
+
+        if (application == null || application.Property == null) return null;
+
+        return (application.TenantId, application.Property.LandlordId);
+    }
 }

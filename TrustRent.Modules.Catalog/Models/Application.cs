@@ -21,6 +21,7 @@ public class Application
     public DateTime? UpdatedAt { get; set; }
 
     public List<ApplicationHistory> History { get; set; } = new();
+    public Property? Property { get; set; }
 }
 
 public enum ApplicationStatus

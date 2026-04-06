@@ -9,17 +9,6 @@ using TrustRent.Api.Endpoints;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Jobs;
-﻿using Hangfire;
-using Hangfire.PostgreSql;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Http.Features;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using TrustRent.Api.Endpoints;
-using TrustRent.Modules.Catalog.Contracts.Database;
-using TrustRent.Modules.Catalog.Contracts.Interfaces;
-using TrustRent.Modules.Catalog.Jobs;
 using TrustRent.Modules.Catalog.Repositories;
 using TrustRent.Modules.Catalog.Services;
 using TrustRent.Modules.Communications.Contracts.Database;
@@ -33,7 +22,6 @@ using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Services;
 using TrustRent.Modules.Identity.Seeds;
 using TrustRent.Modules.Catalog.Seeds;
-
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -56,7 +44,6 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1"
     });
 
-    // CORREÇÃO AQUI: Usar OpenApiSecurityScheme em vez de OpenApiInfo
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -83,18 +70,14 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// 1. Obter a connection string
 var connectionString = builder.Configuration.GetConnectionString("PostgresConnection");
 
-// 2. Registar o Contexto do Identity
 builder.Services.AddDbContext<IdentityDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// 3. Registar o Contexto do Catalog
 builder.Services.AddDbContext<CatalogDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// 4. Registar o Contexto de Communications
 builder.Services.AddDbContext<CommunicationsDbContext>(options =>
     options.UseNpgsql(connectionString));
 
@@ -107,9 +90,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IOcrService, GoogleVisionOcrService>();
 builder.Services.AddScoped<IImageService, CloudinaryImageService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<INotificationService, NotificationService>();
-
-//builder.Services.AddScoped<IImageService, R2ImageService>();
+builder.Services.AddScoped<INotificationService, TrustRent.Modules.Communications.Services.NotificationService>();
 
 /* CATALOG*/
 builder.Services.AddScoped<IPropertyService, PropertyService>();
@@ -141,11 +122,28 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["JwtSettings:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"]!))
         };
+        
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+
+                // Se o pedido for para o nosso hub (SignalR envia o token por query string)
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    (path.StartsWithSegments("/api/chathub") || path.StartsWithSegments("/api/notificationhub")))
+                {
+                    // Lê o token do query string
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 builder.Services.AddAuthorization();
 
 builder.Services.AddControllers();
-
 
 builder.Services.AddCors(options =>
 {
@@ -179,8 +177,8 @@ app.MapApplicationEndpoints();
 app.MapCommunicationsEndpoints();
 
 app.MapHub<ApplicationChatHub>("/api/chathub");
+app.MapHub<NotificationHub>("/api/notificationhub");
 
-// Seeding automático em Development
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();

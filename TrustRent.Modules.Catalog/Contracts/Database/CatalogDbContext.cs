@@ -44,7 +44,7 @@ public class CatalogDbContext : DbContext
         modelBuilder.Entity<Application>(builder =>
         {
             builder.HasKey(a => a.Id);
-            builder.HasOne<Property>().WithMany().HasForeignKey(a => a.PropertyId).OnDelete(DeleteBehavior.Cascade);
+            builder.HasOne(a => a.Property).WithMany().HasForeignKey(a => a.PropertyId).OnDelete(DeleteBehavior.Cascade);
             builder.HasMany(a => a.History).WithOne().HasForeignKey(h => h.ApplicationId).OnDelete(DeleteBehavior.Cascade);
         });
 

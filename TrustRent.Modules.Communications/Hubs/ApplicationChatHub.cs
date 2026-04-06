@@ -9,11 +9,13 @@ public class ApplicationChatHub : Hub
 {
     private readonly CommunicationsDbContext _context;
     private readonly IApplicationStatusValidator _statusValidator;
+    private readonly INotificationService _notificationService;
 
-    public ApplicationChatHub(CommunicationsDbContext context, IApplicationStatusValidator statusValidator)
+    public ApplicationChatHub(CommunicationsDbContext context, IApplicationStatusValidator statusValidator, INotificationService notificationService)
     {
         _context = context;
         _statusValidator = statusValidator;
+        _notificationService = notificationService;
     }
 
     /// <summary>
@@ -50,5 +52,13 @@ public class ApplicationChatHub : Hub
 
         // 2. Emitir a todos os utilizadores ligados no quarto atual
         await Clients.Group(applicationId.ToString()).SendAsync("ReceiveMessage", message);
+
+        // 3. Notificar o outro participante (SignalR + Persistência)
+        var participants = await _statusValidator.GetApplicationParticipantsAsync(applicationId);
+        if (participants != null)
+        {
+            var recipientId = senderId == participants.Value.TenantId ? participants.Value.LandlordId : participants.Value.TenantId;
+            await _notificationService.SendNotificationAsync(recipientId, "application", "Recebeste uma nova mensagem na candidatura.", applicationId);
+        }
     }
 }
