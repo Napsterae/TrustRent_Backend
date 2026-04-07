@@ -1,4 +1,4 @@
-﻿namespace TrustRent.Modules.Catalog.Contracts.DTOs;
+namespace TrustRent.Modules.Catalog.Contracts.DTOs;
 
 // Modelo para receber os filtros do Frontend
 public class PropertySearchQuery
@@ -16,6 +16,9 @@ public class PropertySearchQuery
     public bool? HasGarage { get; set; }
     public bool? AllowsPets { get; set; }
     public bool? IsFurnished { get; set; }
+
+    // Contrato
+    public bool? HasOfficialContract { get; set; }
 
     // Paginação para o Scroll Infinito
     public int Page { get; set; } = 1;
@@ -45,5 +48,7 @@ public record PropertySearchDto(
     int Rooms,
     int Bathrooms,
     bool AllowsPets,
-    string MainImageUrl
+    string MainImageUrl,
+    bool HasOfficialContract,
+    bool IsAvailable
 );

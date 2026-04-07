@@ -84,6 +84,7 @@ public class PropertyRepository : IPropertyRepository
         if (query.HasGarage == true) q = q.Where(p => p.HasGarage);
         if (query.AllowsPets == true) q = q.Where(p => p.AllowsPets);
         if (query.IsFurnished == true) q = q.Where(p => p.IsFurnished);
+        if (query.HasOfficialContract == true) q = q.Where(p => p.HasOfficialContract);
 
         var totalCount = await q.CountAsync();
 

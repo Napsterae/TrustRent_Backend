@@ -48,8 +48,22 @@ public static class CatalogSeeder
         };
 
         // 1. ADICIONAR AS 6 PROPRIEDADES CORE (Com IDs fixos)
-        properties.Add(new Property { Id = Property1Id, LandlordId = IdentitySeeder.LandlordId, Title = "T2 Renovado no Chiado com Vista Rio", Street = "Rua Garrett", DoorNumber = "10", PostalCode = "1200-204", Description = "Apartamento de luxo no coração de Lisboa.", Price = 1200, PropertyType = "Apartamento", Typology = "T2", Area = 85, Rooms = 2, Bathrooms = 1, District = "Lisboa", Municipality = "Lisboa", IsPublic = true, IsUnderMaintenance = false });
-        properties.Add(new Property { Id = Property2Id, LandlordId = IdentitySeeder.LandlordId, Title = "T1 Moderno em Arroios", Street = "Rua Almirante Reis", DoorNumber = "45", PostalCode = "1000-002", Description = "Estúdio ideal para nómadas digitais.", Price = 850, PropertyType = "Apartamento", Typology = "T1", Area = 50, Rooms = 1, Bathrooms = 1, District = "Lisboa", Municipality = "Lisboa", IsPublic = true, IsUnderMaintenance = false });
+        properties.Add(new Property { 
+            Id = Property1Id, LandlordId = IdentitySeeder.LandlordId, Title = "T2 Renovado no Chiado com Vista Rio", Street = "Rua Garrett", DoorNumber = "10", PostalCode = "1200-204", 
+            Description = "Apartamento de luxo no coração de Lisboa. Com contrato oficial.", Price = 1200, PropertyType = "Apartamento", Typology = "T2", Area = 85, Rooms = 2, Bathrooms = 1, District = "Lisboa", Municipality = "Lisboa", Parish = "Santa Maria Maior", IsPublic = true, IsUnderMaintenance = false,
+            MatrixArticle = "U-1234", PropertyFraction = "A", ParishConcelho = "Santa Maria Maior / Lisboa", EnergyClass = "A+", EnergyCertificateNumber = "CERT-987654",
+            AtRegistrationNumber = "AT-987654321", PermanentCertNumber = "1234-5678-9012", PermanentCertOffice = "Conservatória de Lisboa",
+            UsageLicenseNumber = "LU-456/2010", UsageLicenseDate = "2010-05-15", UsageLicenseIssuer = "Câmara Municipal de Lisboa",
+            HasOfficialContract = true
+        });
+        properties.Add(new Property { 
+            Id = Property2Id, LandlordId = IdentitySeeder.LandlordId, Title = "T1 Moderno em Arroios", Street = "Rua Almirante Reis", DoorNumber = "45", PostalCode = "1000-002", 
+            Description = "Estúdio ideal para nómadas digitais. Contrato pronto a assinar.", Price = 850, PropertyType = "Apartamento", Typology = "T1", Area = 50, Rooms = 1, Bathrooms = 1, District = "Lisboa", Municipality = "Lisboa", Parish = "Arroios", IsPublic = true, IsUnderMaintenance = false,
+            MatrixArticle = "U-5678", PropertyFraction = "E", ParishConcelho = "Arroios / Lisboa", EnergyClass = "B", EnergyCertificateNumber = "CERT-123456",
+            AtRegistrationNumber = "AT-123456789", PermanentCertNumber = "9012-3456-7890", PermanentCertOffice = "Conservatória de Lisboa",
+            UsageLicenseNumber = "LU-123/2015", UsageLicenseDate = "2015-08-20", UsageLicenseIssuer = "Câmara Municipal de Lisboa",
+            HasOfficialContract = true
+        });
         properties.Add(new Property { Id = Property3Id, LandlordId = IdentitySeeder.Landlord2Id, Title = "T3 Familiar em Cascais com Jardim", Street = "Avenida Marginal", DoorNumber = "105", PostalCode = "2750-001", Description = "Moradia espaçosa perto da praia.", Price = 1800, PropertyType = "Moradia", Typology = "T3", Area = 150, Rooms = 3, Bathrooms = 2, District = "Lisboa", Municipality = "Cascais", IsPublic = true, IsUnderMaintenance = false });
         properties.Add(new Property { Id = Property4Id, LandlordId = IdentitySeeder.Landlord2Id, Title = "Estúdio Loft no Porto - Ribeira", Street = "Rua das Flores", DoorNumber = "20", PostalCode = "4050-262", Description = "Design industrial e vista Douro.", Price = 950, PropertyType = "Apartamento", Typology = "T0", Area = 45, Rooms = 0, Bathrooms = 1, District = "Porto", Municipality = "Porto", IsPublic = true, IsUnderMaintenance = false });
         

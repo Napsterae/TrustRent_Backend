@@ -57,6 +57,7 @@ public static class PropertyEndpoints
                     IsFurnished = form["isFurnished"] == "true",
 
                     IsPublic = form["isPublic"] == "true",
+                    HasOfficialContract = form["hasOfficialContract"] == "true",
                     //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
 
                     // Documentos extraídos via IA
@@ -183,6 +184,7 @@ public static class PropertyEndpoints
                     AllowsPets = form["allowsPets"] == "true",
                     IsFurnished = form["isFurnished"] == "true",
                     IsPublic = form["isPublic"] == "true",
+                    HasOfficialContract = form["hasOfficialContract"] == "true",
                     //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
 
                     // Documentos extraídos via IA
@@ -355,6 +357,7 @@ public static class PropertyEndpoints
                 property.WaterPaidBy,
                 property.ElectricityPaidBy,
                 property.GasPaidBy,
+                property.HasOfficialContract,
                 Images = property.Images.Select(img => new {
                     img.Id,
                     img.Url,

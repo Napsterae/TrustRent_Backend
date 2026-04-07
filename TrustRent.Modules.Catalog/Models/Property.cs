@@ -80,6 +80,9 @@ public class Property
     public string WaterPaidBy { get; set; } = "Inquilino";
     public string ElectricityPaidBy { get; set; } = "Inquilino";
     public string GasPaidBy { get; set; } = "Inquilino";
+
+    // Contrato Oficial
+    public bool HasOfficialContract { get; set; } = false;
 }
 
 // Classe para guardar a Galeria de Imagens

@@ -1,4 +1,4 @@
-﻿namespace TrustRent.Modules.Catalog.Contracts.DTOs;
+namespace TrustRent.Modules.Catalog.Contracts.DTOs;
 
 public class CreatePropertyDto
 {
@@ -62,6 +62,9 @@ public class CreatePropertyDto
     public string WaterPaidBy { get; set; } = "Inquilino";
     public string ElectricityPaidBy { get; set; } = "Inquilino";
     public string GasPaidBy { get; set; } = "Inquilino";
+
+    // Contrato Oficial
+    public bool HasOfficialContract { get; set; }
 }
 
 // Pequeno record para transportar os ficheiros do Endpoint para o Serviço sem quebrar o Clean Architecture

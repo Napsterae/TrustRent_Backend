@@ -10,6 +10,7 @@ dotnet ef database drop --force --project TrustRent.Modules.Identity --startup-p
 # Correr as migrações para recriar as tabelas (Aqui é obrigatório o context se houver mais que um)
 dotnet ef database update --project TrustRent.Modules.Identity --startup-project TrustRent.Api --context IdentityDbContext
 dotnet ef database update --project TrustRent.Modules.Catalog --startup-project TrustRent.Api --context CatalogDbContext
+dotnet ef database update --project TrustRent.Modules.Communications --startup-project TrustRent.Api --context CommunicationsDbContext
 
 Write-Host "Base de Dados Recriada com Sucesso!" -ForegroundColor Green
 Write-Host "Agora, inicia o Backend para correr o Seeder automático." -ForegroundColor Yellow

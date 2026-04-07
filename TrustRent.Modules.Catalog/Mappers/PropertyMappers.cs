@@ -1,4 +1,4 @@
-﻿using TrustRent.Modules.Catalog.Contracts.DTOs;
+using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Models;
 
 namespace TrustRent.Modules.Catalog.Mappers;
@@ -68,6 +68,7 @@ public static class PropertyMappers
             WaterPaidBy = dto.WaterPaidBy,
             ElectricityPaidBy = dto.ElectricityPaidBy,
             GasPaidBy = dto.GasPaidBy,
+            HasOfficialContract = dto.HasOfficialContract
         };
     }
 
@@ -109,6 +110,7 @@ public static class PropertyMappers
         property.WaterPaidBy = dto.WaterPaidBy;
         property.ElectricityPaidBy = dto.ElectricityPaidBy;
         property.GasPaidBy = dto.GasPaidBy;
+        property.HasOfficialContract = dto.HasOfficialContract;
     }
 
     public static PropertySearchDto ToSearchDto(this Property p)
@@ -120,7 +122,9 @@ public static class PropertyMappers
             p.Parish,
             p.Price, p.PropertyType, p.Typology,
             p.Area, p.Rooms, p.Bathrooms, p.AllowsPets,
-            p.Images.FirstOrDefault(i => i.IsMain)?.Url ?? ""
+            p.Images.FirstOrDefault(i => i.IsMain)?.Url ?? "",
+            p.HasOfficialContract,
+            p.TenantId == null
         );
     }
 }
