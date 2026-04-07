@@ -164,19 +164,22 @@ public static class DocumentPrompts
         {{CommonInstructions}}
 
         ESTRUTURA DO CARTÃO DE CIDADÃO:
-        - FRENTE: Contém o nome completo, número do documento (8 dígitos principais + dígito de controlo + letras de versão),
+        - FRENTE: Contém o Nome (Apelidos e Nome Próprio em blocos separados), número do documento (8 dígitos principais + dígito de controlo + letras de versão),
           data de nascimento, data de validade, fotografia, sexo, nacionalidade.
         - VERSO: Contém o NIF (Número de Identificação Fiscal, 9 dígitos), NISS (Segurança Social),
           número de utente SNS, nomes dos pais, e zona de leitura automática (MRZ).
 
         CAMPOS A EXTRAIR:
-        - fullName: O nome completo do titular. Está na FRENTE do cartão, geralmente em maiúsculas, abaixo da fotografia ou no corpo principal.
+        - firstNames: O(s) Nome(s) Próprio(s) do titular. Estão na FRENTE do cartão. Devolve na ordem natural.
+        - lastNames: O(s) Apelido(s) (Surnames) do titular. Estão na FRENTE do cartão, geralmente num bloco separado acima ou ao lado do nome próprio.
+        - fullName: O nome completo ordenado corretamente: [Nomes Próprios] [Apelidos].
         - citizenCardNumber: Os 8 dígitos PRINCIPAIS do número do documento. Na FRENTE do cartão, aparece como "Nº de Documento" ou "Document No." seguido de um número no formato "12345678 X ZZ" (8 dígitos + dígito de controlo + letras). Devolve APENAS os primeiros 8 dígitos, sem espaços nem letras.
         - nif: O NIF do titular (9 dígitos). Está no VERSO do cartão, identificado como "NIF" ou "Nº de Identificação Fiscal". Devolve apenas os 9 dígitos.
         - expiryDate: A data de validade do cartão. Na FRENTE, aparece como "Válido até", "Validade", "Date of Expiry" ou "Expiry". Devolve no formato DD/MM/AAAA.
 
         DICAS DE LOCALIZAÇÃO:
-        - O nome completo está na FRENTE, normalmente em letras maiúsculas, é o texto mais proeminente
+        - No CC Português, os Apelidos (Surnames) aparecem num bloco e os Nomes Próprios (Given Names) noutro. Identifica-os bem.
+        - O nome completo final deve ser a junção: firstNames + " " + lastNames.
         - O número do documento na FRENTE está normalmente numa linha própria, perto do topo ou do fundo
         - O NIF no VERSO está claramente identificado com a legenda "NIF"
         - A data de validade na FRENTE está perto do fundo do cartão ou perto da data de nascimento
@@ -188,6 +191,8 @@ public static class DocumentPrompts
             "fraudReason": string | null,
             "imageQuality": "good" | "blurry" | "dark" | "cropped" | "unreadable",
             "allFieldsExtracted": boolean,
+            "firstNames": string | null,
+            "lastNames": string | null,
             "fullName": string | null,
             "citizenCardNumber": string | null,
             "nif": string | null,

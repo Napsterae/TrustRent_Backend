@@ -14,5 +14,14 @@ public interface IUserService
 
 // DTOs
 public record UpdateProfileDto(string Name, string Email, string? Nif, string? CitizenCardNumber, string? Address, string? PostalCode);
-public record VerificationResultDto(bool IsIdentityVerified, DateTime? IdentityExpiryDate, bool IsNoDebtVerified, DateTime? NoDebtExpiryDate, int TrustScore);
+public record VerificationResultDto(
+    bool IsIdentityVerified, 
+    DateTime? IdentityExpiryDate, 
+    bool IsNoDebtVerified, 
+    DateTime? NoDebtExpiryDate, 
+    int TrustScore,
+    string? ExtractedName = null,
+    string? ExtractedNif = null,
+    string? ExtractedCcNumber = null
+);
 public record PublicUserProfileDto(Guid Id, string Name, string? ProfilePictureUrl, int TrustScore, bool IsIdentityVerified, bool IsNoDebtVerified);

@@ -112,6 +112,10 @@ public class UserService : IUserService
     {
         var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
 
+        string? extractedName = null;
+        string? extractedNif = null;
+        string? extractedCc = null;
+
         // 1. VALIDAÇÃO DO CARTÃO DE CIDADÃO (FRENTE E VERSO)
         if (ccFrontStream != null && ccFrontStream.Length > 0 && ccBackStream != null && ccBackStream.Length > 0)
         {
@@ -125,22 +129,34 @@ public class UserService : IUserService
 
             ValidateDocumentResponse(cc);
 
-            // Comparar dados extraídos com os dados do perfil
-            bool hasNif = !string.IsNullOrEmpty(user.Nif)
-                && !string.IsNullOrEmpty(cc.Nif)
-                && cc.Nif.Contains(user.Nif);
+            // Normalizar e limpar campos extraídos
+            extractedName = $"{cc.FirstNames?.Trim()} {cc.LastNames?.Trim()}".Trim();
+            
+            // Fallback para FullName se os específicos falharem
+            if (string.IsNullOrWhiteSpace(extractedName))
+                extractedName = cc.FullName?.Trim();
 
-            bool hasCcNum = string.IsNullOrEmpty(user.CitizenCardNumber)
-                || (!string.IsNullOrEmpty(cc.CitizenCardNumber)
-                    && cc.CitizenCardNumber.Contains(user.CitizenCardNumber));
+            extractedNif = cc.Nif?.Replace(" ", "").Replace("-", "").Trim();
+            extractedCc = cc.CitizenCardNumber?.Replace(" ", "").Replace("-", "").Trim();
 
-            bool hasName = MatchNames(cc.FullName, user.Name);
-
-            if (!hasNif || !hasName || !hasCcNum)
+            // Validações básicas de formato para os campos extraídos
+            if (string.IsNullOrWhiteSpace(extractedName) || string.IsNullOrWhiteSpace(extractedNif) || string.IsNullOrWhiteSpace(extractedCc))
             {
-                throw new Exception("Validação CC Falhou: O Nome ou NIF não foram detetados ou não coincidem.");
+                throw new Exception("Não foi possível extrair todos os campos obrigatórios do Cartão de Cidadão (Nome, NIF ou Número CC).");
             }
 
+            // Verificar unicidade se mudarem
+            if (extractedNif != user.Nif && !await _uow.Users.IsNifUniqueAsync(extractedNif, userId))
+                throw new Exception("O NIF extraído do documento já está registado noutra conta.");
+
+            if (extractedCc != user.CitizenCardNumber && !await _uow.Users.IsCcUniqueAsync(extractedCc, userId))
+                throw new Exception("O Cartão de Cidadão extraído do documento já está registado noutra conta.");
+
+            // SUBSTITUIÇÃO DOS CAMPOS
+            user.Name = extractedName;
+            user.Nif = extractedNif;
+            user.CitizenCardNumber = extractedCc;
+            
             user.IsIdentityVerified = true;
             user.IdentityExpiryDate = ParseDate(cc.ExpiryDate);
             user.TrustScore += 20;
@@ -169,7 +185,16 @@ public class UserService : IUserService
         }
 
         await _uow.SaveChangesAsync();
-        return new VerificationResultDto(user.IsIdentityVerified, user.IdentityExpiryDate, user.IsNoDebtVerified, user.NoDebtExpiryDate, user.TrustScore);
+        return new VerificationResultDto(
+            user.IsIdentityVerified, 
+            user.IdentityExpiryDate, 
+            user.IsNoDebtVerified, 
+            user.NoDebtExpiryDate, 
+            user.TrustScore,
+            extractedName,
+            extractedNif,
+            extractedCc
+        );
     }
 
     private static void ValidateDocumentResponse(GeminiDocumentResponse response)
