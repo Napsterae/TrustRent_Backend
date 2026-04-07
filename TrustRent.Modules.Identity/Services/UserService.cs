@@ -1,9 +1,10 @@
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Models;
 using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Shared.Models.DocumentExtraction;
+using TrustRent.Shared.Services;
 
 namespace TrustRent.Modules.Identity.Services;
 
@@ -11,13 +12,13 @@ public class UserService : IUserService
 {
     private readonly IUnitOfWork _uow;
     private readonly IImageService _imageService;
-    private readonly IOcrService _ocrService;
+    private readonly IGeminiDocumentService _geminiService;
 
-    public UserService(IUnitOfWork uow, IImageService imageService, IOcrService ocrService)
+    public UserService(IUnitOfWork uow, IImageService imageService, IGeminiDocumentService geminiService)
     {
         _uow = uow;
         _imageService = imageService;
-        _ocrService = ocrService;
+        _geminiService = geminiService;
     }
 
     public async Task<User?> GetProfileAsync(Guid userId)
@@ -93,7 +94,6 @@ public class UserService : IUserService
     {
         var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
 
-        // O ImageService trata da magia toda
         var cloudUrl = await _imageService.UploadImageAsync(fileStream, fileName, "profiles");
 
         user.ProfilePictureUrl = cloudUrl;
@@ -103,11 +103,11 @@ public class UserService : IUserService
     }
 
     public async Task<VerificationResultDto> VerifyDocumentsAsync(
-        Guid userId, Stream? ccFrontStream, 
-        string? ccFrontFileName, 
-        Stream? ccBackStream, 
-        string? ccBackFileName, 
-        Stream? noDebtStream, 
+        Guid userId, Stream? ccFrontStream,
+        string? ccFrontFileName,
+        Stream? ccBackStream,
+        string? ccBackFileName,
+        Stream? noDebtStream,
         string? noDebtFileName)
     {
         var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
@@ -115,54 +115,56 @@ public class UserService : IUserService
         // 1. VALIDAÇÃO DO CARTÃO DE CIDADÃO (FRENTE E VERSO)
         if (ccFrontStream != null && ccFrontStream.Length > 0 && ccBackStream != null && ccBackStream.Length > 0)
         {
-            // Extrai o texto da Frente
-            var frontText = await _ocrService.ExtractTextAsync(ccFrontStream, ccFrontFileName);
-            // Extrai o texto do Verso
-            var backText = await _ocrService.ExtractTextAsync(ccBackStream, ccBackFileName);
+            var files = new List<(Stream Stream, string FileName)>
+            {
+                (ccFrontStream, ccFrontFileName ?? "frente.jpg"),
+                (ccBackStream, ccBackFileName ?? "verso.jpg")
+            };
 
-            // Junta tudo! Assim procuramos o NIF, Nome e Validade nesta grande "sopa de letras"
-            var combinedText = frontText + " \n " + backText;
-            var normalizedText = RemoveDiacritics(combinedText).ToUpperInvariant().Replace(" ", "");
+            var cc = await _geminiService.ExtractDocumentAsync<CartaoCidadaoResponse>(files, DocumentPrompts.CartaoCidadao);
 
-            bool hasNif = !string.IsNullOrEmpty(user.Nif) && Regex.IsMatch(normalizedText, $@"(?<!\d){user.Nif}(?!\d)");
-            bool hasCcNum = string.IsNullOrEmpty(user.CitizenCardNumber) ||
-                Regex.IsMatch(normalizedText, $@"(?<!\d){user.CitizenCardNumber}(?:\d[A-Z]|\D|$)");
+            ValidateDocumentResponse(cc);
 
-            var normalizedUserName = RemoveDiacritics(user.Name).ToUpperInvariant();
-            var nameParts = normalizedUserName.Split(' ');
-            bool hasFirstName = normalizedText.Contains(nameParts.First());
-            bool hasLastName = nameParts.Length > 1 && normalizedText.Contains(nameParts.Last());
+            // Comparar dados extraídos com os dados do perfil
+            bool hasNif = !string.IsNullOrEmpty(user.Nif)
+                && !string.IsNullOrEmpty(cc.Nif)
+                && cc.Nif.Contains(user.Nif);
 
-            if (!hasNif || !hasFirstName || !hasCcNum)
+            bool hasCcNum = string.IsNullOrEmpty(user.CitizenCardNumber)
+                || (!string.IsNullOrEmpty(cc.CitizenCardNumber)
+                    && cc.CitizenCardNumber.Contains(user.CitizenCardNumber));
+
+            bool hasName = MatchNames(cc.FullName, user.Name);
+
+            if (!hasNif || !hasName || !hasCcNum)
             {
                 throw new Exception("Validação CC Falhou: O Nome ou NIF não foram detetados ou não coincidem.");
             }
 
             user.IsIdentityVerified = true;
-            user.IdentityExpiryDate = ExtractExpiryDate(combinedText);
+            user.IdentityExpiryDate = ParseDate(cc.ExpiryDate);
             user.TrustScore += 20;
         }
 
         // 2. VALIDAÇÃO DA CERTIDÃO DE NÃO DÍVIDA
         if (noDebtStream != null && noDebtStream.Length > 0 && !string.IsNullOrEmpty(noDebtFileName))
         {
-            var extractedText = await _ocrService.ExtractTextAsync(noDebtStream, noDebtFileName);
-            var normalizedText = extractedText.ToUpperInvariant();
+            var cert = await _geminiService.ExtractDocumentAsync<CertidaoNaoDividaResponse>(
+                noDebtStream, noDebtFileName, DocumentPrompts.CertidaoNaoDivida);
 
-            // Verifica se o NIF do utilizador está no documento
-            bool hasNif = !string.IsNullOrEmpty(user.Nif) && normalizedText.Contains(user.Nif);
+            ValidateDocumentResponse(cert);
 
-            // Verifica a frase mágica da AT (Autoridade Tributária)
-            bool isRegularized = normalizedText.Contains("SITUAÇÃO TRIBUTÁRIA REGULARIZADA") ||
-                                 normalizedText.Contains("SITUACAO TRIBUTARIA REGULARIZADA");
+            bool hasNif = !string.IsNullOrEmpty(user.Nif)
+                && !string.IsNullOrEmpty(cert.Nif)
+                && cert.Nif.Contains(user.Nif);
 
-            if (!hasNif || !isRegularized)
+            if (!hasNif || !cert.IsTaxRegularized)
             {
                 throw new Exception("Validação AT Falhou: Certidão inválida, não pertence ao utilizador ou deteta dívidas.");
             }
 
             user.IsNoDebtVerified = true;
-            user.NoDebtExpiryDate = ExtractExpiryDate(extractedText); // Extrai a data!
+            user.NoDebtExpiryDate = ParseDate(cert.ExpiryDate);
             user.TrustScore += 15;
         }
 
@@ -170,49 +172,69 @@ public class UserService : IUserService
         return new VerificationResultDto(user.IsIdentityVerified, user.IdentityExpiryDate, user.IsNoDebtVerified, user.NoDebtExpiryDate, user.TrustScore);
     }
 
-    // Helper Mágico para extrair datas
-    private static DateTime? ExtractExpiryDate(string text)
+    private static void ValidateDocumentResponse(GeminiDocumentResponse response)
     {
-        if (string.IsNullOrWhiteSpace(text)) return null;
-
-        // 1. Procura Formato Português/Europeu: DD MM YYYY (com espaços, barras, pontos ou traços)
-        // Permite até 50 caracteres de "lixo" (como o número do CC) entre a palavra "EXPIRY" e a data.
-        var matchPT = Regex.Match(text, @"(?:V[ÁA]LID[OA]\s*AT[ÉE]|VALIDADE|EXPIRY\s*DATE)[\s\S]{1,50}?\b(\d{2})[\s.\-/]+(\d{2})[\s.\-/]+(\d{4})\b", RegexOptions.IgnoreCase);
-
-        if (matchPT.Success)
+        if (!response.IsAuthentic)
         {
-            var day = matchPT.Groups[1].Value;
-            var month = matchPT.Groups[2].Value;
-            var year = matchPT.Groups[3].Value;
-
-            // Forçamos o formato DD/MM/YYYY limpo
-            var dateStr = $"{day}/{month}/{year}";
-            if (DateTime.TryParseExact(dateStr, "dd/MM/yyyy", null, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal, out var parsedDate))
-            {
-                return parsedDate;
-            }
+            throw new Exception(
+                "O documento enviado não passou na verificação de autenticidade. " +
+                "Por favor, envia o documento original sem alterações."
+            );
         }
 
-        // 2. Procura Formato Internacional/AT: YYYY MM DD (muito comum em PDFs das Finanças)
-        var matchInt = Regex.Match(text, @"(?:V[ÁA]LID[OA]\s*AT[ÉE]|VALIDADE)[\s\S]{1,50}?\b(\d{4})[\s.\-/]+(\d{2})[\s.\-/]+(\d{2})\b", RegexOptions.IgnoreCase);
-
-        if (matchInt.Success)
+        var qualityMessage = response.ImageQuality switch
         {
-            var year = matchInt.Groups[1].Value;
-            var month = matchInt.Groups[2].Value;
-            var day = matchInt.Groups[3].Value;
+            "blurry" => "A imagem está desfocada. Tira uma nova foto com melhor foco e iluminação.",
+            "dark" => "A imagem está muito escura. Tira uma nova foto com melhor iluminação.",
+            "cropped" => "O documento parece estar cortado. Certifica-te que todo o documento está visível na foto.",
+            "unreadable" => "Não foi possível ler o documento. Tenta com uma foto mais nítida ou com o PDF original.",
+            _ => null
+        };
 
-            var dateStr = $"{day}/{month}/{year}";
-            if (DateTime.TryParseExact(dateStr, "dd/MM/yyyy", null, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal, out var parsedDate))
-            {
-                return parsedDate;
-            }
+        if (qualityMessage != null)
+            throw new Exception(qualityMessage);
+
+        if (!response.AllFieldsExtracted)
+        {
+            throw new Exception(
+                "Não foi possível extrair toda a informação necessária do documento. " +
+                "Verifica que o documento está completo, legível e bem iluminado. " +
+                "Se estás a usar uma foto, tenta enviar o ficheiro PDF original."
+            );
+        }
+    }
+
+    private static bool MatchNames(string? extractedName, string userName)
+    {
+        if (string.IsNullOrWhiteSpace(extractedName)) return false;
+
+        var normalizedExtracted = RemoveDiacritics(extractedName).ToUpperInvariant();
+        var normalizedUser = RemoveDiacritics(userName).ToUpperInvariant();
+
+        var userParts = normalizedUser.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (userParts.Length == 0) return false;
+
+        bool hasFirstName = normalizedExtracted.Contains(userParts.First());
+        bool hasLastName = userParts.Length <= 1 || normalizedExtracted.Contains(userParts.Last());
+
+        return hasFirstName && hasLastName;
+    }
+
+    private static DateTime? ParseDate(string? dateStr)
+    {
+        if (string.IsNullOrWhiteSpace(dateStr)) return null;
+
+        string[] formats = ["dd/MM/yyyy", "dd-MM-yyyy", "dd.MM.yyyy", "yyyy-MM-dd", "yyyy/MM/dd"];
+
+        if (DateTime.TryParseExact(dateStr, formats, CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var date))
+        {
+            return date;
         }
 
         return null;
     }
 
-    // Helper para remover acentos (ex: "Estêvão" vira "Estevao")
     private static string RemoveDiacritics(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return text;

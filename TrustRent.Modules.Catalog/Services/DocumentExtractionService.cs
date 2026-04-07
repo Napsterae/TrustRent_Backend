@@ -1,86 +1,121 @@
-﻿using System.Text.RegularExpressions;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Shared.Models.DocumentExtraction;
+using TrustRent.Shared.Services;
 
 namespace TrustRent.Modules.Catalog.Services;
 
 public class DocumentExtractionService : IDocumentExtractionService
 {
-    private readonly IOcrService _ocrService;
+    private readonly IGeminiDocumentService _geminiService;
 
-    public DocumentExtractionService(IOcrService ocrService)
+    public DocumentExtractionService(IGeminiDocumentService geminiService)
     {
-        _ocrService = ocrService;
+        _geminiService = geminiService;
     }
 
-    public async Task<DocumentExtractionResultDto> ExtractDataAsync(Stream fileStream, string fileName, string docType)
+    public async Task<DocumentExtractionResultDto> ExtractDataAsync(
+        Stream fileStream, string fileName, string docType)
     {
-        var extractedText = await _ocrService.ExtractTextAsync(fileStream, fileName);
-        var normalizedText = extractedText.ToUpperInvariant().Replace("\n", " ");
+        var prompt = DocumentPrompts.GetPromptForDocType(docType);
 
-        var result = new DocumentExtractionResultDto();
-
-        if (docType == "caderneta")
+        return docType switch
         {
-            var matchArtigo = Regex.Match(normalizedText, @"ARTIGO MATRICIAL[:\s]*(\d+)");
-            var matchFracao = Regex.Match(normalizedText, @"FRAÇÃO[:\s]*([A-Z0-9]+)");
-            var matchFreguesia = Regex.Match(normalizedText, @"FREGUESIA[/\s]*(CONCELHO)[:\s]*(.+?)(?=\s{2,}|$)");
-            if (!matchFreguesia.Success)
-                matchFreguesia = Regex.Match(normalizedText, @"(?:FREGUESIA|CONCELHO)[:\s]*(.+?)(?=\s{2,}|ARTIGO|FRAÇÃO|$)");
+            "caderneta" => await ExtractCadernetaAsync(fileStream, fileName, prompt),
+            "certificado" => await ExtractCertificadoAsync(fileStream, fileName, prompt),
+            "modelo2" => await ExtractRegistoAtAsync(fileStream, fileName, prompt),
+            "certidao" => await ExtractCertidaoAsync(fileStream, fileName, prompt),
+            "licenca" => await ExtractLicencaAsync(fileStream, fileName, prompt),
+            _ => throw new Exception("Tipo de documento não suportado.")
+        };
+    }
 
-            result = result with
-            {
-                MatrixArticle = matchArtigo.Success ? matchArtigo.Groups[1].Value : null,
-                PropertyFraction = matchFracao.Success ? matchFracao.Groups[1].Value : null,
-                ParishConcelho = matchFreguesia.Success ? matchFreguesia.Groups[matchFreguesia.Groups.Count - 1].Value.Trim() : null
-            };
-        }
-        else if (docType == "certificado")
+    private async Task<DocumentExtractionResultDto> ExtractCadernetaAsync(
+        Stream fileStream, string fileName, string prompt)
+    {
+        var response = await _geminiService.ExtractDocumentAsync<CadernetaPredialResponse>(fileStream, fileName, prompt);
+        ValidateResponse(response);
+        return new DocumentExtractionResultDto(
+            MatrixArticle: response.MatrixArticle,
+            PropertyFraction: response.PropertyFraction,
+            ParishConcelho: response.ParishConcelho
+        );
+    }
+
+    private async Task<DocumentExtractionResultDto> ExtractCertificadoAsync(
+        Stream fileStream, string fileName, string prompt)
+    {
+        var response = await _geminiService.ExtractDocumentAsync<CertificadoEnergeticoResponse>(fileStream, fileName, prompt);
+        ValidateResponse(response);
+        return new DocumentExtractionResultDto(
+            EnergyClass: response.EnergyClass,
+            EnergyCertNumber: response.EnergyCertNumber
+        );
+    }
+
+    private async Task<DocumentExtractionResultDto> ExtractRegistoAtAsync(
+        Stream fileStream, string fileName, string prompt)
+    {
+        var response = await _geminiService.ExtractDocumentAsync<RegistoAtResponse>(fileStream, fileName, prompt);
+        ValidateResponse(response);
+        return new DocumentExtractionResultDto(
+            AtRegistrationNumber: response.AtRegistrationNumber
+        );
+    }
+
+    private async Task<DocumentExtractionResultDto> ExtractCertidaoAsync(
+        Stream fileStream, string fileName, string prompt)
+    {
+        var response = await _geminiService.ExtractDocumentAsync<CertidaoPermanenteResponse>(fileStream, fileName, prompt);
+        ValidateResponse(response);
+        return new DocumentExtractionResultDto(
+            PermanentCertNumber: response.PermanentCertNumber,
+            PermanentCertOffice: response.PermanentCertOffice
+        );
+    }
+
+    private async Task<DocumentExtractionResultDto> ExtractLicencaAsync(
+        Stream fileStream, string fileName, string prompt)
+    {
+        var response = await _geminiService.ExtractDocumentAsync<LicencaUtilizacaoResponse>(fileStream, fileName, prompt);
+        ValidateResponse(response);
+        return new DocumentExtractionResultDto(
+            LicenseNumber: response.LicenseNumber,
+            LicenseDate: response.LicenseDate,
+            LicenseIssuer: response.LicenseIssuer
+        );
+    }
+
+    private static void ValidateResponse(GeminiDocumentResponse response)
+    {
+        if (!response.IsAuthentic)
         {
-            var matchClass = Regex.Match(normalizedText, @"CLASSE ENERG[ÉE]TICA[:\s]*([A-F]\+?)");
-            var matchNumber = Regex.Match(normalizedText, @"CERTIFICADO N[ºO][:.\s]*([\d\w-]+)");
-
-            result = result with
-            {
-                EnergyClass = matchClass.Success ? matchClass.Groups[1].Value : null,
-                EnergyCertNumber = matchNumber.Success ? matchNumber.Groups[1].Value : null
-            };
+            throw new Exception(
+                "O documento enviado não passou na verificação de autenticidade. " +
+                "Por favor, envia o documento original sem alterações."
+            );
         }
-        else if (docType == "modelo2")
+
+        var qualityMessage = response.ImageQuality switch
         {
-            var matchReg = Regex.Match(normalizedText, @"N[ºO] DE REGISTO[:\s]*(\d+)");
+            "blurry" => "A imagem está desfocada. Tira uma nova foto com melhor foco e iluminação.",
+            "dark" => "A imagem está muito escura. Tira uma nova foto com melhor iluminação.",
+            "cropped" => "O documento parece estar cortado. Certifica-te que todo o documento está visível na foto.",
+            "unreadable" => "Não foi possível ler o documento. Tenta com uma foto mais nítida ou com o PDF original.",
+            _ => null
+        };
 
-            result = result with
-            {
-                AtRegistrationNumber = matchReg.Success ? matchReg.Groups[1].Value : null
-            };
-        }
-        else if (docType == "certidao")
+        if (qualityMessage != null)
+            throw new Exception(qualityMessage);
+
+        if (!response.AllFieldsExtracted)
         {
-            var matchDescricao = Regex.Match(normalizedText, @"(?:DESCRI[ÇC][ÃA]O|N[ºO]\s*DE\s*DESCRI[ÇC][ÃA]O)[:\s]*([\d/\-]+)");
-            var matchConservatoria = Regex.Match(normalizedText, @"CONSERVAT[ÓO]RIA[:\s]*(?:DE\s*)?(.+?)(?=\s{2,}|N[ºO]|$)");
-
-            result = result with
-            {
-                PermanentCertNumber = matchDescricao.Success ? matchDescricao.Groups[1].Value.Trim() : null,
-                PermanentCertOffice = matchConservatoria.Success ? matchConservatoria.Groups[1].Value.Trim() : null
-            };
+            throw new Exception(
+                "Não foi possível extrair toda a informação necessária do documento. " +
+                "Verifica que o documento está completo, legível e bem iluminado. " +
+                "Se estás a usar uma foto, tenta enviar o ficheiro PDF original."
+            );
         }
-        else if (docType == "licenca")
-        {
-            var matchLicenca = Regex.Match(normalizedText, @"(?:ALVAR[ÁA]|LICEN[ÇC]A)\s*N[ºO][:\s]*([\d/\-]+)");
-            var matchData = Regex.Match(normalizedText, @"(?:DATA\s*(?:DE\s*)?EMISS[ÃA]O|EMITID[OA]\s*(?:EM|A))[:\s]*(\d{2}[/\-]\d{2}[/\-]\d{4})");
-            var matchCamara = Regex.Match(normalizedText, @"C[ÂA]MARA\s*MUNICIPAL[:\s]*(?:DE\s*)?(.+?)(?=\s{2,}|ALVAR|LICEN|$)");
-
-            result = result with
-            {
-                LicenseNumber = matchLicenca.Success ? matchLicenca.Groups[1].Value.Trim() : null,
-                LicenseDate = matchData.Success ? matchData.Groups[1].Value.Trim() : null,
-                LicenseIssuer = matchCamara.Success ? matchCamara.Groups[1].Value.Trim() : null
-            };
-        }
-
-        return result;
     }
 }
