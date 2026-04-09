@@ -74,7 +74,22 @@ public static class PropertyEndpoints
                     WaterPaidBy = form["waterPaidBy"].ToString() is { Length: > 0 } water ? water : "Inquilino",
                     ElectricityPaidBy = form["electricityPaidBy"].ToString() is { Length: > 0 } elec ? elec : "Inquilino",
                     GasPaidBy = form["gasPaidBy"].ToString() is { Length: > 0 } gas ? gas : "Inquilino",
+
+                    // Periodicidade e Regime
+                    LeaseRegime = form["leaseRegime"].ToString(),
+                    AllowsRenewal = form["allowsRenewal"] == "true",
+                    NonPermanentReason = form["nonPermanentReason"].ToString(),
                 };
+
+                // Validação de publicação
+                if (dto.IsPublic)
+                {
+                    if (string.IsNullOrEmpty(dto.LeaseRegime))
+                        return Results.BadRequest(new { Error = "O regime jurídico é obrigatório para publicar o anúncio." });
+
+                    if (dto.LeaseRegime == "NonPermanentHousing" && string.IsNullOrEmpty(dto.NonPermanentReason))
+                        return Results.BadRequest(new { Error = "O motivo é obrigatório para regime não permanente." });
+                }
 
                 var mainImageIndex = int.TryParse(form["mainImageIndex"], out var mii) ? mii : 0;
 
@@ -100,8 +115,21 @@ public static class PropertyEndpoints
                         .ToList();
                 }
 
+                // Periodicidades selecionadas
+                var acceptedPeriodicities = new List<int>();
+                if (form.TryGetValue("acceptedPeriodicities", out var periodicityValues))
+                {
+                    acceptedPeriodicities = periodicityValues
+                        .Where(v => !string.IsNullOrEmpty(v))
+                        .Select(v => int.Parse(v!))
+                        .ToList();
+                }
+
+                if (dto.IsPublic && !acceptedPeriodicities.Any())
+                    return Results.BadRequest(new { Error = "Deve selecionar pelo menos uma periodicidade para publicar." });
+
                 // 5. Chamar a nossa lógica de negócio (O motor que criámos no Passo 2)
-                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, mainImageIndex, documentFiles, amenityIds);
+                var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, mainImageIndex, documentFiles, amenityIds, acceptedPeriodicities);
 
                 return Results.Ok(new
                 {
@@ -201,7 +229,22 @@ public static class PropertyEndpoints
                     WaterPaidBy = form["waterPaidBy"].ToString() is { Length: > 0 } water ? water : "Inquilino",
                     ElectricityPaidBy = form["electricityPaidBy"].ToString() is { Length: > 0 } elec ? elec : "Inquilino",
                     GasPaidBy = form["gasPaidBy"].ToString() is { Length: > 0 } gas ? gas : "Inquilino",
+
+                    // Periodicidade e Regime
+                    LeaseRegime = form["leaseRegime"].ToString(),
+                    AllowsRenewal = form["allowsRenewal"] == "true",
+                    NonPermanentReason = form["nonPermanentReason"].ToString(),
                 };
+
+                // Validação de publicação
+                if (dto.IsPublic)
+                {
+                    if (string.IsNullOrEmpty(dto.LeaseRegime))
+                        return Results.BadRequest(new { Error = "O regime jurídico é obrigatório para publicar o anúncio." });
+
+                    if (dto.LeaseRegime == "NonPermanentHousing" && string.IsNullOrEmpty(dto.NonPermanentReason))
+                        return Results.BadRequest(new { Error = "O motivo é obrigatório para regime não permanente." });
+                }
 
                 // Apanhar apenas as NOVAS imagens adicionadas na edição
                 var newImageFiles = form.Files.GetFiles("images")
@@ -231,7 +274,20 @@ public static class PropertyEndpoints
                         .ToList();
                 }
 
-                await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories, retainedImageIds, mainImageIndex, mainRetainedImageId, amenityIds);
+                // Periodicidades selecionadas
+                var acceptedPeriodicities = new List<int>();
+                if (form.TryGetValue("acceptedPeriodicities", out var periodicityValues))
+                {
+                    acceptedPeriodicities = periodicityValues
+                        .Where(v => !string.IsNullOrEmpty(v))
+                        .Select(v => int.Parse(v!))
+                        .ToList();
+                }
+
+                if (dto.IsPublic && !acceptedPeriodicities.Any())
+                    return Results.BadRequest(new { Error = "Deve selecionar pelo menos uma periodicidade para publicar." });
+
+                await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories, retainedImageIds, mainImageIndex, mainRetainedImageId, amenityIds, acceptedPeriodicities);
 
                 return Results.Ok(new { Message = "Imóvel atualizado com sucesso!" });
             }
@@ -330,6 +386,7 @@ public static class PropertyEndpoints
                 property.AllowsPets,
                 property.IsFurnished,
                 property.FurnishedDescription,
+                property.IsPublic,
                 
                 // Dados Sensíveis (Mascarados se não tiver permissão)
                 Street = showFullAddress ? property.Street : "Morada visível após agendamento de visita",
@@ -358,6 +415,10 @@ public static class PropertyEndpoints
                 property.ElectricityPaidBy,
                 property.GasPaidBy,
                 property.HasOfficialContract,
+                property.LeaseRegime,
+                property.AllowsRenewal,
+                property.NonPermanentReason,
+                AcceptedPeriodicities = property.AcceptedPeriodicities.Select(pp => pp.DurationMonths),
                 Images = property.Images.Select(img => new {
                     img.Id,
                     img.Url,

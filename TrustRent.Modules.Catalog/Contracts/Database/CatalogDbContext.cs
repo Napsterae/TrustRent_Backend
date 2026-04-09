@@ -14,6 +14,7 @@ public class CatalogDbContext : DbContext
     public DbSet<ApplicationHistory> ApplicationHistories { get; set; }
     public DbSet<Amenity> Amenities { get; set; }
     public DbSet<PropertyAmenity> PropertyAmenities { get; set; }
+    public DbSet<PropertyPeriodicity> PropertyPeriodicities { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -76,6 +77,22 @@ public class CatalogDbContext : DbContext
                    .HasForeignKey(pa => pa.AmenityId)
                    .OnDelete(DeleteBehavior.Cascade);
         });
+
+        // PropertyPeriodicity
+        modelBuilder.Entity<PropertyPeriodicity>(entity =>
+        {
+            entity.ToTable("PropertyPeriodicities", "catalog");
+            entity.HasKey(pp => pp.Id);
+            entity.HasOne<Property>()
+                  .WithMany(p => p.AcceptedPeriodicities)
+                  .HasForeignKey(pp => pp.PropertyId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // LeaseRegime como string na BD
+        modelBuilder.Entity<Property>()
+            .Property(p => p.LeaseRegime)
+            .HasConversion<string>();
 
         // Seed de Comodidades
         modelBuilder.Entity<Amenity>().HasData(

@@ -68,7 +68,10 @@ public static class PropertyMappers
             WaterPaidBy = dto.WaterPaidBy,
             ElectricityPaidBy = dto.ElectricityPaidBy,
             GasPaidBy = dto.GasPaidBy,
-            HasOfficialContract = dto.HasOfficialContract
+            HasOfficialContract = dto.HasOfficialContract,
+            LeaseRegime = Enum.TryParse<Models.LeaseRegime>(dto.LeaseRegime, out var regime) ? regime : null,
+            AllowsRenewal = dto.AllowsRenewal,
+            NonPermanentReason = dto.NonPermanentReason,
         };
     }
 
@@ -111,6 +114,9 @@ public static class PropertyMappers
         property.ElectricityPaidBy = dto.ElectricityPaidBy;
         property.GasPaidBy = dto.GasPaidBy;
         property.HasOfficialContract = dto.HasOfficialContract;
+        property.LeaseRegime = Enum.TryParse<Models.LeaseRegime>(dto.LeaseRegime, out var regime) ? regime : null;
+        property.AllowsRenewal = dto.AllowsRenewal;
+        property.NonPermanentReason = dto.NonPermanentReason;
     }
 
     public static PropertySearchDto ToSearchDto(this Property p)

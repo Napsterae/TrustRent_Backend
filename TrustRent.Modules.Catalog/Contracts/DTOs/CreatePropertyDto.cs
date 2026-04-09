@@ -65,6 +65,12 @@ public class CreatePropertyDto
 
     // Contrato Oficial
     public bool HasOfficialContract { get; set; }
+
+    // Periodicidade e Regime
+    public string? LeaseRegime { get; set; }
+    public bool AllowsRenewal { get; set; } = true;
+    public string? NonPermanentReason { get; set; }
+    public List<int> AcceptedPeriodicities { get; set; } = new();
 }
 
 // Pequeno record para transportar os ficheiros do Endpoint para o Serviço sem quebrar o Clean Architecture

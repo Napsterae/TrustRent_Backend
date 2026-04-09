@@ -83,6 +83,12 @@ public class Property
 
     // Contrato Oficial
     public bool HasOfficialContract { get; set; } = false;
+
+    // Periodicidade e Regime Jurídico
+    public LeaseRegime? LeaseRegime { get; set; }
+    public bool AllowsRenewal { get; set; } = true;
+    public string? NonPermanentReason { get; set; }
+    public ICollection<PropertyPeriodicity> AcceptedPeriodicities { get; set; } = new List<PropertyPeriodicity>();
 }
 
 // Classe para guardar a Galeria de Imagens

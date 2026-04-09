@@ -19,12 +19,14 @@ public class PropertyRepository : IPropertyRepository
         await _context.Properties
             .Include(p => p.Images)
             .Include(p => p.Amenities).ThenInclude(pa => pa.Amenity)
+            .Include(p => p.AcceptedPeriodicities)
             .FirstOrDefaultAsync(p => p.Id == id);
 
     public async Task<Property?> GetByIdAndLandlordWithImagesAsync(Guid id, Guid landlordId) =>
         await _context.Properties
             .Include(p => p.Images)
             .Include(p => p.Amenities).ThenInclude(pa => pa.Amenity)
+            .Include(p => p.AcceptedPeriodicities)
             .FirstOrDefaultAsync(p => p.Id == id && p.LandlordId == landlordId);
 
     public async Task<IEnumerable<Amenity>> GetAllAmenitiesAsync() =>
