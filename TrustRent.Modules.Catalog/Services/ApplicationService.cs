@@ -37,6 +37,7 @@ public class ApplicationService : IApplicationService
             Message = dto.Message,
             ShareProfile = dto.ShareProfile,
             WantsVisit = dto.WantsVisit,
+            DurationMonths = dto.DurationMonths,
             TenantProposedDates = JsonSerializer.Serialize(dto.SelectedDates),
             Status = ApplicationStatus.Pending
         };
@@ -70,6 +71,7 @@ public class ApplicationService : IApplicationService
     {
         var apps = await _context.Applications
             .Include(a => a.History)
+            .Include(a => a.Lease!).ThenInclude(l => l.History)
             .Where(a => a.PropertyId == propertyId)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
@@ -81,6 +83,7 @@ public class ApplicationService : IApplicationService
     {
         var apps = await _context.Applications
             .Include(a => a.History)
+            .Include(a => a.Lease!).ThenInclude(l => l.History)
             .Where(a => a.TenantId == tenantId)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
@@ -98,6 +101,7 @@ public class ApplicationService : IApplicationService
     {
         var application = await _context.Applications
             .Include(a => a.History)
+            .Include(a => a.Lease!).ThenInclude(l => l.History)
             .FirstOrDefaultAsync(a => a.Id == applicationId);
 
         if (application == null) return null;
@@ -113,6 +117,7 @@ public class ApplicationService : IApplicationService
         var application = await _context.Applications
             .Include(a => a.Property)
             .Include(a => a.History)
+            .Include(a => a.Lease!).ThenInclude(l => l.History)
             .FirstOrDefaultAsync(a => a.Id == applicationId);
             
         if (application == null) throw new Exception("Application not found");

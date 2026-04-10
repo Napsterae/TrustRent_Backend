@@ -356,7 +356,7 @@ public static class PropertyEndpoints
                     // Verificar se o inquilino tem uma candidatura com visita aceite ou superior
                     var tenantApps = await applicationService.GetApplicationsForTenantAsync(currentUserId);
                     var app = tenantApps.FirstOrDefault(a => a.PropertyId == id);
-                    if (app != null && (app.Status == "VisitAccepted" || app.Status == "InterestConfirmed" || app.Status == "Accepted"))
+                    if (app != null && app.Status != "Pending" && app.Status != "VisitCounterProposed" && app.Status != "Rejected")
                     {
                         showFullAddress = true;
                     }

@@ -1,3 +1,5 @@
+using TrustRent.Modules.Catalog.Models;
+
 namespace TrustRent.Modules.Catalog.Models;
 
 public class Application
@@ -8,6 +10,8 @@ public class Application
     public string Message { get; set; } = string.Empty;
     public bool ShareProfile { get; set; }
     public bool WantsVisit { get; set; }
+    
+    public int DurationMonths { get; set; } // Adicionado
     
     // Lista de datas no formato string "YYYY-MM-DD" separadas por virgula ou JSON (para simplificar, array mapeado em json ou string delimitada)
     public string TenantProposedDates { get; set; } = string.Empty; 
@@ -22,6 +26,8 @@ public class Application
 
     public List<ApplicationHistory> History { get; set; } = new();
     public Property? Property { get; set; }
+    
+    public Lease? Lease { get; set; } // Adicionado
 }
 
 public enum ApplicationStatus
@@ -31,5 +37,9 @@ public enum ApplicationStatus
     VisitAccepted,
     InterestConfirmed,
     Accepted,
-    Rejected
+    Rejected,
+    LeaseStartDateProposed,
+    LeaseStartDateConfirmed,
+    ContractPendingSignature,
+    LeaseActive
 }

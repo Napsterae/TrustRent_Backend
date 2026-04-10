@@ -30,6 +30,7 @@ public static class ApplicationMappers
             Message = application.Message,
             ShareProfile = application.ShareProfile,
             WantsVisit = application.WantsVisit,
+            DurationMonths = application.DurationMonths,
             TenantProposedDates = dates,
             LandlordProposedDate = application.LandlordProposedDate,
             FinalVisitDate = application.FinalVisitDate,
@@ -43,7 +44,8 @@ public static class ApplicationMappers
                 Message = h.Message,
                 EventData = h.EventData,
                 CreatedAt = h.CreatedAt
-            }).OrderBy(h => h.CreatedAt).ToList() ?? new()
+            }).OrderBy(h => h.CreatedAt).ToList() ?? new(),
+            Lease = application.Lease?.ToDto()
         };
     }
 }

@@ -11,10 +11,12 @@ public class ApplicationDto
     public string Message { get; set; } = string.Empty;
     public bool ShareProfile { get; set; }
     public bool WantsVisit { get; set; }
+    public int DurationMonths { get; set; }
     public List<string> TenantProposedDates { get; set; } = new();
     public DateTime? LandlordProposedDate { get; set; }
     public DateTime? FinalVisitDate { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public List<ApplicationHistoryDto> History { get; set; } = new();
+    public LeaseDto? Lease { get; set; }
 }

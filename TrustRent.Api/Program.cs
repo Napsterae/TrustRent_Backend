@@ -100,6 +100,9 @@ builder.Services.AddScoped<IPropertyRepository, PropertyRepository>();
 builder.Services.AddScoped<ICatalogUnitOfWork, CatalogUnitOfWork>();
 builder.Services.AddScoped<IApplicationService, ApplicationService>();
 builder.Services.AddScoped<IApplicationStatusValidator, ApplicationStatusValidator>();
+builder.Services.AddScoped<ILeaseService, LeaseService>();
+builder.Services.AddScoped<IContractGenerationService, ContractGenerationService>();
+builder.Services.AddScoped<IDigitalSignatureService, DigitalSignatureService>();
 
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -184,6 +187,7 @@ app.MapAuthEndpoints();
 app.MapAuthUserEndpoints();
 app.MapPropertyEndpoints();
 app.MapApplicationEndpoints();
+app.MapLeaseEndpoints();
 app.MapCommunicationsEndpoints();
 
 app.MapHub<ApplicationChatHub>("/api/chathub");
