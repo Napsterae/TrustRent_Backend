@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TrustRent.Modules.Catalog.Contracts.Database;
@@ -11,9 +12,11 @@ using TrustRent.Modules.Catalog.Contracts.Database;
 namespace TrustRent.Modules.Catalog.Migrations
 {
     [DbContext(typeof(CatalogDbContext))]
-    partial class CatalogDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260410225901_AddSequentialSignatureFields")]
+    partial class AddSequentialSignatureFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -277,9 +280,6 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("ContractFileHash")
-                        .HasColumnType("text");
-
                     b.Property<string>("ContractFilePath")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -333,9 +333,6 @@ namespace TrustRent.Modules.Catalog.Migrations
 
                     b.Property<DateTime?>("LandlordSignedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LandlordSignedFileHash")
-                        .HasColumnType("text");
 
                     b.Property<string>("LandlordSignedFilePath")
                         .HasColumnType("text");

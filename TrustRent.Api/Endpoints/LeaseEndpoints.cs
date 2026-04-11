@@ -176,6 +176,45 @@ public static class LeaseEndpoints
                 catch (FileNotFoundException e) { return Results.NotFound(e.Message); }
             }).RequireAuthorization();
 
+        // POST /api/leases/{leaseId}/upload-signed-contract  (multipart/form-data)
+        group.MapPost("/{leaseId:guid}/upload-signed-contract",
+            async (Guid leaseId, HttpRequest request, ILeaseService service, ClaimsPrincipal user) =>
+            {
+                if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
+                if (!request.HasFormContentType) return Results.BadRequest("Enviar ficheiro como multipart/form-data.");
+                var form = await request.ReadFormAsync();
+                var file = form.Files.GetFile("file");
+                if (file is null || file.Length == 0) return Results.BadRequest("Ficheiro PDF não recebido.");
+                if (!file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                    return Results.BadRequest("Apenas ficheiros PDF são aceites.");
+                if (file.Length > 50 * 1024 * 1024) // 50MB limit
+                    return Results.BadRequest("O ficheiro excede o tamanho máximo permitido (50 MB).");
+                try
+                {
+                    using var ms = new MemoryStream();
+                    await file.CopyToAsync(ms);
+                    var lease = await service.UploadSignedContractAsync(leaseId, userId, ms.ToArray(), file.FileName);
+                    return Results.Ok(lease);
+                }
+                catch (KeyNotFoundException e) { return Results.NotFound(e.Message); }
+                catch (UnauthorizedAccessException e) { return Results.BadRequest(e.Message); }
+                catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
+            }).RequireAuthorization().DisableAntiforgery();
+
+        // GET /api/leases/{leaseId}/landlord-signed-contract
+        group.MapGet("/{leaseId:guid}/landlord-signed-contract",
+            async (Guid leaseId, ILeaseService service, ClaimsPrincipal user) =>
+            {
+                if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
+                try
+                {
+                    var bytes = await service.GetLandlordSignedContractAsync(leaseId, userId);
+                    if (bytes is null) return Results.NotFound("O contrato assinado pelo proprietário ainda não está disponível.");
+                    return Results.File(bytes, "application/pdf", $"contrato_assinado_proprietario_{leaseId}.pdf");
+                }
+                catch (UnauthorizedAccessException) { return Results.Forbid(); }
+            }).RequireAuthorization();
+
         // POST /api/leases/{leaseId}/cancel
         group.MapPost("/{leaseId:guid}/cancel",
             async (Guid leaseId, [FromBody] CancelLeaseDto dto,

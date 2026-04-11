@@ -17,6 +17,7 @@ public class LeaseService : ILeaseService
     private readonly INotificationService _notificationService;
     private readonly IContractGenerationService _contractGenerationService;
     private readonly IDigitalSignatureService _digitalSignatureService;
+    private readonly ISignedPdfVerificationService _signedPdfVerification;
     private readonly IUserService _userService;
 
     public LeaseService(
@@ -24,12 +25,14 @@ public class LeaseService : ILeaseService
         INotificationService notificationService,
         IContractGenerationService contractGenerationService,
         IDigitalSignatureService digitalSignatureService,
+        ISignedPdfVerificationService signedPdfVerification,
         IUserService userService)
     {
         _context = context;
         _notificationService = notificationService;
         _contractGenerationService = contractGenerationService;
         _digitalSignatureService = digitalSignatureService;
+        _signedPdfVerification = signedPdfVerification;
         _userService = userService;
     }
 
@@ -148,18 +151,27 @@ public class LeaseService : ILeaseService
             await GenerateContractInternalAsync(lease, application);
         }
 
-        // Mudar para ContractPendingSignature
-        lease.Status = LeaseStatus.AwaitingSignatures;
+        // Mudar para a fase de assinatura sequencial
+        if (lease.ContractType == "Official")
+            lease.Status = LeaseStatus.PendingLandlordSignature;
+        else
+            lease.Status = LeaseStatus.AwaitingSignatures;
+
         application.Status = ApplicationStatus.ContractPendingSignature;
 
         await _context.SaveChangesAsync();
 
         var recipientId = userId == lease.LandlordId ? lease.TenantId : lease.LandlordId;
         var msg = lease.ContractType == "Official"
-            ? "A data de início foi confirmada. O contrato foi gerado e aguarda assinatura."
+            ? "A data de início foi confirmada e o contrato foi gerado. O proprietário deve assiná-lo primeiro."
             : "A data de início foi confirmada. Aguarda a aceitação dos termos do arrendamento.";
 
         await _notificationService.SendNotificationAsync(recipientId, "lease", msg, lease.Id);
+
+        // Notificar também o senhorio se for oficial (é ele quem tem de agir primeiro)
+        if (lease.ContractType == "Official" && userId != lease.LandlordId)
+            await _notificationService.SendNotificationAsync(lease.LandlordId, "lease",
+                "A data de início foi confirmada. Descarrega, assina e faz upload do contrato para dar início ao processo.", lease.Id);
 
         return lease.ToDto();
     }
@@ -495,6 +507,167 @@ public class LeaseService : ILeaseService
         return leases.Select(l => l.ToDto());
     }
 
+    // ---- Upload Sequencial de PDF Assinado ----
+
+    public async Task<LeaseDto> UploadSignedContractAsync(Guid leaseId, Guid userId, byte[] pdfBytes, string originalFileName)
+    {
+        var lease = await _context.Leases
+            .Include(l => l.History)
+            .FirstOrDefaultAsync(l => l.Id == leaseId)
+            ?? throw new KeyNotFoundException("Arrendamento não encontrado.");
+
+        var application = await _context.Applications
+            .Include(a => a.History)
+            .FirstOrDefaultAsync(a => a.Id == lease.ApplicationId)
+            ?? throw new KeyNotFoundException("Candidatura associada não encontrada.");
+
+        if (userId != lease.LandlordId && userId != lease.TenantId)
+            throw new UnauthorizedAccessException("Sem permissão para fazer upload neste arrendamento.");
+
+        var now = DateTime.UtcNow;
+
+        // ---- FASE 1: Senhorio assina e faz upload ----
+        if (lease.Status == LeaseStatus.PendingLandlordSignature)
+        {
+            if (userId != lease.LandlordId)
+                throw new UnauthorizedAccessException(
+                    "Apenas o proprietário pode fazer upload do contrato nesta fase. O inquilino deve aguardar.");
+
+            var verification = await _signedPdfVerification.VerifySignaturesAsync(pdfBytes, 1);
+            if (!verification.IsValid)
+                throw new InvalidOperationException(
+                    $"O documento não contém uma assinatura digital válida. {verification.ErrorMessage}");
+
+            // ---- Verificar integridade: o PDF assinado deve ter sido derivado do contrato original ----
+            // GetRevision devolve os bytes do documento tal como estavam antes da assinatura ser aplicada.
+            // Comparamos o hash desses bytes com o hash do contrato original guardado na BD.
+            var signedDocHash = verification.PreSignatureDocumentHashes.FirstOrDefault();
+            if (!string.IsNullOrEmpty(lease.ContractFileHash) && !string.IsNullOrEmpty(signedDocHash))
+            {
+                if (signedDocHash != lease.ContractFileHash)
+                    throw new InvalidOperationException(
+                        "O documento que assinou não corresponde ao contrato gerado pela plataforma. " +
+                        "Por favor descarrega o contrato original da plataforma, assina esse ficheiro e volta a fazer upload.");
+            }
+
+            var path = SaveSignedPdf(pdfBytes, lease.Id, "landlord", originalFileName);
+            lease.LandlordSignedFilePath = path;
+            lease.LandlordSigned = true;
+            lease.LandlordSignedAt = now;
+            lease.LandlordSignatureVerified = true;
+            lease.LandlordSignatureCertSubject = verification.Signatures.FirstOrDefault()?.CertificateSubject;
+            // Guardar hash do PDF assinado pelo senhorio — o inquilino deve assinar exactamente este ficheiro
+            lease.LandlordSignedFileHash = Convert.ToBase64String(SHA256.HashData(pdfBytes));
+            lease.Status = LeaseStatus.PendingTenantSignature;
+            lease.UpdatedAt = now;
+
+            lease.History.Add(new LeaseHistory
+            {
+                LeaseId = lease.Id, ActorId = userId,
+                Action = "LandlordContractUploaded",
+                Message = $"Proprietário fez upload do contrato assinado. Cert: {lease.LandlordSignatureCertSubject}"
+            });
+
+            application.History.Add(new ApplicationHistory
+            {
+                ApplicationId = application.Id, ActorId = userId,
+                Action = "Contrato Assinado pelo Proprietário",
+                Message = "O proprietário fez upload do contrato assinado digitalmente. O inquilino deve agora assinar."
+            });
+
+            await _context.SaveChangesAsync();
+
+            await _notificationService.SendNotificationAsync(lease.TenantId, "lease",
+                "O proprietário assinou o contrato. Descarrega o documento, assina-o com a tua Chave Móvel Digital e faz upload.",
+                lease.Id);
+
+            return lease.ToDto();
+        }
+
+        // ---- FASE 2: Inquilino assina e faz upload ----
+        if (lease.Status == LeaseStatus.PendingTenantSignature)
+        {
+            if (userId != lease.TenantId)
+                throw new UnauthorizedAccessException(
+                    "Apenas o inquilino pode fazer upload do contrato nesta fase.");
+
+            var verificationT = await _signedPdfVerification.VerifySignaturesAsync(pdfBytes, 2);
+            if (!verificationT.IsValid)
+                throw new InvalidOperationException(
+                    $"O documento deve conter a assinatura do proprietário e a tua. {verificationT.ErrorMessage}");
+
+            // ---- Verificar integridade: o documento que o inquilino assinou deve ser o PDF do senhorio ----
+            // A 2ª assinatura foi aplicada sobre o PDF já assinado pelo senhorio.
+            // O hash da revisão antes da 2ª assinatura deve coincidir com o hash do PDF do senhorio.
+            var tenantBaseHash = verificationT.PreSignatureDocumentHashes.ElementAtOrDefault(1);
+            if (!string.IsNullOrEmpty(lease.LandlordSignedFileHash) && !string.IsNullOrEmpty(tenantBaseHash))
+            {
+                if (tenantBaseHash != lease.LandlordSignedFileHash)
+                    throw new InvalidOperationException(
+                        "O documento que assinou não é o mesmo que o proprietário assinou. " +
+                        "Por favor descarrega o documento (já assinado pelo proprietário) da plataforma, assina esse ficheiro e volta a fazer upload.");
+            }
+
+            var path = SaveSignedPdf(pdfBytes, lease.Id, "final", originalFileName);
+            lease.TenantSignedFilePath = path;
+            lease.ContractFilePath = path; // documento final substitui o original
+            lease.TenantSigned = true;
+            lease.TenantSignedAt = now;
+            lease.TenantSignatureVerified = true;
+            lease.TenantSignatureCertSubject = verificationT.Signatures.LastOrDefault()?.CertificateSubject;
+            lease.ContractSignedAt = now;
+            lease.UpdatedAt = now;
+
+            lease.History.Add(new LeaseHistory
+            {
+                LeaseId = lease.Id, ActorId = userId,
+                Action = "TenantContractUploaded",
+                Message = $"Inquilino fez upload do contrato com ambas as assinaturas. Cert: {lease.TenantSignatureCertSubject}"
+            });
+
+            application.History.Add(new ApplicationHistory
+            {
+                ApplicationId = application.Id, ActorId = userId,
+                Action = "Contrato Assinado pelo Inquilino",
+                Message = "O inquilino assinou o contrato. Ambas as assinaturas verificadas — arrendamento ativo."
+            });
+
+            await ActivateLeaseAsync(lease, application, now);
+            await _context.SaveChangesAsync();
+
+            await _notificationService.SendNotificationAsync(lease.LandlordId, "lease",
+                $"O inquilino assinou o contrato. O arrendamento está ativo a partir de {lease.StartDate:dd/MM/yyyy}.", lease.Id);
+            await _notificationService.SendNotificationAsync(lease.TenantId, "lease",
+                $"Ambas as assinaturas foram verificadas. O teu arrendamento está ativo a partir de {lease.StartDate:dd/MM/yyyy}.", lease.Id);
+
+            return lease.ToDto();
+        }
+
+        throw new InvalidOperationException(
+            $"Este arrendamento não está numa fase de upload de assinatura (estado atual: {lease.Status}).");
+    }
+
+    public async Task<byte[]?> GetLandlordSignedContractAsync(Guid leaseId, Guid userId)
+    {
+        var lease = await _context.Leases.FirstOrDefaultAsync(l => l.Id == leaseId);
+        if (lease == null) return null;
+        if (userId != lease.TenantId && userId != lease.LandlordId)
+            throw new UnauthorizedAccessException("Sem permissão.");
+        if (string.IsNullOrEmpty(lease.LandlordSignedFilePath) || !File.Exists(lease.LandlordSignedFilePath))
+            return null;
+        return await File.ReadAllBytesAsync(lease.LandlordSignedFilePath);
+    }
+
+    private static string SaveSignedPdf(byte[] pdfBytes, Guid leaseId, string party, string originalFileName)
+    {
+        var dir = Path.Combine("contracts", "signed", leaseId.ToString());
+        Directory.CreateDirectory(dir);
+        var fileName = $"{party}_{DateTime.UtcNow:yyyyMMddHHmmss}.pdf";
+        var path = Path.Combine(dir, fileName);
+        File.WriteAllBytes(path, pdfBytes);
+        return path;
+    }
+
     // ---- Private helpers ----
 
     private async Task GenerateContractInternalAsync(Lease lease, Application application)
@@ -534,9 +707,12 @@ public class LeaseService : ILeaseService
         lease.ContractFilePath = filePath;
         lease.ContractGeneratedAt = DateTime.UtcNow;
 
+        // Guardar hash do ficheiro original para validar integridade no upload
+        var contractBytes = await File.ReadAllBytesAsync(filePath);
+        lease.ContractFileHash = Convert.ToBase64String(SHA256.HashData(contractBytes));
+
         lease.History.Add(new LeaseHistory
         {
-
             LeaseId = lease.Id,
             ActorId = Guid.Empty,
             Action = "ContractGenerated",
@@ -546,7 +722,6 @@ public class LeaseService : ILeaseService
 
         application.History.Add(new ApplicationHistory
         {
-
             ApplicationId = application.Id,
             ActorId = Guid.Empty,
             Action = "Contrato Gerado",

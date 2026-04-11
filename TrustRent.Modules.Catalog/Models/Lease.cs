@@ -34,14 +34,27 @@ public class Lease
     public DateTime? ContractGeneratedAt { get; set; }
     public DateTime? ContractSignedAt { get; set; }
 
-    // Assinaturas
+    // Assinaturas – Upload Sequencial
     public bool LandlordSigned { get; set; } = false;
     public DateTime? LandlordSignedAt { get; set; }
     public string? LandlordSignatureRef { get; set; }
+    public string? LandlordSignedFilePath { get; set; }       // PDF assinado pelo senhorio
+    public string? LandlordSignatureCertSubject { get; set; } // DN do certificado CMD usado
 
     public bool TenantSigned { get; set; } = false;
     public DateTime? TenantSignedAt { get; set; }
     public string? TenantSignatureRef { get; set; }
+    public string? TenantSignedFilePath { get; set; }         // PDF final com ambas as assinaturas
+    public string? TenantSignatureCertSubject { get; set; }
+
+    public bool LandlordSignatureVerified { get; set; } = false;
+    public bool TenantSignatureVerified { get; set; } = false;
+
+    // Integridade do documento – proteção contra upload de PDF diferente do gerado
+    /// <summary>SHA-256 (base64) do contrato original gerado pela plataforma.</summary>
+    public string? ContractFileHash { get; set; }
+    /// <summary>SHA-256 (base64) do PDF já assinado pelo senhorio (para validar o upload do inquilino).</summary>
+    public string? LandlordSignedFileHash { get; set; }
 
     // Estado
     public LeaseStatus Status { get; set; } = LeaseStatus.Pending;
@@ -57,10 +70,13 @@ public class Lease
 
 public enum LeaseStatus
 {
-    Pending,            // Aguarda confirmação da data de início
-    AwaitingSignatures, // Contrato gerado/termos apresentados, aguarda assinatura/aceitação
-    Active,             // Ambos assinaram/aceitaram, arrendamento ativo
-    Expired,            // Período de arrendamento terminou
-    TerminatedEarly,    // Rescindido antes do fim
-    Cancelled           // Cancelado durante fase pendente
+    Pending,                    // Aguarda confirmação da data de início
+    AwaitingSignatures,         // (legado) Contrato apresentado, aguarda assinatura/aceitação
+    PendingLandlordSignature,   // [NOVO] Senhorio deve assinar e fazer upload do PDF
+    PendingTenantSignature,     // [NOVO] Inquilino deve assinar o PDF já assinado pelo senhorio
+    SignaturesVerified,         // [NOVO] Ambas as assinaturas verificadas — contrato final guardado
+    Active,                     // Arrendamento ativo
+    Expired,                    // Período de arrendamento terminou
+    TerminatedEarly,            // Rescindido antes do fim
+    Cancelled                   // Cancelado durante fase pendente
 }

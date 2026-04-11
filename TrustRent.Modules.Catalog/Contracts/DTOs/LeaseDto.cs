@@ -27,8 +27,12 @@ public class LeaseDto
     public DateTime? ContractSignedAt { get; set; }
     public bool LandlordSigned { get; set; }
     public DateTime? LandlordSignedAt { get; set; }
+    public string? LandlordSignatureCertSubject { get; set; }
+    public bool LandlordSignatureVerified { get; set; }
     public bool TenantSigned { get; set; }
     public DateTime? TenantSignedAt { get; set; }
+    public string? TenantSignatureCertSubject { get; set; }
+    public bool TenantSignatureVerified { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
@@ -55,11 +59,17 @@ public class ConfirmLeaseStartDateDto
     public DateTime StartDate { get; set; }
 }
 
+/// <summary>
+/// DTO legado – mantido para compatibilidade reversa. O novo fluxo usa upload de ficheiro.
+/// </summary>
 public class RequestLeaseSignatureDto
 {
     public string PhoneNumber { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// DTO legado – OTP-based, substituído por upload sequencial.
+/// </summary>
 public class ConfirmLeaseSignatureDto
 {
     public string OtpCode { get; set; } = string.Empty;
@@ -81,9 +91,13 @@ public class LeaseSignatureStatusDto
     public Guid LeaseId { get; set; }
     public bool ProcessInitiated { get; set; }
     public bool LandlordSigned { get; set; }
+    public bool LandlordSignatureVerified { get; set; }
     public DateTime? LandlordSignedAt { get; set; }
+    public string? LandlordSignatureCertSubject { get; set; }
     public bool TenantSigned { get; set; }
+    public bool TenantSignatureVerified { get; set; }
     public DateTime? TenantSignedAt { get; set; }
+    public string? TenantSignatureCertSubject { get; set; }
     public string ContractType { get; set; } = string.Empty;
     public string LeaseStatus { get; set; } = string.Empty;
     public string DocumentStatus { get; set; } = string.Empty;

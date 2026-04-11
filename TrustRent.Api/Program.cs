@@ -103,6 +103,7 @@ builder.Services.AddScoped<IApplicationStatusValidator, ApplicationStatusValidat
 builder.Services.AddScoped<ILeaseService, LeaseService>();
 builder.Services.AddScoped<IContractGenerationService, ContractGenerationService>();
 builder.Services.AddScoped<IDigitalSignatureService, DigitalSignatureService>();
+builder.Services.AddScoped<ISignedPdfVerificationService, SignedPdfVerificationService>();
 
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
