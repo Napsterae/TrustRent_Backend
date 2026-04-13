@@ -20,6 +20,7 @@ using TrustRent.Modules.Identity.Repositories;
 using TrustRent.Modules.Identity.Services;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Services;
+using TrustRent.Api.Services;
 using TrustRent.Modules.Identity.Seeds;
 using TrustRent.Modules.Catalog.Seeds;
 
@@ -81,6 +82,9 @@ builder.Services.AddDbContext<CatalogDbContext>(options =>
 builder.Services.AddDbContext<CommunicationsDbContext>(options =>
     options.UseNpgsql(connectionString));
 
+builder.Services.AddDbContext<TrustRent.Modules.Leasing.Contracts.Database.LeasingDbContext>(options =>
+    options.UseNpgsql(connectionString));
+
 builder.Services.AddSignalR();
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -91,6 +95,7 @@ builder.Services.AddHttpClient<IGeminiDocumentService, GeminiDocumentService>();
 builder.Services.AddScoped<IImageService, CloudinaryImageService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, TrustRent.Modules.Communications.Services.NotificationService>();
+builder.Services.AddScoped<ILeaseAccessService, CatalogLeaseAccessService>();
 
 /* CATALOG*/
 builder.Services.AddScoped<IPropertyService, PropertyService>();
@@ -104,6 +109,10 @@ builder.Services.AddScoped<ILeaseService, LeaseService>();
 builder.Services.AddScoped<IContractGenerationService, ContractGenerationService>();
 builder.Services.AddScoped<IDigitalSignatureService, DigitalSignatureService>();
 builder.Services.AddScoped<ISignedPdfVerificationService, SignedPdfVerificationService>();
+
+/* LEASING */
+builder.Services.AddScoped<TrustRent.Modules.Leasing.Repositories.ILeasingUnitOfWork, TrustRent.Modules.Leasing.Repositories.LeasingUnitOfWork>();
+builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.ITicketService, TrustRent.Modules.Leasing.Services.TicketService>();
 
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -189,6 +198,7 @@ app.MapAuthUserEndpoints();
 app.MapPropertyEndpoints();
 app.MapApplicationEndpoints();
 app.MapLeaseEndpoints();
+app.MapTicketEndpoints();
 app.MapCommunicationsEndpoints();
 
 app.MapHub<ApplicationChatHub>("/api/chathub");
