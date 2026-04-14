@@ -70,6 +70,7 @@ public static class PropertyEndpoints
 
                     // Caução e Despesas
                     Deposit = decimal.TryParse(form["deposit"], out var dep) ? dep : null,
+                    AdvanceRentMonths = int.TryParse(form["advanceRentMonths"], out var advanceMonths) ? advanceMonths : 0,
                     CondominiumFeesPaidBy = form["condominiumFeesPaidBy"].ToString() is { Length: > 0 } condo ? condo : "Inquilino",
                     WaterPaidBy = form["waterPaidBy"].ToString() is { Length: > 0 } water ? water : "Inquilino",
                     ElectricityPaidBy = form["electricityPaidBy"].ToString() is { Length: > 0 } elec ? elec : "Inquilino",
@@ -175,6 +176,24 @@ public static class PropertyEndpoints
             }
         });
 
+        propertyGroup.MapGet("/{id:guid}/tenant-management", async (Guid id, ClaimsPrincipal userClaims, IPropertyService propertyService) =>
+        {
+            try
+            {
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                var data = await propertyService.GetTenantManagementAsync(id, userId);
+                return Results.Ok(data);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.NotFound(new { Error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
 
 
         // 2. PUT: Atualizar o imóvel
@@ -225,6 +244,7 @@ public static class PropertyEndpoints
 
                     // Caução e Despesas
                     Deposit = decimal.TryParse(form["deposit"], out var dep) ? dep : null,
+                    AdvanceRentMonths = int.TryParse(form["advanceRentMonths"], out var advanceMonths) ? advanceMonths : 0,
                     CondominiumFeesPaidBy = form["condominiumFeesPaidBy"].ToString() is { Length: > 0 } condo ? condo : "Inquilino",
                     WaterPaidBy = form["waterPaidBy"].ToString() is { Length: > 0 } water ? water : "Inquilino",
                     ElectricityPaidBy = form["electricityPaidBy"].ToString() is { Length: > 0 } elec ? elec : "Inquilino",
@@ -410,6 +430,7 @@ public static class PropertyEndpoints
                 property.UsageLicenseDate,
                 property.UsageLicenseIssuer,
                 property.Deposit,
+                property.AdvanceRentMonths,
                 property.CondominiumFeesPaidBy,
                 property.WaterPaidBy,
                 property.ElectricityPaidBy,

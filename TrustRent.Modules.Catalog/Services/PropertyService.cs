@@ -5,6 +5,7 @@ using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Mappers;
 using TrustRent.Modules.Catalog.Models;
+using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Shared.Contracts.Interfaces;
 
 namespace TrustRent.Modules.Catalog.Services;
@@ -13,11 +14,15 @@ public class PropertyService : IPropertyService
 {
     private readonly ICatalogUnitOfWork _uow;
     private readonly IBackgroundJobClient _backgroundJobs;
+    private readonly CatalogDbContext _context;
+    private readonly IUserService _userService;
 
-    public PropertyService(ICatalogUnitOfWork uow, IBackgroundJobClient backgroundJobs)
+    public PropertyService(ICatalogUnitOfWork uow, IBackgroundJobClient backgroundJobs, CatalogDbContext context, IUserService userService)
     {
         _uow = uow;
         _backgroundJobs = backgroundJobs;
+        _context = context;
+        _userService = userService;
     }
 
     public async Task<Guid> CreatePropertyAsync(
@@ -30,6 +35,8 @@ public class PropertyService : IPropertyService
         IList<Guid>? amenityIds = null,
         IList<int>? acceptedPeriodicities = null)
     {
+        ValidateFinancialTerms(dto);
+
         // 1. Mapear o DTO para o nosso Modelo da Base de Dados
         var property = dto.ToEntity(landlordId);
 
@@ -96,6 +103,79 @@ public class PropertyService : IPropertyService
         return await _uow.Properties.GetByIdWithImagesAsync(propertyId);
     }
 
+    public async Task<PropertyTenantManagementDto> GetTenantManagementAsync(Guid propertyId, Guid landlordId)
+    {
+        var property = await _context.Properties
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == propertyId && p.LandlordId == landlordId)
+            ?? throw new KeyNotFoundException("Imóvel não encontrado ou sem permissão de gestão.");
+
+        var leases = await _context.Leases
+            .AsNoTracking()
+            .Include(l => l.History)
+            .Where(l => l.PropertyId == propertyId)
+            .OrderByDescending(l => l.CreatedAt)
+            .ToListAsync();
+
+        var currentLease = leases
+            .FirstOrDefault(l => l.Status == LeaseStatus.Active)
+            ?? leases.FirstOrDefault(l => property.TenantId.HasValue && l.TenantId == property.TenantId.Value && l.Status != LeaseStatus.Cancelled);
+
+        var tenantIds = leases.Select(l => l.TenantId).Distinct().ToList();
+        var tenantProfiles = new Dictionary<Guid, PropertyManagedTenantDto>();
+
+        foreach (var tenantId in tenantIds)
+        {
+            var profile = await _userService.GetProfileDtoAsync(tenantId);
+            if (profile == null) continue;
+
+            tenantProfiles[tenantId] = new PropertyManagedTenantDto
+            {
+                Id = profile.Id,
+                Name = profile.Name,
+                Email = profile.Email,
+                PhoneCountryCode = profile.PhoneCountryCode,
+                PhoneNumber = profile.PhoneNumber,
+                Nif = profile.Nif,
+                ProfilePictureUrl = profile.ProfilePictureUrl,
+                TrustScore = profile.TrustScore,
+                IsIdentityVerified = profile.IsIdentityVerified,
+                IsNoDebtVerified = profile.IsNoDebtVerified
+            };
+        }
+
+        var history = leases
+            .Where(lease => currentLease == null || lease.Id != currentLease.Id)
+            .Where(lease => tenantProfiles.ContainsKey(lease.TenantId))
+            .Select(lease => new PropertyTenantHistoryEntryDto
+            {
+                LeaseId = lease.Id,
+                Tenant = tenantProfiles[lease.TenantId],
+                StartDate = lease.StartDate,
+                EndDate = lease.EndDate,
+                CreatedAt = lease.CreatedAt,
+                ContractSignedAt = lease.ContractSignedAt,
+                MonthlyRent = lease.MonthlyRent,
+                Deposit = lease.Deposit,
+                AdvanceRentMonths = lease.AdvanceRentMonths,
+                DurationMonths = lease.DurationMonths,
+                ContractType = lease.ContractType,
+                Status = lease.Status.ToString(),
+                IsCurrent = false
+            })
+            .OrderByDescending(lease => lease.EndDate)
+            .ToList();
+
+        return new PropertyTenantManagementDto
+        {
+            CurrentTenant = currentLease != null && tenantProfiles.TryGetValue(currentLease.TenantId, out var currentTenant)
+                ? currentTenant
+                : null,
+            CurrentLease = currentLease?.ToDto(),
+            TenantHistory = history
+        };
+    }
+
     // Atualiza os dados de texto e adiciona novas imagens se existirem
     public async Task UpdatePropertyAsync(
         Guid propertyId,
@@ -109,6 +189,8 @@ public class PropertyService : IPropertyService
         IList<Guid>? amenityIds = null,
         IList<int>? acceptedPeriodicities = null)
     {
+        ValidateFinancialTerms(dto);
+
         // 1. Carregar a entidade com todas as suas coleções
         var property = await _uow.Properties.GetByIdAndLandlordWithImagesAsync(propertyId, landlordId);
 
@@ -246,5 +328,24 @@ public class PropertyService : IPropertyService
     public async Task<IEnumerable<Amenity>> GetAllAmenitiesAsync()
     {
         return await _uow.Properties.GetAllAmenitiesAsync();
+    }
+
+    private static void ValidateFinancialTerms(CreatePropertyDto dto)
+    {
+        if (dto.AdvanceRentMonths < 0 || dto.AdvanceRentMonths > 2)
+            throw new InvalidOperationException("As rendas antecipadas só podem ir de 0 a 2 meses.");
+
+        if (!dto.Deposit.HasValue)
+            return;
+
+        if (dto.Deposit.Value < 0)
+            throw new InvalidOperationException("A caução não pode ser negativa.");
+
+        if (dto.Price <= 0)
+            throw new InvalidOperationException("Define primeiro uma renda mensal válida para calcular o limite legal da caução.");
+
+        var maxDeposit = dto.Price * 2;
+        if (dto.Deposit.Value > maxDeposit)
+            throw new InvalidOperationException($"A caução não pode ultrapassar {maxDeposit:0.##}€, o equivalente a 2 meses de renda.");
     }
 }

@@ -49,8 +49,10 @@ public class PropertyRepository : IPropertyRepository
 
     public async Task<(IEnumerable<Property> Items, int TotalCount)> SearchAsync(PropertySearchQuery query)
     {
-        // Apenas listamos imóveis públicos
-        var q = _context.Properties.Include(p => p.Images).Where(p => p.IsPublic);
+        // Apenas listamos imóveis públicos que continuam disponíveis para arrendamento.
+        var q = _context.Properties
+            .Include(p => p.Images)
+            .Where(p => p.IsPublic && p.TenantId == null);
 
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
             q = q.Where(p => 

@@ -25,6 +25,12 @@ public class ApplicationService : IApplicationService
         var property = await _context.Properties.FindAsync(propertyId);
         if (property == null) throw new Exception("Property not found");
 
+        if (!property.IsPublic)
+            throw new Exception("Este imóvel já não está disponível para novas candidaturas.");
+
+        if (property.TenantId.HasValue)
+            throw new Exception("Este imóvel já se encontra arrendado e não aceita novas candidaturas.");
+
         // Validação: o proprietário não se pode candidatar ao seu próprio imóvel
         if (property.LandlordId == tenantId)
             throw new Exception("Não te podes candidatar a um imóvel do qual és proprietário.");
@@ -35,7 +41,7 @@ public class ApplicationService : IApplicationService
             PropertyId = propertyId,
             TenantId = tenantId,
             Message = dto.Message,
-            ShareProfile = dto.ShareProfile,
+            ShareProfile = true,
             WantsVisit = dto.WantsVisit,
             DurationMonths = dto.DurationMonths,
             TenantProposedDates = JsonSerializer.Serialize(dto.SelectedDates),

@@ -67,6 +67,7 @@ public class LeaseService : ILeaseService
             AllowsRenewal = property.AllowsRenewal,
             MonthlyRent = property.Price,
             Deposit = property.Deposit,
+            AdvanceRentMonths = property.AdvanceRentMonths,
             LeaseRegime = property.LeaseRegime?.ToString(),
             ContractType = property.HasOfficialContract ? "Official" : "Informal",
             CondominiumFeesPaidBy = property.CondominiumFeesPaidBy,
@@ -757,7 +758,11 @@ public class LeaseService : ILeaseService
         // Atualizar TenantId no imóvel
         var property = await _context.Properties.FindAsync(lease.PropertyId);
         if (property != null)
+        {
             property.TenantId = lease.TenantId;
+            property.IsPublic = false;
+            property.UpdatedAt = now;
+        }
 
         // Rejeitar outras candidaturas ativas para o mesmo imóvel
         var otherApplications = await _context.Applications

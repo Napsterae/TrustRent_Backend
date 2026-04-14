@@ -96,6 +96,7 @@ builder.Services.AddScoped<IImageService, CloudinaryImageService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, TrustRent.Modules.Communications.Services.NotificationService>();
 builder.Services.AddScoped<ILeaseAccessService, CatalogLeaseAccessService>();
+builder.Services.AddScoped<IUserContactAccessService, CatalogUserContactAccessService>();
 
 /* CATALOG*/
 builder.Services.AddScoped<IPropertyService, PropertyService>();

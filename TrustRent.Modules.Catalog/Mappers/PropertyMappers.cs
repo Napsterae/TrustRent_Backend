@@ -64,6 +64,7 @@ public static class PropertyMappers
             UsageLicenseDate = dto.UsageLicenseDate,
             UsageLicenseIssuer = dto.UsageLicenseIssuer,
             Deposit = dto.Deposit,
+            AdvanceRentMonths = dto.AdvanceRentMonths,
             CondominiumFeesPaidBy = dto.CondominiumFeesPaidBy,
             WaterPaidBy = dto.WaterPaidBy,
             ElectricityPaidBy = dto.ElectricityPaidBy,
@@ -109,6 +110,7 @@ public static class PropertyMappers
         property.UsageLicenseDate = dto.UsageLicenseDate;
         property.UsageLicenseIssuer = dto.UsageLicenseIssuer;
         property.Deposit = dto.Deposit;
+        property.AdvanceRentMonths = dto.AdvanceRentMonths;
         property.CondominiumFeesPaidBy = dto.CondominiumFeesPaidBy;
         property.WaterPaidBy = dto.WaterPaidBy;
         property.ElectricityPaidBy = dto.ElectricityPaidBy;

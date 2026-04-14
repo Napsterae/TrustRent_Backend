@@ -21,6 +21,7 @@ public static class LeaseMappers
             RenewalDate = lease.RenewalDate,
             MonthlyRent = lease.MonthlyRent,
             Deposit = lease.Deposit,
+            AdvanceRentMonths = lease.AdvanceRentMonths,
             LeaseRegime = lease.LeaseRegime,
             ContractType = lease.ContractType,
             CondominiumFeesPaidBy = lease.CondominiumFeesPaidBy,

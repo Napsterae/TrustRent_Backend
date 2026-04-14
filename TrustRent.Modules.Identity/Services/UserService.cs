@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Models;
 using TrustRent.Shared.Contracts.Interfaces;
@@ -10,71 +11,142 @@ namespace TrustRent.Modules.Identity.Services;
 
 public class UserService : IUserService
 {
+    private sealed record PhoneRule(string DialCode, Regex MobileRegex, string Example);
+
+    private static readonly IReadOnlyDictionary<string, PhoneRule> PhoneRules = new Dictionary<string, PhoneRule>
+    {
+        ["PT"] = new("351", new Regex("^9\\d{8}$", RegexOptions.Compiled), "912345678"),
+        ["ES"] = new("34", new Regex("^[67]\\d{8}$", RegexOptions.Compiled), "612345678"),
+        ["FR"] = new("33", new Regex("^[67]\\d{8}$", RegexOptions.Compiled), "612345678"),
+        ["DE"] = new("49", new Regex("^1\\d{9,11}$", RegexOptions.Compiled), "15123456789"),
+        ["IT"] = new("39", new Regex("^3\\d{8,9}$", RegexOptions.Compiled), "3123456789"),
+        ["GB"] = new("44", new Regex("^7\\d{9}$", RegexOptions.Compiled), "7400123456"),
+        ["IE"] = new("353", new Regex("^8[35679]\\d{7}$", RegexOptions.Compiled), "831234567"),
+        ["NL"] = new("31", new Regex("^6\\d{8}$", RegexOptions.Compiled), "612345678"),
+        ["BE"] = new("32", new Regex("^4\\d{8}$", RegexOptions.Compiled), "470123456"),
+        ["LU"] = new("352", new Regex("^(621|628|661|671|691)\\d{6}$", RegexOptions.Compiled), "621123456"),
+        ["CH"] = new("41", new Regex("^7[5-9]\\d{7}$", RegexOptions.Compiled), "791234567"),
+        ["US"] = new("1", new Regex("^[2-9]\\d{9}$", RegexOptions.Compiled), "2025550123"),
+        ["CA"] = new("1", new Regex("^[2-9]\\d{9}$", RegexOptions.Compiled), "4165550123"),
+        ["BR"] = new("55", new Regex("^\\d{2}9\\d{8}$", RegexOptions.Compiled), "11912345678"),
+        ["AO"] = new("244", new Regex("^9[1-5]\\d{7}$", RegexOptions.Compiled), "923456789"),
+        ["MZ"] = new("258", new Regex("^8[2-7]\\d{7}$", RegexOptions.Compiled), "841234567"),
+        ["CV"] = new("238", new Regex("^[59]\\d{6}$", RegexOptions.Compiled), "9912345"),
+        ["ST"] = new("239", new Regex("^9\\d{6}$", RegexOptions.Compiled), "9812345"),
+        ["GW"] = new("245", new Regex("^[5-7]\\d{6}$", RegexOptions.Compiled), "6512345"),
+        ["TL"] = new("670", new Regex("^7\\d{7}$", RegexOptions.Compiled), "77234567")
+    };
+
     private readonly IUnitOfWork _uow;
     private readonly IImageService _imageService;
     private readonly IGeminiDocumentService _geminiService;
+    private readonly IUserContactAccessService _userContactAccessService;
 
-    public UserService(IUnitOfWork uow, IImageService imageService, IGeminiDocumentService geminiService)
+    public UserService(
+        IUnitOfWork uow,
+        IImageService imageService,
+        IGeminiDocumentService geminiService,
+        IUserContactAccessService userContactAccessService)
     {
         _uow = uow;
         _imageService = imageService;
         _geminiService = geminiService;
+        _userContactAccessService = userContactAccessService;
     }
 
     public async Task<User?> GetProfileAsync(Guid userId)
         => await _uow.Users.GetByIdAsync(userId);
 
-    public async Task<PublicUserProfileDto?> GetPublicProfileAsync(Guid userId)
+    public async Task<UserProfileDto?> GetProfileDtoAsync(Guid userId)
     {
         var user = await _uow.Users.GetByIdAsync(userId);
         if (user == null) return null;
 
+        return new UserProfileDto(
+            user.Id,
+            user.Name,
+            user.Email,
+            user.Nif,
+            user.CitizenCardNumber,
+            user.Address,
+            user.PostalCode,
+            user.PhoneCountryCode,
+            user.PhoneNumber,
+            user.ProfilePictureUrl,
+            user.IsIdentityVerified,
+            user.IdentityExpiryDate,
+            user.IsNoDebtVerified,
+            user.NoDebtExpiryDate,
+            user.TrustScore
+        );
+    }
+
+    public async Task<PublicUserProfileDto?> GetPublicProfileAsync(Guid userId, Guid viewerUserId)
+    {
+        var user = await _uow.Users.GetByIdAsync(userId);
+        if (user == null) return null;
+
+        var canViewDirectContact = viewerUserId == userId
+            || await _userContactAccessService.CanViewDirectContactAsync(viewerUserId, userId);
+
         return new PublicUserProfileDto(
             user.Id,
             user.Name,
+            canViewDirectContact ? user.Email : null,
             user.ProfilePictureUrl,
             user.TrustScore,
             user.IsIdentityVerified,
-            user.IsNoDebtVerified
+            user.IsNoDebtVerified,
+            canViewDirectContact ? user.PhoneCountryCode : null,
+            canViewDirectContact ? user.PhoneNumber : null
         );
     }
 
     public async Task UpdateProfileAsync(Guid userId, UpdateProfileDto request)
     {
         var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
+        var normalizedName = request.Name.Trim();
+        var normalizedEmail = request.Email.Trim();
+        var normalizedNif = NormalizeOptionalValue(request.Nif);
+        var normalizedCitizenCardNumber = NormalizeOptionalDigits(request.CitizenCardNumber);
+        var normalizedAddress = NormalizeOptionalValue(request.Address);
+        var normalizedPostalCode = NormalizeOptionalValue(request.PostalCode);
+        var (normalizedPhoneCountryCode, normalizedPhoneNumber) = NormalizePhone(request.PhoneCountryCode, request.PhoneNumber);
 
         if (user.IsIdentityVerified)
         {
-            if (request.Name != user.Name || request.Nif != user.Nif || request.CitizenCardNumber != user.CitizenCardNumber)
+            if (normalizedName != user.Name || normalizedNif != user.Nif || normalizedCitizenCardNumber != user.CitizenCardNumber)
             {
                 throw new Exception("Não podes alterar o Nome, NIF ou Cartão de Cidadão após a validação de identidade.");
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(request.Nif))
+        if (!string.IsNullOrWhiteSpace(normalizedNif))
         {
-            if (request.Nif.Length != 9 || !request.Nif.All(char.IsDigit))
+            if (normalizedNif.Length != 9 || !normalizedNif.All(char.IsDigit))
                 throw new Exception("O NIF deve conter exatamente 9 números.");
 
-            if (!await _uow.Users.IsNifUniqueAsync(request.Nif, userId))
+            if (!await _uow.Users.IsNifUniqueAsync(normalizedNif, userId))
                 throw new Exception("Este NIF já está registado noutra conta.");
         }
 
-        if (!string.IsNullOrWhiteSpace(request.CitizenCardNumber))
+        if (!string.IsNullOrWhiteSpace(normalizedCitizenCardNumber))
         {
-            if (request.CitizenCardNumber.Length != 8 || !request.CitizenCardNumber.All(char.IsDigit))
+            if (normalizedCitizenCardNumber.Length != 8 || !normalizedCitizenCardNumber.All(char.IsDigit))
                 throw new Exception("O Número do Cartão de Cidadão deve conter exatamente os 8 números principais.");
 
-            if (!await _uow.Users.IsCcUniqueAsync(request.CitizenCardNumber, userId))
+            if (!await _uow.Users.IsCcUniqueAsync(normalizedCitizenCardNumber, userId))
                 throw new Exception("Este Cartão de Cidadão já está registado noutra conta.");
         }
 
-        user.Name = request.Name;
-        user.Email = request.Email;
-        user.Nif = request.Nif;
-        user.CitizenCardNumber = request.CitizenCardNumber;
-        user.Address = request.Address;
-        user.PostalCode = request.PostalCode;
+        user.Name = normalizedName;
+        user.Email = normalizedEmail;
+        user.Nif = normalizedNif;
+        user.CitizenCardNumber = normalizedCitizenCardNumber;
+        user.Address = normalizedAddress;
+        user.PostalCode = normalizedPostalCode;
+        user.PhoneCountryCode = normalizedPhoneCountryCode;
+        user.PhoneNumber = normalizedPhoneNumber;
 
         await _uow.SaveChangesAsync();
     }
@@ -258,6 +330,110 @@ public class UserService : IUserService
         }
 
         return null;
+    }
+
+    private static string? NormalizeOptionalValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return value.Trim();
+    }
+
+    private static string? NormalizeOptionalDigits(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+
+        var digits = new string(value.Where(char.IsDigit).ToArray());
+        return string.IsNullOrWhiteSpace(digits) ? null : digits;
+    }
+
+    private static (string? PhoneCountryCode, string? PhoneNumber) NormalizePhone(string? phoneCountryCode, string? phoneNumber)
+    {
+        var normalizedPhoneCountryCode = NormalizeOptionalValue(phoneCountryCode)?.ToUpperInvariant();
+        var normalizedPhoneNumber = NormalizeOptionalInternationalPhone(phoneNumber);
+
+        if (normalizedPhoneCountryCode == null && normalizedPhoneNumber == null)
+            return (null, null);
+
+        if (normalizedPhoneCountryCode == null || normalizedPhoneNumber == null)
+            throw new Exception("Seleciona o país e indica o número de telemóvel completo.");
+
+        if (normalizedPhoneCountryCode.Length != 2 || !normalizedPhoneCountryCode.All(char.IsLetter))
+            throw new Exception("O país selecionado para o telemóvel é inválido.");
+
+        if (!PhoneRules.TryGetValue(normalizedPhoneCountryCode, out var phoneRule))
+            throw new Exception("O país selecionado para o telemóvel ainda não é suportado.");
+
+        if (!IsValidInternationalPhone(normalizedPhoneNumber))
+            throw new Exception("O número de telemóvel deve estar no formato internacional válido.");
+
+        var phoneDigits = normalizedPhoneNumber[1..];
+        if (!phoneDigits.StartsWith(phoneRule.DialCode, StringComparison.Ordinal))
+            throw new Exception("O indicativo selecionado não corresponde ao número de telemóvel indicado.");
+
+        var localNumber = phoneDigits[phoneRule.DialCode.Length..];
+        if (!phoneRule.MobileRegex.IsMatch(localNumber))
+            throw new Exception($"O número de telemóvel não é válido para {GetCountryName(normalizedPhoneCountryCode)}. Exemplo: {phoneRule.Example}");
+
+        return (normalizedPhoneCountryCode, normalizedPhoneNumber);
+    }
+
+    private static string? NormalizeOptionalInternationalPhone(string? phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber)) return null;
+
+        var buffer = new StringBuilder();
+        foreach (var character in phoneNumber.Trim())
+        {
+            if (char.IsDigit(character))
+            {
+                buffer.Append(character);
+                continue;
+            }
+
+            if (character == '+' && buffer.Length == 0)
+            {
+                buffer.Append(character);
+            }
+        }
+
+        return buffer.Length == 0 ? null : buffer.ToString();
+    }
+
+    private static bool IsValidInternationalPhone(string phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber) || phoneNumber[0] != '+')
+            return false;
+
+        var digits = phoneNumber[1..];
+        return digits.Length >= 7 && digits.Length <= 15 && digits.All(char.IsDigit);
+    }
+
+    private static string GetCountryName(string countryCode)
+    {
+        return countryCode switch
+        {
+            "PT" => "Portugal",
+            "ES" => "Espanha",
+            "FR" => "França",
+            "DE" => "Alemanha",
+            "IT" => "Itália",
+            "GB" => "Reino Unido",
+            "IE" => "Irlanda",
+            "NL" => "Países Baixos",
+            "BE" => "Bélgica",
+            "LU" => "Luxemburgo",
+            "CH" => "Suíça",
+            "US" => "Estados Unidos",
+            "CA" => "Canadá",
+            "BR" => "Brasil",
+            "AO" => "Angola",
+            "MZ" => "Moçambique",
+            "CV" => "Cabo Verde",
+            "ST" => "São Tomé e Príncipe",
+            "GW" => "Guiné-Bissau",
+            "TL" => "Timor-Leste",
+            _ => countryCode
+        };
     }
 
     private static string RemoveDiacritics(string text)

@@ -16,6 +16,7 @@ public class LeaseDto
     public DateTime? RenewalDate { get; set; }
     public decimal MonthlyRent { get; set; }
     public decimal? Deposit { get; set; }
+    public int AdvanceRentMonths { get; set; }
     public string? LeaseRegime { get; set; }
     public string ContractType { get; set; } = string.Empty;
     public string CondominiumFeesPaidBy { get; set; } = string.Empty;

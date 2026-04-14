@@ -18,6 +18,7 @@ public class Lease
     // Condições financeiras (copiadas da Property no momento da criação)
     public decimal MonthlyRent { get; set; }
     public decimal? Deposit { get; set; }
+    public int AdvanceRentMonths { get; set; }
 
     // Regime e tipo de contrato
     public string? LeaseRegime { get; set; }

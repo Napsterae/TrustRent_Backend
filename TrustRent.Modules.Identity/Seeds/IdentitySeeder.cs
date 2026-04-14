@@ -29,10 +29,10 @@ public static class IdentitySeeder
         var passwordHash = BCrypt.Net.BCrypt.HashPassword("TrustRent2026!");
 
         // 1. Adicionar os 4 Core Users
-        users.Add(new User { Id = LandlordId, Name = "Carlos Mendes", Email = "carlos.mendes@email.pt", PasswordHash = passwordHash, IsIdentityVerified = true, IsNoDebtVerified = true, TrustScore = 85, ProfilePictureUrl = "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=256&q=80" });
-        users.Add(new User { Id = TenantId, Name = "Ana Ferreira", Email = "ana.ferreira@email.pt", PasswordHash = passwordHash, IsIdentityVerified = true, TrustScore = 65, ProfilePictureUrl = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=256&q=80" });
+        users.Add(new User { Id = LandlordId, Name = "Carlos Mendes", Email = "carlos.mendes@email.pt", PasswordHash = passwordHash, IsIdentityVerified = true, IsNoDebtVerified = true, TrustScore = 85, PhoneCountryCode = "PT", PhoneNumber = "+351912345678", ProfilePictureUrl = "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=256&q=80" });
+        users.Add(new User { Id = TenantId, Name = "Ana Ferreira", Email = "ana.ferreira@email.pt", PasswordHash = passwordHash, IsIdentityVerified = true, TrustScore = 65, PhoneCountryCode = "PT", PhoneNumber = "+351923456789", ProfilePictureUrl = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=256&q=80" });
         users.Add(new User { Id = Tenant2Id, Name = "Miguel Costa", Email = "miguel.costa@email.pt", PasswordHash = passwordHash, TrustScore = 50 });
-        users.Add(new User { Id = Landlord2Id, Name = "Sofia Rodrigues", Email = "sofia.rodrigues@email.pt", PasswordHash = passwordHash, IsIdentityVerified = true, IsNoDebtVerified = true, TrustScore = 92, ProfilePictureUrl = "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&q=80" });
+        users.Add(new User { Id = Landlord2Id, Name = "Sofia Rodrigues", Email = "sofia.rodrigues@email.pt", PasswordHash = passwordHash, IsIdentityVerified = true, IsNoDebtVerified = true, TrustScore = 92, PhoneCountryCode = "ES", PhoneNumber = "+34611222333", ProfilePictureUrl = "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&q=80" });
 
         // 2. Gerar mais 16 utilizadores dinamicamente (Total 20)
         var firstNames = new[] { "João", "Maria", "Pedro", "Cláudia", "Ricardo", "Bárbara", "Luís", "Helena", "Vitor", "Daniela", "Nuno", "Rita", "André", "Inês", "Tiago", "Filipa" };

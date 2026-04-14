@@ -36,6 +36,7 @@ public class CatalogDbContext : DbContext
             builder.Property(p => p.EnergyClass).HasMaxLength(5);
             builder.Property(p => p.EnergyCertificateNumber).HasMaxLength(100);
             builder.Property(p => p.AtRegistrationNumber).HasMaxLength(100);
+            builder.Property(p => p.AdvanceRentMonths).HasDefaultValue(0);
         });
 
         modelBuilder.Entity<PropertyImage>(builder =>
@@ -118,6 +119,7 @@ public class CatalogDbContext : DbContext
             builder.Property(l => l.Status).HasConversion<string>().HasMaxLength(50);
             builder.Property(l => l.ContractType).HasMaxLength(50);
             builder.Property(l => l.LeaseRegime).HasMaxLength(100);
+            builder.Property(l => l.AdvanceRentMonths).HasDefaultValue(0);
             builder.Property(l => l.ContractFilePath).HasMaxLength(500);
             builder.Property(l => l.LandlordSignatureRef).HasMaxLength(200);
             builder.Property(l => l.TenantSignatureRef).HasMaxLength(200);

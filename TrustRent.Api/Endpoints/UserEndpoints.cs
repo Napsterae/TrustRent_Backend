@@ -14,14 +14,15 @@ public static class UserEndpoints
         userGroup.MapGet("/profile", async (ClaimsPrincipal userClaims, IUserService userService) =>
         {
             var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var user = await userService.GetProfileAsync(userId);
+            var user = await userService.GetProfileDtoAsync(userId);
             return user is not null ? Results.Ok(user) : Results.NotFound();
         });
 
         // Public profile (no auth needed for now, or just limit to authenticated users? They are in the userGroup which requires auth, which is fine)
-        userGroup.MapGet("/{id:guid}/public", async (Guid id, IUserService userService) =>
+        userGroup.MapGet("/{id:guid}/public", async (Guid id, ClaimsPrincipal userClaims, IUserService userService) =>
         {
-            var profile = await userService.GetPublicProfileAsync(id);
+            var viewerUserId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var profile = await userService.GetPublicProfileAsync(id, viewerUserId);
             return profile is not null ? Results.Ok(profile) : Results.NotFound();
         });
 

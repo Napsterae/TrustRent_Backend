@@ -127,6 +127,8 @@ public class ContractGenerationService : IContractGenerationService
                         DrawTableRow(table, "Renda Mensal:", lease.MonthlyRent.ToString("C2", ptCulture), true);
                         if (lease.Deposit.HasValue)
                             DrawTableRow(table, "Caução de Garantia:", lease.Deposit.Value.ToString("C2", ptCulture));
+                        if (lease.AdvanceRentMonths > 0)
+                            DrawTableRow(table, "Rendas Antecipadas:", $"{lease.AdvanceRentMonths} {(lease.AdvanceRentMonths == 1 ? "mês" : "meses")} ({(lease.MonthlyRent * lease.AdvanceRentMonths).ToString("C2", ptCulture)})");
                             
                         DrawTableRow(table, "Data de Início:", lease.StartDate.ToString("dd 'de' MMMM 'de' yyyy", ptCulture));
                         DrawTableRow(table, "Duração Inicial:", $"{lease.DurationMonths} meses (Termo: {lease.EndDate.ToString("dd/MM/yyyy", ptCulture)})");
@@ -173,6 +175,8 @@ public class ContractGenerationService : IContractGenerationService
                         DrawClause(clausulas, "3. Conservação", "O Segundo Outorgante reconhece que o imóvel lhe é entregue em bom estado de conservação, com todas as instalações em perfeito funcionamento, obrigando-se a mantê-las e a restituir o imóvel no mesmo estado findo o contrato, ressalvado o desgaste proveniente da sua prudente utilização.");
                         if (lease.Deposit.HasValue)
                             DrawClause(clausulas, "4. Caução", $"A caução no valor de {lease.Deposit.Value.ToString("C2", ptCulture)} destina-se a garantir a reparação de eventuais danos causados no imóvel ou incumprimento de obrigações contratuais, sendo restituída no termo do contrato caso não se verifiquem tais situações.");
+                        if (lease.AdvanceRentMonths > 0)
+                            DrawClause(clausulas, "4-A. Rendas Antecipadas", $"No início do contrato, o Segundo Outorgante entregará {lease.AdvanceRentMonths} {(lease.AdvanceRentMonths == 1 ? "renda antecipada" : "rendas antecipadas")}, no valor global de {(lease.MonthlyRent * lease.AdvanceRentMonths).ToString("C2", ptCulture)}, a imputar ao pagamento dos últimos {lease.AdvanceRentMonths} {(lease.AdvanceRentMonths == 1 ? "mês" : "meses")} do contrato, salvo acordo escrito em contrário.");
                         DrawClause(clausulas, "5. Benfeitorias", "O Segundo Outorgante não poderá realizar obras ou benfeitorias sem autorização prévia e por escrito do Primeiro Outorgante. As obras autorizadas ficarão a fazer parte integrante do imóvel, sem direito a qualquer retenção ou indemnização.");
                         DrawClause(clausulas, "6. Rescisão", "A denúncia ou oposição à renovação do contrato por qualquer das partes obedece aos prazos e formas previstos na lei em vigor (NRAU).");
                         DrawClause(clausulas, "7. Foro Competente", "Para dirimir quaisquer litígios emergentes da interpretação ou execução deste contrato, as partes estipulam como competente o foro da comarca onde se situa o imóvel.");

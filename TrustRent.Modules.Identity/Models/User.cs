@@ -12,6 +12,8 @@ public class User
     public string? CitizenCardNumber { get; set; }
     public string? Address { get; set; }
     public string? PostalCode { get; set; }
+    public string? PhoneCountryCode { get; set; }
+    public string? PhoneNumber { get; set; }
     public string? ProfilePictureUrl { get; set; }
 
     // Validações de Confiança (Read-Only no Frontend)

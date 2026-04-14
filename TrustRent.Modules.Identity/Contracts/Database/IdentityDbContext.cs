@@ -25,6 +25,13 @@ public class IdentityDbContext : DbContext
             v => v == null ? null : EncryptionHelper.Decrypt(v)
         );
 
+        modelBuilder.Entity<User>()
+        .Property(u => u.PhoneNumber)
+        .HasConversion(
+            v => v == null ? null : EncryptionHelper.Encrypt(v),
+            v => v == null ? null : EncryptionHelper.Decrypt(v)
+        );
+
         base.OnModelCreating(modelBuilder);
     }
 }

@@ -76,6 +76,7 @@ public class Property
 
     // Caução e Despesas
     public decimal? Deposit { get; set; }
+    public int AdvanceRentMonths { get; set; }
     public string CondominiumFeesPaidBy { get; set; } = "Inquilino";
     public string WaterPaidBy { get; set; } = "Inquilino";
     public string ElectricityPaidBy { get; set; } = "Inquilino";
