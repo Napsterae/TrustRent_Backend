@@ -1,5 +1,3 @@
-using TrustRent.Modules.Catalog.Models;
-
 namespace TrustRent.Modules.Catalog.Models;
 
 public class Application
@@ -41,5 +39,6 @@ public enum ApplicationStatus
     LeaseStartDateProposed,
     LeaseStartDateConfirmed,
     ContractPendingSignature,
+    AwaitingPayment,
     LeaseActive
 }

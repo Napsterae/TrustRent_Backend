@@ -22,7 +22,12 @@ public class CatalogLeaseAccessService : ILeaseAccessService
             {
                 LeaseId = l.Id,
                 TenantId = l.TenantId,
-                LandlordId = l.LandlordId
+                LandlordId = l.LandlordId,
+                PropertyId = l.PropertyId,
+                MonthlyRent = l.MonthlyRent,
+                Deposit = l.Deposit,
+                AdvanceRentMonths = l.AdvanceRentMonths,
+                LeaseStatus = l.Status.ToString()
             })
             .FirstOrDefaultAsync();
     }

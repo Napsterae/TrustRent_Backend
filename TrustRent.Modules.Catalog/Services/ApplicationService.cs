@@ -82,6 +82,8 @@ public class ApplicationService : IApplicationService
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
 
+        await ReconcileAwaitingPaymentAsync(apps);
+
         return apps.Select(a => a.ToDto(landlordId));
     }
 
@@ -93,6 +95,8 @@ public class ApplicationService : IApplicationService
             .Where(a => a.TenantId == tenantId)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
+
+        await ReconcileAwaitingPaymentAsync(apps);
 
         // For each application, look up the property's LandlordId
         var propertyIds = apps.Select(a => a.PropertyId).Distinct().ToList();
@@ -111,6 +115,16 @@ public class ApplicationService : IApplicationService
             .FirstOrDefaultAsync(a => a.Id == applicationId);
 
         if (application == null) return null;
+
+        // Reconciliação automática: se o lease já está Active mas a candidatura ficou presa em AwaitingPayment
+        if (application.Status == ApplicationStatus.AwaitingPayment &&
+            application.Lease != null &&
+            application.Lease.Status == LeaseStatus.Active)
+        {
+            application.Status = ApplicationStatus.LeaseActive;
+            application.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
 
         var property = await _context.Properties.FindAsync(application.PropertyId);
         var landlordId = property?.LandlordId ?? Guid.Empty;
@@ -247,5 +261,29 @@ public class ApplicationService : IApplicationService
         }
 
         return application.ToDto(property?.LandlordId ?? Guid.Empty);
+    }
+
+    /// <summary>
+    /// Reconcilia candidaturas presas em AwaitingPayment quando o lease já está Active.
+    /// Isto pode acontecer com dados criados antes do fluxo de pagamento ser implementado.
+    /// </summary>
+    private async Task ReconcileAwaitingPaymentAsync(List<Application> apps)
+    {
+        var needsSave = false;
+        foreach (var app in apps)
+        {
+            if (app.Status == ApplicationStatus.AwaitingPayment &&
+                app.Lease != null &&
+                app.Lease.Status == LeaseStatus.Active)
+            {
+                app.Status = ApplicationStatus.LeaseActive;
+                app.UpdatedAt = DateTime.UtcNow;
+                needsSave = true;
+            }
+        }
+        if (needsSave)
+        {
+            await _context.SaveChangesAsync();
+        }
     }
 }

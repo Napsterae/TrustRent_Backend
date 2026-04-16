@@ -310,12 +310,9 @@ public class LeaseService : ILeaseService
 
         await _context.SaveChangesAsync();
 
-        if (lease.Status == LeaseStatus.Active)
+        if (lease.Status == LeaseStatus.AwaitingPayment)
         {
-            await _notificationService.SendNotificationAsync(lease.TenantId, "lease",
-                $"O contrato foi assinado por ambas as partes. O arrendamento está ativo a partir de {lease.StartDate:dd/MM/yyyy}.", lease.Id);
-            await _notificationService.SendNotificationAsync(lease.LandlordId, "lease",
-                $"O contrato foi assinado por ambas as partes. O arrendamento está ativo a partir de {lease.StartDate:dd/MM/yyyy}.", lease.Id);
+            // As notificações de pagamento são enviadas dentro do ActivateLeaseAsync
         }
         else
         {
@@ -372,12 +369,9 @@ public class LeaseService : ILeaseService
 
         await _context.SaveChangesAsync();
 
-        if (lease.Status == LeaseStatus.Active)
+        if (lease.Status == LeaseStatus.AwaitingPayment)
         {
-            await _notificationService.SendNotificationAsync(lease.TenantId, "lease",
-                $"Ambas as partes aceitaram os termos. O arrendamento está ativo a partir de {lease.StartDate:dd/MM/yyyy}.", lease.Id);
-            await _notificationService.SendNotificationAsync(lease.LandlordId, "lease",
-                $"Ambas as partes aceitaram os termos. O arrendamento está ativo a partir de {lease.StartDate:dd/MM/yyyy}.", lease.Id);
+            // As notificações de pagamento são enviadas dentro do ActivateLeaseAsync
         }
         else
         {
@@ -636,10 +630,7 @@ public class LeaseService : ILeaseService
             await ActivateLeaseAsync(lease, application, now);
             await _context.SaveChangesAsync();
 
-            await _notificationService.SendNotificationAsync(lease.LandlordId, "lease",
-                $"O inquilino assinou o contrato. O arrendamento está ativo a partir de {lease.StartDate:dd/MM/yyyy}.", lease.Id);
-            await _notificationService.SendNotificationAsync(lease.TenantId, "lease",
-                $"Ambas as assinaturas foram verificadas. O teu arrendamento está ativo a partir de {lease.StartDate:dd/MM/yyyy}.", lease.Id);
+            // Notificações de pagamento são enviadas dentro do ActivateLeaseAsync
 
             return lease.ToDto();
         }
@@ -732,7 +723,9 @@ public class LeaseService : ILeaseService
 
     private async Task ActivateLeaseAsync(Lease lease, Application application, DateTime now)
     {
-        lease.Status = LeaseStatus.Active;
+        // Em vez de ativar diretamente, colocar em AwaitingPayment
+        // O lease será ativado pelo CatalogLeaseActivationService após pagamento confirmado
+        lease.Status = LeaseStatus.AwaitingPayment;
         lease.ContractSignedAt = now;
 
         lease.History.Add(new LeaseHistory
@@ -740,52 +733,25 @@ public class LeaseService : ILeaseService
 
             LeaseId = lease.Id,
             ActorId = Guid.Empty,
-            Action = "LeaseActivated",
-            Message = "Arrendamento ativado. Ambas as partes confirmaram."
+            Action = "AwaitingPayment",
+            Message = "Contrato assinado/aceite por ambas as partes. Aguarda pagamento inicial do inquilino."
         });
 
-        application.Status = ApplicationStatus.LeaseActive;
+        application.Status = ApplicationStatus.AwaitingPayment;
         application.UpdatedAt = now;
         application.History.Add(new ApplicationHistory
         {
 
             ApplicationId = application.Id,
             ActorId = Guid.Empty,
-            Action = "Arrendamento Ativo",
-            Message = $"O arrendamento está ativo a partir de {lease.StartDate:dd/MM/yyyy}."
+            Action = "Aguarda Pagamento",
+            Message = "Termos aceites por ambas as partes. O inquilino deve efetuar o pagamento inicial para ativar o arrendamento."
         });
 
-        // Atualizar TenantId no imóvel
-        var property = await _context.Properties.FindAsync(lease.PropertyId);
-        if (property != null)
-        {
-            property.TenantId = lease.TenantId;
-            property.IsPublic = false;
-            property.UpdatedAt = now;
-        }
-
-        // Rejeitar outras candidaturas ativas para o mesmo imóvel
-        var otherApplications = await _context.Applications
-            .Where(a => a.PropertyId == lease.PropertyId
-                     && a.Id != application.Id
-                     && a.Status != ApplicationStatus.Rejected
-                     && a.Status != ApplicationStatus.LeaseActive)
-            .ToListAsync();
-
-        foreach (var other in otherApplications)
-        {
-            other.Status = ApplicationStatus.Rejected;
-            other.UpdatedAt = now;
-            _context.ApplicationHistories.Add(new ApplicationHistory
-            {
-
-                ApplicationId = other.Id,
-                ActorId = Guid.Empty,
-                Action = "Candidatura Rejeitada Automaticamente",
-                Message = "O imóvel foi arrendado a outro candidato."
-            });
-            await _notificationService.SendNotificationAsync(other.TenantId, "application",
-                "A tua candidatura foi encerrada — o imóvel foi arrendado.", other.Id);
-        }
+        // Notificar inquilino que deve efetuar o pagamento
+        await _notificationService.SendNotificationAsync(lease.TenantId, "payment",
+            "O contrato foi aceite por ambas as partes. Efetua o pagamento inicial para ativar o arrendamento.", lease.Id);
+        await _notificationService.SendNotificationAsync(lease.LandlordId, "payment",
+            "O contrato foi aceite por ambas as partes. Aguarda o pagamento inicial do inquilino.", lease.Id);
     }
 }

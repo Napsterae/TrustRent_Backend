@@ -23,5 +23,8 @@ public class User
     public DateTime? NoDebtExpiryDate { get; set; }
     public int TrustScore { get; set; } = 50;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Stripe
+    public string? StripeCustomerId { get; set; }
 }
 

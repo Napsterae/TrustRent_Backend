@@ -4,6 +4,7 @@ using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Modules.Leasing.Contracts.Interfaces;
 
 namespace TrustRent.Api.Endpoints;
 
@@ -14,7 +15,7 @@ public static class PropertyEndpoints
         // Agrupamos os endpoints e exigimos que o utilizador esteja autenticado (Token JWT válido)
         var propertyGroup = app.MapGroup("/api/properties").RequireAuthorization();
 
-        propertyGroup.MapPost("/", async (HttpRequest request, ClaimsPrincipal userClaims, IPropertyService propertyService) =>
+        propertyGroup.MapPost("/", async (HttpRequest request, ClaimsPrincipal userClaims, IPropertyService propertyService, IStripeAccountService stripeAccountService) =>
         {
             try
             {
@@ -85,6 +86,11 @@ public static class PropertyEndpoints
                 // Validação de publicação
                 if (dto.IsPublic)
                 {
+                    // Verificar se o proprietário tem um meio de recebimento Stripe configurado
+                    var stripeAccount = await stripeAccountService.GetDefaultAccountAsync(userId);
+                    if (stripeAccount == null || !stripeAccount.ChargesEnabled || !stripeAccount.PayoutsEnabled)
+                        return Results.BadRequest(new { Error = "É necessário configurar um meio de recebimento de pagamentos antes de publicar o imóvel." });
+
                     if (string.IsNullOrEmpty(dto.LeaseRegime))
                         return Results.BadRequest(new { Error = "O regime jurídico é obrigatório para publicar o anúncio." });
 
@@ -197,7 +203,7 @@ public static class PropertyEndpoints
 
 
         // 2. PUT: Atualizar o imóvel
-        propertyGroup.MapPut("/{id:guid}", async (Guid id, HttpRequest request, ClaimsPrincipal userClaims, IPropertyService propertyService) =>
+        propertyGroup.MapPut("/{id:guid}", async (Guid id, HttpRequest request, ClaimsPrincipal userClaims, IPropertyService propertyService, IStripeAccountService stripeAccountService) =>
         {
             try
             {
@@ -259,6 +265,16 @@ public static class PropertyEndpoints
                 // Validação de publicação
                 if (dto.IsPublic)
                 {
+                    // Verificar se o proprietário tem um meio de recebimento Stripe configurado
+                    var stripeAccount = await stripeAccountService.GetAccountForPropertyAsync(id);
+                    if (stripeAccount == null || !stripeAccount.ChargesEnabled || !stripeAccount.PayoutsEnabled)
+                    {
+                        stripeAccount = await stripeAccountService.GetDefaultAccountAsync(userId);
+                    }
+
+                    if (stripeAccount == null || !stripeAccount.ChargesEnabled || !stripeAccount.PayoutsEnabled)
+                        return Results.BadRequest(new { Error = "É necessário configurar um meio de recebimento de pagamentos antes de publicar o imóvel." });
+
                     if (string.IsNullOrEmpty(dto.LeaseRegime))
                         return Results.BadRequest(new { Error = "O regime jurídico é obrigatório para publicar o anúncio." });
 

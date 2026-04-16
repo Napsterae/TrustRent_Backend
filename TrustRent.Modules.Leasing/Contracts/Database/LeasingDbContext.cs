@@ -10,6 +10,9 @@ public class LeasingDbContext : DbContext
     public DbSet<Ticket> Tickets { get; set; }
     public DbSet<TicketComment> TicketComments { get; set; }
     public DbSet<TicketAttachment> TicketAttachments { get; set; }
+    public DbSet<Payment> Payments { get; set; }
+    public DbSet<StripeAccount> StripeAccounts { get; set; }
+    public DbSet<TenantPaymentMethod> TenantPaymentMethods { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -89,6 +92,48 @@ public class LeasingDbContext : DbContext
             builder.Property(a => a.TicketId).IsRequired();
 
             builder.HasIndex(a => a.TicketId);
+        });
+
+        // Payment entity configuration
+        modelBuilder.Entity<Payment>(builder =>
+        {
+            builder.HasKey(p => p.Id);
+            builder.Property(p => p.StripePaymentIntentId).IsRequired().HasMaxLength(200);
+            builder.Property(p => p.StripeTransferId).HasMaxLength(200);
+            builder.Property(p => p.Type).HasConversion<string>().HasMaxLength(50);
+            builder.Property(p => p.Status).HasConversion<string>().HasMaxLength(50);
+            builder.Property(p => p.Currency).HasMaxLength(10);
+            builder.Property(p => p.Amount).HasPrecision(18, 2);
+            builder.Property(p => p.PlatformFee).HasPrecision(18, 2);
+            builder.Property(p => p.LandlordAmount).HasPrecision(18, 2);
+            builder.Property(p => p.RentAmount).HasPrecision(18, 2);
+            builder.Property(p => p.DepositAmount).HasPrecision(18, 2);
+            builder.Property(p => p.AdvanceRentAmount).HasPrecision(18, 2);
+            builder.Property(p => p.FailureReason).HasMaxLength(500);
+            builder.HasIndex(p => p.LeaseId);
+            builder.HasIndex(p => p.StripePaymentIntentId).IsUnique();
+            builder.HasIndex(p => p.TenantId);
+        });
+
+        // StripeAccount entity configuration
+        modelBuilder.Entity<StripeAccount>(builder =>
+        {
+            builder.HasKey(s => s.Id);
+            builder.Property(s => s.StripeAccountId).IsRequired().HasMaxLength(200);
+            builder.HasIndex(s => s.StripeAccountId).IsUnique();
+            builder.HasIndex(s => new { s.UserId, s.PropertyId }).IsUnique();
+            builder.HasIndex(s => s.UserId);
+        });
+
+        // TenantPaymentMethod entity configuration
+        modelBuilder.Entity<TenantPaymentMethod>(builder =>
+        {
+            builder.HasKey(t => t.Id);
+            builder.Property(t => t.StripePaymentMethodId).IsRequired().HasMaxLength(200);
+            builder.Property(t => t.CardBrand).HasMaxLength(50);
+            builder.Property(t => t.CardLast4).HasMaxLength(4);
+            builder.HasIndex(t => t.StripePaymentMethodId).IsUnique();
+            builder.HasIndex(t => t.UserId);
         });
     }
 }

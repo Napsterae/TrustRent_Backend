@@ -76,6 +76,7 @@ public enum LeaseStatus
     PendingLandlordSignature,   // [NOVO] Senhorio deve assinar e fazer upload do PDF
     PendingTenantSignature,     // [NOVO] Inquilino deve assinar o PDF já assinado pelo senhorio
     SignaturesVerified,         // [NOVO] Ambas as assinaturas verificadas — contrato final guardado
+    AwaitingPayment,            // Aguarda pagamento inicial do inquilino
     Active,                     // Arrendamento ativo
     Expired,                    // Período de arrendamento terminou
     TerminatedEarly,            // Rescindido antes do fim

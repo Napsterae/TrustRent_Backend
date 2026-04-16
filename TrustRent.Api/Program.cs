@@ -115,6 +115,11 @@ builder.Services.AddScoped<ISignedPdfVerificationService, SignedPdfVerificationS
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Repositories.ILeasingUnitOfWork, TrustRent.Modules.Leasing.Repositories.LeasingUnitOfWork>();
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.ITicketService, TrustRent.Modules.Leasing.Services.TicketService>();
 
+/* STRIPE / PAYMENTS */
+builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.IStripeAccountService, TrustRent.Modules.Leasing.Services.StripeAccountService>();
+builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.IStripePaymentService, TrustRent.Modules.Leasing.Services.StripePaymentService>();
+builder.Services.AddScoped<ILeaseActivationService, CatalogLeaseActivationService>();
+
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
     .UseSimpleAssemblyNameTypeSerializer()
@@ -200,6 +205,7 @@ app.MapPropertyEndpoints();
 app.MapApplicationEndpoints();
 app.MapLeaseEndpoints();
 app.MapTicketEndpoints();
+app.MapStripeEndpoints();
 app.MapCommunicationsEndpoints();
 
 app.MapHub<ApplicationChatHub>("/api/chathub");
