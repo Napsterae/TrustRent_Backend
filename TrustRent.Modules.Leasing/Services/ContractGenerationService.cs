@@ -3,10 +3,10 @@ using Microsoft.Extensions.Configuration;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
-using TrustRent.Modules.Catalog.Contracts.Interfaces;
-using TrustRent.Modules.Catalog.Models;
+using TrustRent.Modules.Leasing.Contracts.Interfaces;
+using TrustRent.Modules.Leasing.Models;
 
-namespace TrustRent.Modules.Catalog.Services;
+namespace TrustRent.Modules.Leasing.Services;
 
 public class ContractGenerationService : IContractGenerationService
 {
@@ -21,7 +21,8 @@ public class ContractGenerationService : IContractGenerationService
     public async Task<string> GenerateContractPdfAsync(
         Lease lease,
         string landlordName, string landlordNif, string landlordAddress,
-        string tenantName, string tenantNif, string tenantAddress)
+        string tenantName, string tenantNif, string tenantAddress,
+        ContractPropertyInfo propertyInfo)
     {
         var leaseDir = Path.Combine(_storagePath, lease.Id.ToString());
         Directory.CreateDirectory(leaseDir);
@@ -30,7 +31,6 @@ public class ContractGenerationService : IContractGenerationService
         var fileName = $"contract_{timestamp}.pdf";
         var filePath = Path.Combine(leaseDir, fileName);
 
-        var property = lease.Property!;
         var ptCulture = new CultureInfo("pt-PT");
 
         var document = Document.Create(container =>
@@ -52,14 +52,14 @@ public class ContractGenerationService : IContractGenerationService
                             row.RelativeItem().Column(c =>
                             {
                                 c.Item().Text("CONTRATO DE ARRENDAMENTO HABITACIONAL")
-                                    .FontSize(16).Bold().FontColor("#1e3a8a"); // Tailwind Blue-900
+                                    .FontSize(16).Bold().FontColor("#1e3a8a");
                                 c.Item().Text(lease.ContractType == "Official" ? "Com Prazo Certo" : "Informal / Proposta")
                                     .FontSize(10).FontColor(Colors.Grey.Darken1);
                             });
-                            row.ConstantItem(100).AlignRight().Text("TrustRent")
-                                .FontSize(18).Bold().FontColor("#ea580c"); // Tailwind Orange-600
+                            row.ConstantItem(100).AlignRight().Text("WeKaza")
+                                .FontSize(18).Bold().FontColor("#ea580c");
                         });
-                        col.Item().PaddingTop(10).LineHorizontal(1.5f).LineColor("#e5e7eb"); // Tailwind Gray-200
+                        col.Item().PaddingTop(10).LineHorizontal(1.5f).LineColor("#e5e7eb");
                     });
                 });
 
@@ -99,18 +99,18 @@ public class ContractGenerationService : IContractGenerationService
                             columns.RelativeColumn();
                         });
 
-                        DrawTableRow(table, "Morada:", $"{property.Street}, {property.DoorNumber}");
-                        DrawTableRow(table, "Localidade:", $"{property.PostalCode} {property.Parish}, {property.Municipality}, {property.District}");
-                        DrawTableRow(table, "Tipologia:", property.Typology);
+                        DrawTableRow(table, "Morada:", $"{propertyInfo.Street}, {propertyInfo.DoorNumber}");
+                        DrawTableRow(table, "Localidade:", $"{propertyInfo.PostalCode} {propertyInfo.Parish}, {propertyInfo.Municipality}, {propertyInfo.District}");
+                        DrawTableRow(table, "Tipologia:", propertyInfo.Typology ?? "");
                         
-                        if (!string.IsNullOrEmpty(property.MatrixArticle))
-                            DrawTableRow(table, "Artigo Matricial:", $"{property.MatrixArticle} " + (!string.IsNullOrEmpty(property.PropertyFraction) ? $"(Fração: {property.PropertyFraction})" : ""));
+                        if (!string.IsNullOrEmpty(propertyInfo.MatrixArticle))
+                            DrawTableRow(table, "Artigo Matricial:", $"{propertyInfo.MatrixArticle} " + (!string.IsNullOrEmpty(propertyInfo.PropertyFraction) ? $"(Fração: {propertyInfo.PropertyFraction})" : ""));
                         
-                        if (!string.IsNullOrEmpty(property.UsageLicenseNumber))
-                            DrawTableRow(table, "Licença Utilização:", $"{property.UsageLicenseNumber} emitida em {property.UsageLicenseDate} por {property.UsageLicenseIssuer}");
+                        if (!string.IsNullOrEmpty(propertyInfo.UsageLicenseNumber))
+                            DrawTableRow(table, "Licença Utilização:", $"{propertyInfo.UsageLicenseNumber} emitida em {propertyInfo.UsageLicenseDate} por {propertyInfo.UsageLicenseIssuer}");
                             
-                        if (!string.IsNullOrEmpty(property.EnergyCertificateNumber))
-                            DrawTableRow(table, "Certificado Energético:", $"{property.EnergyCertificateNumber} (Classe {property.EnergyClass})");
+                        if (!string.IsNullOrEmpty(propertyInfo.EnergyCertificateNumber))
+                            DrawTableRow(table, "Certificado Energético:", $"{propertyInfo.EnergyCertificateNumber} (Classe {propertyInfo.EnergyClass})");
                     });
 
                     // === CONDIÇÕES FINANCEIRAS E PRAZOS ===
@@ -225,7 +225,7 @@ public class ContractGenerationService : IContractGenerationService
                     f.Item().LineHorizontal(0.5f).LineColor("#cbd5e1");
                     f.Item().PaddingTop(4).Row(row =>
                     {
-                        row.RelativeItem().Text($"Documento gerado automaticamente pelo TrustRent em {DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm 'UTC'", ptCulture)}")
+                        row.RelativeItem().Text($"Documento gerado automaticamente pelo WeKaza em {DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm 'UTC'", ptCulture)}")
                             .FontSize(7).FontColor(Colors.Grey.Medium);
                         
                         row.RelativeItem().AlignRight().Text(text =>
@@ -254,14 +254,12 @@ public class ContractGenerationService : IContractGenerationService
         return await File.ReadAllBytesAsync(contractFilePath);
     }
 
-    // Helper para o Título das Secções
     private static void SectionHeader(IContainer container, string title)
     {
         container.Background("#e0f2fe").PaddingVertical(4).PaddingHorizontal(8)
                  .Text(title).Bold().FontSize(11).FontColor("#0f172a");
     }
 
-    // Helper para as linhas das Tabelas
     private static void DrawTableRow(TableDescriptor table, string label, string value, bool isBoldValue = false)
     {
         table.Cell().BorderBottom(1).BorderColor("#f1f5f9").PaddingVertical(3).Text(label).SemiBold().FontColor("#475569").FontSize(9);
@@ -269,7 +267,6 @@ public class ContractGenerationService : IContractGenerationService
         if (isBoldValue) textCell.Bold();
     }
 
-    // Helper para as Cláusulas
     private static void DrawClause(ColumnDescriptor column, string title, string content)
     {
         column.Item().PaddingBottom(6).Text(text =>

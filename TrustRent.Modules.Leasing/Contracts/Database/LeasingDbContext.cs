@@ -13,6 +13,8 @@ public class LeasingDbContext : DbContext
     public DbSet<Payment> Payments { get; set; }
     public DbSet<StripeAccount> StripeAccounts { get; set; }
     public DbSet<TenantPaymentMethod> TenantPaymentMethods { get; set; }
+    public DbSet<Lease> Leases { get; set; }
+    public DbSet<LeaseHistory> LeaseHistories { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -134,6 +136,35 @@ public class LeasingDbContext : DbContext
             builder.Property(t => t.CardLast4).HasMaxLength(4);
             builder.HasIndex(t => t.StripePaymentMethodId).IsUnique();
             builder.HasIndex(t => t.UserId);
+        });
+
+        // Lease entity configuration
+        modelBuilder.Entity<Lease>(builder =>
+        {
+            builder.HasKey(l => l.Id);
+
+            builder.HasMany(l => l.History)
+                   .WithOne(h => h.Lease)
+                   .HasForeignKey(h => h.LeaseId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Property(l => l.Status).HasConversion<string>().HasMaxLength(50);
+            builder.Property(l => l.ContractType).HasMaxLength(50);
+            builder.Property(l => l.LeaseRegime).HasMaxLength(100);
+            builder.Property(l => l.AdvanceRentMonths).HasDefaultValue(0);
+            builder.Property(l => l.ContractFilePath).HasMaxLength(500);
+            builder.Property(l => l.LandlordSignatureRef).HasMaxLength(200);
+            builder.Property(l => l.TenantSignatureRef).HasMaxLength(200);
+
+            builder.HasIndex(l => l.ApplicationId);
+            builder.HasIndex(l => l.PropertyId);
+        });
+
+        // LeaseHistory entity configuration
+        modelBuilder.Entity<LeaseHistory>(builder =>
+        {
+            builder.HasKey(h => h.Id);
+            builder.Property(h => h.Action).IsRequired().HasMaxLength(100);
         });
     }
 }

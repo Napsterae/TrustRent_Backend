@@ -1,3 +1,5 @@
+using TrustRent.Shared.Contracts.DTOs;
+
 namespace TrustRent.Modules.Catalog.Contracts.DTOs;
 
 public class PropertyTenantManagementDto

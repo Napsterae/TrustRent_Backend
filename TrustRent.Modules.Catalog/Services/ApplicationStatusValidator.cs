@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Shared.Models;
 
 namespace TrustRent.Modules.Catalog.Services;
 

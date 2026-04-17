@@ -23,6 +23,182 @@ namespace TrustRent.Modules.Leasing.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("TrustRent.Modules.Leasing.Models.Lease", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AdvanceRentMonths")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<bool>("AllowsRenewal")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ApplicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CondominiumFeesPaidBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ContractFileHash")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ContractFilePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("ContractGeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ContractSignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ContractType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("Deposit")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("DurationMonths")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ElectricityPaidBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("GasPaidBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("LandlordId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("LandlordSignatureCertSubject")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LandlordSignatureRef")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("LandlordSignatureVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("LandlordSigned")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LandlordSignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LandlordSignedFileHash")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LandlordSignedFilePath")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LeaseRegime")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal>("MonthlyRent")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("PropertyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RenewalDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TenantSignatureCertSubject")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TenantSignatureRef")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("TenantSignatureVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("TenantSigned")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("TenantSignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TenantSignedFilePath")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("WaterPaidBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationId");
+
+                    b.HasIndex("PropertyId");
+
+                    b.ToTable("Leases", "leasing");
+                });
+
+            modelBuilder.Entity("TrustRent.Modules.Leasing.Models.LeaseHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EventData")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("LeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Message")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeaseId");
+
+                    b.ToTable("LeaseHistories", "leasing");
+                });
+
             modelBuilder.Entity("TrustRent.Modules.Leasing.Models.Payment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -319,6 +495,17 @@ namespace TrustRent.Modules.Leasing.Migrations
                     b.ToTable("TicketComments", "leasing");
                 });
 
+            modelBuilder.Entity("TrustRent.Modules.Leasing.Models.LeaseHistory", b =>
+                {
+                    b.HasOne("TrustRent.Modules.Leasing.Models.Lease", "Lease")
+                        .WithMany("History")
+                        .HasForeignKey("LeaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Lease");
+                });
+
             modelBuilder.Entity("TrustRent.Modules.Leasing.Models.TicketAttachment", b =>
                 {
                     b.HasOne("TrustRent.Modules.Leasing.Models.Ticket", "Ticket")
@@ -339,6 +526,11 @@ namespace TrustRent.Modules.Leasing.Migrations
                         .IsRequired();
 
                     b.Navigation("Ticket");
+                });
+
+            modelBuilder.Entity("TrustRent.Modules.Leasing.Models.Lease", b =>
+                {
+                    b.Navigation("History");
                 });
 
             modelBuilder.Entity("TrustRent.Modules.Leasing.Models.Ticket", b =>

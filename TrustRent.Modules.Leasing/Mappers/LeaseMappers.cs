@@ -1,7 +1,7 @@
-using TrustRent.Modules.Catalog.Contracts.DTOs;
-using TrustRent.Modules.Catalog.Models;
+using TrustRent.Shared.Contracts.DTOs;
+using TrustRent.Modules.Leasing.Models;
 
-namespace TrustRent.Modules.Catalog.Mappers;
+namespace TrustRent.Modules.Leasing.Mappers;
 
 public static class LeaseMappers
 {
@@ -35,6 +35,10 @@ public static class LeaseMappers
             LandlordSignedAt = lease.LandlordSignedAt,
             TenantSigned = lease.TenantSigned,
             TenantSignedAt = lease.TenantSignedAt,
+            LandlordSignatureCertSubject = lease.LandlordSignatureCertSubject,
+            LandlordSignatureVerified = lease.LandlordSignatureVerified,
+            TenantSignatureCertSubject = lease.TenantSignatureCertSubject,
+            TenantSignatureVerified = lease.TenantSignatureVerified,
             Status = lease.Status.ToString(),
             CreatedAt = lease.CreatedAt,
             UpdatedAt = lease.UpdatedAt,

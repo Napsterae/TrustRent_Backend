@@ -1,17 +1,21 @@
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Models;
+using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Shared.Models;
 
 namespace TrustRent.Api.Services;
 
 public class CatalogUserContactAccessService : IUserContactAccessService
 {
     private readonly CatalogDbContext _catalogDbContext;
+    private readonly LeasingDbContext _leasingDbContext;
 
-    public CatalogUserContactAccessService(CatalogDbContext catalogDbContext)
+    public CatalogUserContactAccessService(CatalogDbContext catalogDbContext, LeasingDbContext leasingDbContext)
     {
         _catalogDbContext = catalogDbContext;
+        _leasingDbContext = leasingDbContext;
     }
 
     public async Task<bool> CanViewDirectContactAsync(Guid viewerUserId, Guid targetUserId)
@@ -22,7 +26,7 @@ public class CatalogUserContactAccessService : IUserContactAccessService
         if (viewerUserId == targetUserId)
             return true;
 
-        var hasSharedLease = await _catalogDbContext.Leases.AnyAsync(lease =>
+        var hasSharedLease = await _leasingDbContext.Leases.AnyAsync(lease =>
             lease.Status != LeaseStatus.Cancelled &&
             ((lease.TenantId == viewerUserId && lease.LandlordId == targetUserId)
             || (lease.TenantId == targetUserId && lease.LandlordId == viewerUserId)));

@@ -6,6 +6,7 @@ using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Mappers;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Shared.Models;
 
 namespace TrustRent.Modules.Catalog.Services;
 
@@ -13,11 +14,13 @@ public class ApplicationService : IApplicationService
 {
     private readonly CatalogDbContext _context;
     private readonly INotificationService _notificationService;
+    private readonly ILeasingAccessService _leasingAccess;
 
-    public ApplicationService(CatalogDbContext context, INotificationService notificationService)
+    public ApplicationService(CatalogDbContext context, INotificationService notificationService, ILeasingAccessService leasingAccess)
     {
         _context = context;
         _notificationService = notificationService;
+        _leasingAccess = leasingAccess;
     }
 
     public async Task<ApplicationDto> SubmitApplicationAsync(Guid propertyId, Guid tenantId, SubmitApplicationDto dto)
@@ -77,26 +80,26 @@ public class ApplicationService : IApplicationService
     {
         var apps = await _context.Applications
             .Include(a => a.History)
-            .Include(a => a.Lease!).ThenInclude(l => l.History)
             .Where(a => a.PropertyId == propertyId)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
 
-        await ReconcileAwaitingPaymentAsync(apps);
+        var leases = await _leasingAccess.GetLeasesByApplicationIdsAsync(apps.Select(a => a.Id));
+        await ReconcileAwaitingPaymentAsync(apps, leases);
 
-        return apps.Select(a => a.ToDto(landlordId));
+        return apps.Select(a => a.ToDto(landlordId, leases.GetValueOrDefault(a.Id)));
     }
 
     public async Task<IEnumerable<ApplicationDto>> GetApplicationsForTenantAsync(Guid tenantId)
     {
         var apps = await _context.Applications
             .Include(a => a.History)
-            .Include(a => a.Lease!).ThenInclude(l => l.History)
             .Where(a => a.TenantId == tenantId)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
 
-        await ReconcileAwaitingPaymentAsync(apps);
+        var leases = await _leasingAccess.GetLeasesByApplicationIdsAsync(apps.Select(a => a.Id));
+        await ReconcileAwaitingPaymentAsync(apps, leases);
 
         // For each application, look up the property's LandlordId
         var propertyIds = apps.Select(a => a.PropertyId).Distinct().ToList();
@@ -104,22 +107,24 @@ public class ApplicationService : IApplicationService
             .Where(p => propertyIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, p => p.LandlordId);
 
-        return apps.Select(a => a.ToDto(properties.GetValueOrDefault(a.PropertyId)));
+        return apps.Select(a => a.ToDto(properties.GetValueOrDefault(a.PropertyId), leases.GetValueOrDefault(a.Id)));
     }
 
     public async Task<ApplicationDto?> GetApplicationByIdAsync(Guid applicationId, Guid userId)
     {
         var application = await _context.Applications
             .Include(a => a.History)
-            .Include(a => a.Lease!).ThenInclude(l => l.History)
             .FirstOrDefaultAsync(a => a.Id == applicationId);
 
         if (application == null) return null;
 
+        // Load lease data from Leasing module
+        var leaseDto = await _leasingAccess.GetLeaseByApplicationIdAsync(applicationId);
+
         // Reconciliação automática: se o lease já está Active mas a candidatura ficou presa em AwaitingPayment
         if (application.Status == ApplicationStatus.AwaitingPayment &&
-            application.Lease != null &&
-            application.Lease.Status == LeaseStatus.Active)
+            leaseDto != null &&
+            leaseDto.Status == LeaseStatus.Active.ToString())
         {
             application.Status = ApplicationStatus.LeaseActive;
             application.UpdatedAt = DateTime.UtcNow;
@@ -129,7 +134,7 @@ public class ApplicationService : IApplicationService
         var property = await _context.Properties.FindAsync(application.PropertyId);
         var landlordId = property?.LandlordId ?? Guid.Empty;
 
-        return application.ToDto(landlordId);
+        return application.ToDto(landlordId, leaseDto);
     }
 
     public async Task<ApplicationDto> UpdateVisitStatusAsync(Guid applicationId, Guid userId, UpdateApplicationVisitDto dto)
@@ -137,7 +142,6 @@ public class ApplicationService : IApplicationService
         var application = await _context.Applications
             .Include(a => a.Property)
             .Include(a => a.History)
-            .Include(a => a.Lease!).ThenInclude(l => l.History)
             .FirstOrDefaultAsync(a => a.Id == applicationId);
             
         if (application == null) throw new Exception("Application not found");
@@ -267,14 +271,14 @@ public class ApplicationService : IApplicationService
     /// Reconcilia candidaturas presas em AwaitingPayment quando o lease já está Active.
     /// Isto pode acontecer com dados criados antes do fluxo de pagamento ser implementado.
     /// </summary>
-    private async Task ReconcileAwaitingPaymentAsync(List<Application> apps)
+    private async Task ReconcileAwaitingPaymentAsync(List<Application> apps, Dictionary<Guid, TrustRent.Shared.Contracts.DTOs.LeaseDto> leases)
     {
         var needsSave = false;
         foreach (var app in apps)
         {
             if (app.Status == ApplicationStatus.AwaitingPayment &&
-                app.Lease != null &&
-                app.Lease.Status == LeaseStatus.Active)
+                leases.TryGetValue(app.Id, out var lease) &&
+                lease.Status == LeaseStatus.Active.ToString())
             {
                 app.Status = ApplicationStatus.LeaseActive;
                 app.UpdatedAt = DateTime.UtcNow;

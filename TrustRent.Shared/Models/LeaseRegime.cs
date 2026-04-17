@@ -1,4 +1,4 @@
-namespace TrustRent.Modules.Catalog.Models;
+namespace TrustRent.Shared.Models;
 
 public enum LeaseRegime
 {

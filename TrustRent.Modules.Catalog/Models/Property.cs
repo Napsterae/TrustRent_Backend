@@ -1,3 +1,5 @@
+using TrustRent.Shared.Models;
+
 namespace TrustRent.Modules.Catalog.Models;
 
 public class Property

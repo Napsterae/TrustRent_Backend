@@ -1,41 +1,40 @@
 using Microsoft.EntityFrameworkCore;
-using TrustRent.Modules.Catalog.Contracts.Database;
-using TrustRent.Modules.Catalog.Models;
+using TrustRent.Modules.Leasing.Contracts.Database;
+using TrustRent.Modules.Leasing.Models;
 using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Shared.Models;
 
 namespace TrustRent.Api.Services;
 
 /// <summary>
 /// Implementação cross-module: permite ao módulo de Leasing (pagamentos)
-/// ativar um lease no módulo Catalog após pagamento confirmado.
+/// ativar um lease no módulo de Leasing e atualizar dados no Catalog após pagamento confirmado.
 /// </summary>
 public class CatalogLeaseActivationService : ILeaseActivationService
 {
-    private readonly CatalogDbContext _catalogDbContext;
+    private readonly LeasingDbContext _leasingDbContext;
+    private readonly ICatalogAccessService _catalogAccess;
     private readonly INotificationService _notificationService;
 
     public CatalogLeaseActivationService(
-        CatalogDbContext catalogDbContext,
+        LeasingDbContext leasingDbContext,
+        ICatalogAccessService catalogAccess,
         INotificationService notificationService)
     {
-        _catalogDbContext = catalogDbContext;
+        _leasingDbContext = leasingDbContext;
+        _catalogAccess = catalogAccess;
         _notificationService = notificationService;
     }
 
     public async Task ActivateLeaseAfterPaymentAsync(Guid leaseId)
     {
-        var lease = await _catalogDbContext.Leases
+        var lease = await _leasingDbContext.Leases
             .Include(l => l.History)
             .FirstOrDefaultAsync(l => l.Id == leaseId)
             ?? throw new InvalidOperationException($"Lease {leaseId} não encontrado.");
 
         if (lease.Status != LeaseStatus.AwaitingPayment)
             return; // Já está ativo ou noutro estado
-
-        var application = await _catalogDbContext.Applications
-            .Include(a => a.History)
-            .FirstOrDefaultAsync(a => a.Id == lease.ApplicationId)
-            ?? throw new InvalidOperationException("Candidatura associada não encontrada.");
 
         var now = DateTime.UtcNow;
 
@@ -52,49 +51,21 @@ public class CatalogLeaseActivationService : ILeaseActivationService
             Message = "Arrendamento ativado após confirmação do pagamento inicial."
         });
 
-        application.Status = ApplicationStatus.LeaseActive;
-        application.UpdatedAt = now;
-        application.History.Add(new ApplicationHistory
-        {
-            ApplicationId = application.Id,
-            ActorId = Guid.Empty,
-            Action = "Arrendamento Ativo",
-            Message = $"Pagamento confirmado. O arrendamento está ativo a partir de {lease.StartDate:dd/MM/yyyy}."
-        });
+        await _leasingDbContext.SaveChangesAsync();
+
+        // Atualizar a candidatura no módulo Catalog
+        await _catalogAccess.UpdateApplicationStatusAsync(
+            lease.ApplicationId,
+            (int)ApplicationStatus.LeaseActive,
+            Guid.Empty,
+            "Arrendamento Ativo",
+            $"Pagamento confirmado. O arrendamento está ativo a partir de {lease.StartDate:dd/MM/yyyy}.");
 
         // Atualizar TenantId no imóvel e deslistar
-        var property = await _catalogDbContext.Properties.FindAsync(lease.PropertyId);
-        if (property != null)
-        {
-            property.TenantId = lease.TenantId;
-            property.IsPublic = false;
-            property.UpdatedAt = now;
-        }
+        await _catalogAccess.SetPropertyTenantAsync(lease.PropertyId, lease.TenantId);
 
         // Rejeitar outras candidaturas ativas para o mesmo imóvel
-        var otherApplications = await _catalogDbContext.Applications
-            .Where(a => a.PropertyId == lease.PropertyId
-                     && a.Id != application.Id
-                     && a.Status != ApplicationStatus.Rejected
-                     && a.Status != ApplicationStatus.LeaseActive)
-            .ToListAsync();
-
-        foreach (var other in otherApplications)
-        {
-            other.Status = ApplicationStatus.Rejected;
-            other.UpdatedAt = now;
-            _catalogDbContext.ApplicationHistories.Add(new ApplicationHistory
-            {
-                ApplicationId = other.Id,
-                ActorId = Guid.Empty,
-                Action = "Candidatura Rejeitada Automaticamente",
-                Message = "O imóvel foi arrendado a outro candidato."
-            });
-            await _notificationService.SendNotificationAsync(other.TenantId, "application",
-                "A tua candidatura foi encerrada — o imóvel foi arrendado.", other.Id);
-        }
-
-        await _catalogDbContext.SaveChangesAsync();
+        await _catalogAccess.RejectOtherApplicationsAsync(lease.PropertyId, lease.ApplicationId, _notificationService);
 
         // Notificar ambas as partes
         await _notificationService.SendNotificationAsync(lease.TenantId, "lease",

@@ -1,12 +1,13 @@
 using System.Text.Json;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Models;
+using TrustRent.Shared.Contracts.DTOs;
 
 namespace TrustRent.Modules.Catalog.Mappers;
 
 public static class ApplicationMappers
 {
-    public static ApplicationDto ToDto(this Application application, Guid landlordId = default)
+    public static ApplicationDto ToDto(this Application application, Guid landlordId = default, LeaseDto? leaseDto = null)
     {
         List<string> dates = new();
         if (!string.IsNullOrWhiteSpace(application.TenantProposedDates))
@@ -45,7 +46,7 @@ public static class ApplicationMappers
                 EventData = h.EventData,
                 CreatedAt = h.CreatedAt
             }).OrderBy(h => h.CreatedAt).ToList() ?? new(),
-            Lease = application.Lease?.ToDto()
+            Lease = leaseDto
         };
     }
 }

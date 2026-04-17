@@ -1,12 +1,13 @@
-using TrustRent.Modules.Catalog.Models;
+using TrustRent.Modules.Leasing.Models;
+using TrustRent.Shared.Models;
 
-namespace TrustRent.Modules.Catalog.Services;
+namespace TrustRent.Modules.Leasing.Services;
 
 public static class LeaseValidator
 {
-    public static void ValidateInitiate(Application application, DateTime proposedStartDate)
+    public static void ValidateInitiate(int applicationStatus, DateTime proposedStartDate)
     {
-        if (application.Status != ApplicationStatus.Accepted)
+        if (applicationStatus != (int)ApplicationStatus.Accepted)
             throw new InvalidOperationException("Só é possível iniciar um arrendamento em candidaturas com status 'Accepted'.");
 
         if (proposedStartDate.Date <= DateTime.UtcNow.Date)
@@ -99,11 +100,8 @@ public static class LeaseValidator
             throw new UnauthorizedAccessException("Apenas o proprietário ou o inquilino deste arrendamento podem realizar esta ação.");
     }
 
-
-
     private static bool IsValidPortuguesePhone(string phone)
     {
-        // Aceita +351XXXXXXXXX ou 9XXXXXXXX
         var normalized = phone.Replace(" ", "").Replace("-", "");
         if (normalized.StartsWith("+351"))
             normalized = normalized[4..];

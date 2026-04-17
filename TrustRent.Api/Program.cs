@@ -23,6 +23,9 @@ using TrustRent.Shared.Services;
 using TrustRent.Api.Services;
 using TrustRent.Modules.Identity.Seeds;
 using TrustRent.Modules.Catalog.Seeds;
+using TrustRent.Modules.Leasing.Contracts.Database;
+using TrustRent.Modules.Leasing.Seeds;
+using TrustRent.Modules.Communications.Seeds;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -97,6 +100,8 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, TrustRent.Modules.Communications.Services.NotificationService>();
 builder.Services.AddScoped<ILeaseAccessService, CatalogLeaseAccessService>();
 builder.Services.AddScoped<IUserContactAccessService, CatalogUserContactAccessService>();
+builder.Services.AddScoped<ICatalogAccessService, CatalogAccessService>();
+builder.Services.AddScoped<ILeasingAccessService, LeasingAccessService>();
 
 /* CATALOG*/
 builder.Services.AddScoped<IPropertyService, PropertyService>();
@@ -106,12 +111,12 @@ builder.Services.AddScoped<IPropertyRepository, PropertyRepository>();
 builder.Services.AddScoped<ICatalogUnitOfWork, CatalogUnitOfWork>();
 builder.Services.AddScoped<IApplicationService, ApplicationService>();
 builder.Services.AddScoped<IApplicationStatusValidator, ApplicationStatusValidator>();
-builder.Services.AddScoped<ILeaseService, LeaseService>();
-builder.Services.AddScoped<IContractGenerationService, ContractGenerationService>();
-builder.Services.AddScoped<IDigitalSignatureService, DigitalSignatureService>();
-builder.Services.AddScoped<ISignedPdfVerificationService, SignedPdfVerificationService>();
 
 /* LEASING */
+builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.ILeaseService, TrustRent.Modules.Leasing.Services.LeaseService>();
+builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.IContractGenerationService, TrustRent.Modules.Leasing.Services.ContractGenerationService>();
+builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.IDigitalSignatureService, TrustRent.Modules.Leasing.Services.DigitalSignatureService>();
+builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.ISignedPdfVerificationService, TrustRent.Modules.Leasing.Services.SignedPdfVerificationService>();
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Repositories.ILeasingUnitOfWork, TrustRent.Modules.Leasing.Repositories.LeasingUnitOfWork>();
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.ITicketService, TrustRent.Modules.Leasing.Services.TicketService>();
 
@@ -216,9 +221,13 @@ if (app.Environment.IsDevelopment())
     using var scope = app.Services.CreateScope();
     var identityDb = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
     var catalogDb = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+    var communicationsDb = scope.ServiceProvider.GetRequiredService<CommunicationsDbContext>();
+    var leasingDb = scope.ServiceProvider.GetRequiredService<LeasingDbContext>();
 
     await IdentitySeeder.SeedAsync(identityDb);
     await CatalogSeeder.SeedAsync(catalogDb);
+    await LeasingSeeder.SeedAsync(leasingDb);
+    await CommunicationsSeeder.SeedAsync(communicationsDb);
 }
 
 app.Run();

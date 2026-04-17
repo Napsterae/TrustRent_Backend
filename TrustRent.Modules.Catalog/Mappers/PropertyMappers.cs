@@ -1,5 +1,6 @@
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Models;
+using TrustRent.Shared.Models;
 
 namespace TrustRent.Modules.Catalog.Mappers;
 
@@ -70,7 +71,7 @@ public static class PropertyMappers
             ElectricityPaidBy = dto.ElectricityPaidBy,
             GasPaidBy = dto.GasPaidBy,
             HasOfficialContract = dto.HasOfficialContract,
-            LeaseRegime = Enum.TryParse<Models.LeaseRegime>(dto.LeaseRegime, out var regime) ? regime : null,
+            LeaseRegime = Enum.TryParse<LeaseRegime>(dto.LeaseRegime, out var regime) ? regime : null,
             AllowsRenewal = dto.AllowsRenewal,
             NonPermanentReason = dto.NonPermanentReason,
         };
@@ -116,7 +117,7 @@ public static class PropertyMappers
         property.ElectricityPaidBy = dto.ElectricityPaidBy;
         property.GasPaidBy = dto.GasPaidBy;
         property.HasOfficialContract = dto.HasOfficialContract;
-        property.LeaseRegime = Enum.TryParse<Models.LeaseRegime>(dto.LeaseRegime, out var regime) ? regime : null;
+        property.LeaseRegime = Enum.TryParse<LeaseRegime>(dto.LeaseRegime, out var regime2) ? regime2 : null;
         property.AllowsRenewal = dto.AllowsRenewal;
         property.NonPermanentReason = dto.NonPermanentReason;
     }

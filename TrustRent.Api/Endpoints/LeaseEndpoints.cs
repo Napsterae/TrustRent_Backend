@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
-using TrustRent.Modules.Catalog.Contracts.DTOs;
-using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Modules.Leasing.Contracts.DTOs;
+using TrustRent.Modules.Leasing.Contracts.Interfaces;
 
 namespace TrustRent.Api.Endpoints;
 

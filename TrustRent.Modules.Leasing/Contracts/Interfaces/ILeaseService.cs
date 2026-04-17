@@ -1,16 +1,15 @@
-using TrustRent.Modules.Catalog.Contracts.DTOs;
+using TrustRent.Modules.Leasing.Contracts.DTOs;
+using TrustRent.Shared.Contracts.DTOs;
 
-namespace TrustRent.Modules.Catalog.Contracts.Interfaces;
+namespace TrustRent.Modules.Leasing.Contracts.Interfaces;
 
 public interface ILeaseService
 {
     Task<LeaseDto> InitiateLeaseProcedureAsync(Guid applicationId, Guid userId, InitiateLeaseProcedureDto dto);
     Task<LeaseDto> CounterProposeStartDateAsync(Guid leaseId, Guid userId, ConfirmLeaseStartDateDto dto);
     Task<LeaseDto> ConfirmLeaseStartDateAsync(Guid leaseId, Guid userId, ConfirmLeaseStartDateDto dto);
-    // Upload sequencial de PDF assinado (novo workflow)
     Task<LeaseDto> UploadSignedContractAsync(Guid leaseId, Guid userId, byte[] pdfBytes, string originalFileName);
     Task<byte[]?> GetLandlordSignedContractAsync(Guid leaseId, Guid userId);
-    // Legado OTP-based (mantido para compatibilidade)
     Task<LeaseDto> RequestSignatureAsync(Guid leaseId, Guid userId, RequestLeaseSignatureDto dto);
     Task<LeaseDto> ConfirmSignatureAsync(Guid leaseId, Guid userId, ConfirmLeaseSignatureDto dto);
     Task<LeaseDto> AcceptLeaseTermsAsync(Guid leaseId, Guid userId, AcceptLeaseTermsDto dto);

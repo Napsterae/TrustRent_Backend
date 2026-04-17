@@ -2,20 +2,13 @@ using System.Security.Cryptography;
 using iText.Kernel.Pdf;
 using iText.Signatures;
 using Microsoft.Extensions.Logging;
-using TrustRent.Modules.Catalog.Contracts.Interfaces;
+using TrustRent.Modules.Leasing.Contracts.Interfaces;
 
-namespace TrustRent.Modules.Catalog.Services;
+namespace TrustRent.Modules.Leasing.Services;
 
 /// <summary>
 /// Verifica assinaturas digitais PAdES em PDFs assinados com a Chave Móvel Digital
 /// (app Autenticação.Gov). Usa iText7 para inspecionar o dicionário de assinaturas.
-///
-/// Mecanismo de integridade de conteúdo:
-///   signUtil.GetRevision(sigName) devolve os bytes do documento tal como estavam
-///   no momento em que essa assinatura foi aplicada (excluindo o valor da assinatura).
-///   Fazendo SHA-256 desses bytes e comparando com o hash do documento original gerado
-///   pela plataforma, garantimos que o utilizador assinou o contrato correto e não
-///   um PDF arbitrário gerado fora da plataforma.
 /// </summary>
 public class SignedPdfVerificationService : ISignedPdfVerificationService
 {
@@ -55,9 +48,6 @@ public class SignedPdfVerificationService : ISignedPdfVerificationService
 
                 foreach (var name in sigNames)
                 {
-                    // ---- Calcular hash do documento antes desta assinatura ----
-                    // GetRevision devolve os bytes do estado do documento no momento da assinatura
-                    // i.e., o conteúdo que foi efetivamente assinado (ByteRange excluído).
                     string revisionHash;
                     try
                     {
@@ -76,7 +66,6 @@ public class SignedPdfVerificationService : ISignedPdfVerificationService
 
                     preSignatureHashes.Add(revisionHash);
 
-                    // ---- Verificar assinatura criptográfica ----
                     PdfPKCS7? pkcs7 = null;
                     try
                     {

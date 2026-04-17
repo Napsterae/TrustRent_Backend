@@ -1,4 +1,6 @@
-namespace TrustRent.Modules.Catalog.Models;
+using TrustRent.Shared.Models;
+
+namespace TrustRent.Modules.Leasing.Models;
 
 public class Lease
 {
@@ -39,22 +41,20 @@ public class Lease
     public bool LandlordSigned { get; set; } = false;
     public DateTime? LandlordSignedAt { get; set; }
     public string? LandlordSignatureRef { get; set; }
-    public string? LandlordSignedFilePath { get; set; }       // PDF assinado pelo senhorio
-    public string? LandlordSignatureCertSubject { get; set; } // DN do certificado CMD usado
+    public string? LandlordSignedFilePath { get; set; }
+    public string? LandlordSignatureCertSubject { get; set; }
 
     public bool TenantSigned { get; set; } = false;
     public DateTime? TenantSignedAt { get; set; }
     public string? TenantSignatureRef { get; set; }
-    public string? TenantSignedFilePath { get; set; }         // PDF final com ambas as assinaturas
+    public string? TenantSignedFilePath { get; set; }
     public string? TenantSignatureCertSubject { get; set; }
 
     public bool LandlordSignatureVerified { get; set; } = false;
     public bool TenantSignatureVerified { get; set; } = false;
 
-    // Integridade do documento – proteção contra upload de PDF diferente do gerado
-    /// <summary>SHA-256 (base64) do contrato original gerado pela plataforma.</summary>
+    // Integridade do documento
     public string? ContractFileHash { get; set; }
-    /// <summary>SHA-256 (base64) do PDF já assinado pelo senhorio (para validar o upload do inquilino).</summary>
     public string? LandlordSignedFileHash { get; set; }
 
     // Estado
@@ -64,21 +64,5 @@ public class Lease
     public DateTime? UpdatedAt { get; set; }
 
     // Navegação
-    public Property? Property { get; set; }
-    public Application? Application { get; set; }
     public List<LeaseHistory> History { get; set; } = new();
-}
-
-public enum LeaseStatus
-{
-    Pending,                    // Aguarda confirmação da data de início
-    AwaitingSignatures,         // (legado) Contrato apresentado, aguarda assinatura/aceitação
-    PendingLandlordSignature,   // [NOVO] Senhorio deve assinar e fazer upload do PDF
-    PendingTenantSignature,     // [NOVO] Inquilino deve assinar o PDF já assinado pelo senhorio
-    SignaturesVerified,         // [NOVO] Ambas as assinaturas verificadas — contrato final guardado
-    AwaitingPayment,            // Aguarda pagamento inicial do inquilino
-    Active,                     // Arrendamento ativo
-    Expired,                    // Período de arrendamento terminou
-    TerminatedEarly,            // Rescindido antes do fim
-    Cancelled                   // Cancelado durante fase pendente
 }

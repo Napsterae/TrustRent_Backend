@@ -6,7 +6,9 @@ using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Mappers;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Shared.Contracts.DTOs;
 using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Shared.Models;
 
 namespace TrustRent.Modules.Catalog.Services;
 
@@ -16,13 +18,15 @@ public class PropertyService : IPropertyService
     private readonly IBackgroundJobClient _backgroundJobs;
     private readonly CatalogDbContext _context;
     private readonly IUserService _userService;
+    private readonly ILeasingAccessService _leasingAccess;
 
-    public PropertyService(ICatalogUnitOfWork uow, IBackgroundJobClient backgroundJobs, CatalogDbContext context, IUserService userService)
+    public PropertyService(ICatalogUnitOfWork uow, IBackgroundJobClient backgroundJobs, CatalogDbContext context, IUserService userService, ILeasingAccessService leasingAccess)
     {
         _uow = uow;
         _backgroundJobs = backgroundJobs;
         _context = context;
         _userService = userService;
+        _leasingAccess = leasingAccess;
     }
 
     public async Task<Guid> CreatePropertyAsync(
@@ -110,16 +114,11 @@ public class PropertyService : IPropertyService
             .FirstOrDefaultAsync(p => p.Id == propertyId && p.LandlordId == landlordId)
             ?? throw new KeyNotFoundException("Imóvel não encontrado ou sem permissão de gestão.");
 
-        var leases = await _context.Leases
-            .AsNoTracking()
-            .Include(l => l.History)
-            .Where(l => l.PropertyId == propertyId)
-            .OrderByDescending(l => l.CreatedAt)
-            .ToListAsync();
+        var leases = await _leasingAccess.GetLeasesByPropertyIdAsync(propertyId);
 
         var currentLease = leases
-            .FirstOrDefault(l => l.Status == LeaseStatus.Active)
-            ?? leases.FirstOrDefault(l => property.TenantId.HasValue && l.TenantId == property.TenantId.Value && l.Status != LeaseStatus.Cancelled);
+            .FirstOrDefault(l => l.Status == LeaseStatus.Active.ToString())
+            ?? leases.FirstOrDefault(l => property.TenantId.HasValue && l.TenantId == property.TenantId.Value && l.Status != LeaseStatus.Cancelled.ToString());
 
         var tenantIds = leases.Select(l => l.TenantId).Distinct().ToList();
         var tenantProfiles = new Dictionary<Guid, PropertyManagedTenantDto>();
@@ -160,7 +159,7 @@ public class PropertyService : IPropertyService
                 AdvanceRentMonths = lease.AdvanceRentMonths,
                 DurationMonths = lease.DurationMonths,
                 ContractType = lease.ContractType,
-                Status = lease.Status.ToString(),
+                Status = lease.Status,
                 IsCurrent = false
             })
             .OrderByDescending(lease => lease.EndDate)
@@ -171,7 +170,7 @@ public class PropertyService : IPropertyService
             CurrentTenant = currentLease != null && tenantProfiles.TryGetValue(currentLease.TenantId, out var currentTenant)
                 ? currentTenant
                 : null,
-            CurrentLease = currentLease?.ToDto(),
+            CurrentLease = currentLease,
             TenantHistory = history
         };
     }

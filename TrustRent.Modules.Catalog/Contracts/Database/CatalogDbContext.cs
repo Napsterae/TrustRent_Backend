@@ -15,8 +15,6 @@ public class CatalogDbContext : DbContext
     public DbSet<Amenity> Amenities { get; set; }
     public DbSet<PropertyAmenity> PropertyAmenities { get; set; }
     public DbSet<PropertyPeriodicity> PropertyPeriodicities { get; set; }
-    public DbSet<Lease> Leases { get; set; }
-    public DbSet<LeaseHistory> LeaseHistories { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -96,40 +94,6 @@ public class CatalogDbContext : DbContext
         modelBuilder.Entity<Property>()
             .Property(p => p.LeaseRegime)
             .HasConversion<string>();
-
-        modelBuilder.Entity<Lease>(builder =>
-        {
-            builder.HasKey(l => l.Id);
-
-            builder.HasOne(l => l.Property)
-                   .WithMany()
-                   .HasForeignKey(l => l.PropertyId)
-                   .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(l => l.Application)
-                   .WithOne(a => a.Lease)
-                   .HasForeignKey<Lease>(l => l.ApplicationId)
-                   .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasMany(l => l.History)
-                   .WithOne(h => h.Lease)
-                   .HasForeignKey(h => h.LeaseId)
-                   .OnDelete(DeleteBehavior.Cascade);
-
-            builder.Property(l => l.Status).HasConversion<string>().HasMaxLength(50);
-            builder.Property(l => l.ContractType).HasMaxLength(50);
-            builder.Property(l => l.LeaseRegime).HasMaxLength(100);
-            builder.Property(l => l.AdvanceRentMonths).HasDefaultValue(0);
-            builder.Property(l => l.ContractFilePath).HasMaxLength(500);
-            builder.Property(l => l.LandlordSignatureRef).HasMaxLength(200);
-            builder.Property(l => l.TenantSignatureRef).HasMaxLength(200);
-        });
-
-        modelBuilder.Entity<LeaseHistory>(builder =>
-        {
-            builder.HasKey(h => h.Id);
-            builder.Property(h => h.Action).IsRequired().HasMaxLength(100);
-        });
 
         // Seed de Comodidades
         modelBuilder.Entity<Amenity>().HasData(

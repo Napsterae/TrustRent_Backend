@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Contracts.Models;
 
@@ -7,16 +7,16 @@ namespace TrustRent.Api.Services;
 
 public class CatalogLeaseAccessService : ILeaseAccessService
 {
-    private readonly CatalogDbContext _catalogDbContext;
+    private readonly LeasingDbContext _leasingDbContext;
 
-    public CatalogLeaseAccessService(CatalogDbContext catalogDbContext)
+    public CatalogLeaseAccessService(LeasingDbContext leasingDbContext)
     {
-        _catalogDbContext = catalogDbContext;
+        _leasingDbContext = leasingDbContext;
     }
 
     public async Task<LeaseAccessContext?> GetLeaseAccessContextAsync(Guid leaseId)
     {
-        return await _catalogDbContext.Leases
+        return await _leasingDbContext.Leases
             .Where(l => l.Id == leaseId)
             .Select(l => new LeaseAccessContext
             {

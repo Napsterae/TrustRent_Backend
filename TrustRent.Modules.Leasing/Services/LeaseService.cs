@@ -1,19 +1,21 @@
 using System.Security.Cryptography;
-using System.Text;
 using Microsoft.EntityFrameworkCore;
-using TrustRent.Modules.Catalog.Contracts.Database;
-using TrustRent.Modules.Catalog.Contracts.DTOs;
-using TrustRent.Modules.Catalog.Contracts.Interfaces;
-using TrustRent.Modules.Catalog.Mappers;
-using TrustRent.Modules.Catalog.Models;
-using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Modules.Leasing.Contracts.Database;
+using TrustRent.Modules.Leasing.Contracts.DTOs;
+using TrustRent.Modules.Leasing.Contracts.Interfaces;
+using TrustRent.Modules.Leasing.Mappers;
+using TrustRent.Modules.Leasing.Models;
+using TrustRent.Shared.Contracts.DTOs;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Shared.Models;
 
-namespace TrustRent.Modules.Catalog.Services;
+namespace TrustRent.Modules.Leasing.Services;
 
 public class LeaseService : ILeaseService
 {
-    private readonly CatalogDbContext _context;
+    private readonly LeasingDbContext _context;
+    private readonly ICatalogAccessService _catalogAccess;
     private readonly INotificationService _notificationService;
     private readonly IContractGenerationService _contractGenerationService;
     private readonly IDigitalSignatureService _digitalSignatureService;
@@ -21,7 +23,8 @@ public class LeaseService : ILeaseService
     private readonly IUserService _userService;
 
     public LeaseService(
-        CatalogDbContext context,
+        LeasingDbContext context,
+        ICatalogAccessService catalogAccess,
         INotificationService notificationService,
         IContractGenerationService contractGenerationService,
         IDigitalSignatureService digitalSignatureService,
@@ -29,6 +32,7 @@ public class LeaseService : ILeaseService
         IUserService userService)
     {
         _context = context;
+        _catalogAccess = catalogAccess;
         _notificationService = notificationService;
         _contractGenerationService = contractGenerationService;
         _digitalSignatureService = digitalSignatureService;
@@ -38,42 +42,35 @@ public class LeaseService : ILeaseService
 
     public async Task<LeaseDto> InitiateLeaseProcedureAsync(Guid applicationId, Guid userId, InitiateLeaseProcedureDto dto)
     {
-        var application = await _context.Applications
-            .Include(a => a.Property)
-            .Include(a => a.History)
-            .FirstOrDefaultAsync(a => a.Id == applicationId)
+        var appContext = await _catalogAccess.GetApplicationContextAsync(applicationId)
             ?? throw new KeyNotFoundException("Candidatura não encontrada.");
 
-        var property = application.Property
-            ?? throw new InvalidOperationException("Imóvel associado à candidatura não encontrado.");
-
-        if (userId != application.TenantId && userId != property.LandlordId)
+        if (userId != appContext.TenantId && userId != appContext.LandlordId)
             throw new UnauthorizedAccessException("Apenas o proprietário ou o inquilino podem iniciar o procedimento de arrendamento.");
 
-        LeaseValidator.ValidateInitiate(application, dto.ProposedStartDate);
+        LeaseValidator.ValidateInitiate(appContext.Status, dto.ProposedStartDate);
 
-        var endDate = dto.ProposedStartDate.AddMonths(application.DurationMonths);
+        var endDate = dto.ProposedStartDate.AddMonths(appContext.DurationMonths);
 
         var lease = new Lease
         {
-
-            PropertyId = property.Id,
-            TenantId = application.TenantId,
-            LandlordId = property.LandlordId,
+            PropertyId = appContext.PropertyId,
+            TenantId = appContext.TenantId,
+            LandlordId = appContext.LandlordId,
             ApplicationId = applicationId,
             StartDate = dto.ProposedStartDate.ToUniversalTime(),
             EndDate = endDate.ToUniversalTime(),
-            DurationMonths = application.DurationMonths,
-            AllowsRenewal = property.AllowsRenewal,
-            MonthlyRent = property.Price,
-            Deposit = property.Deposit,
-            AdvanceRentMonths = property.AdvanceRentMonths,
-            LeaseRegime = property.LeaseRegime?.ToString(),
-            ContractType = property.HasOfficialContract ? "Official" : "Informal",
-            CondominiumFeesPaidBy = property.CondominiumFeesPaidBy,
-            WaterPaidBy = property.WaterPaidBy,
-            ElectricityPaidBy = property.ElectricityPaidBy,
-            GasPaidBy = property.GasPaidBy,
+            DurationMonths = appContext.DurationMonths,
+            AllowsRenewal = appContext.AllowsRenewal,
+            MonthlyRent = appContext.Price,
+            Deposit = appContext.Deposit,
+            AdvanceRentMonths = appContext.AdvanceRentMonths,
+            LeaseRegime = appContext.LeaseRegime,
+            ContractType = appContext.HasOfficialContract ? "Official" : "Informal",
+            CondominiumFeesPaidBy = appContext.CondominiumFeesPaidBy,
+            WaterPaidBy = appContext.WaterPaidBy,
+            ElectricityPaidBy = appContext.ElectricityPaidBy,
+            GasPaidBy = appContext.GasPaidBy,
             Status = LeaseStatus.Pending
         };
 
@@ -82,28 +79,20 @@ public class LeaseService : ILeaseService
             LeaseId = lease.Id,
             ActorId = userId,
             Action = "LeaseInitiated",
-            Message = $"Procedimento de arrendamento iniciado. Data proposta: {dto.ProposedStartDate:dd/MM/yyyy}, Duração: {application.DurationMonths} meses."
-        });
-
-        application.Status = ApplicationStatus.LeaseStartDateProposed;
-        application.UpdatedAt = DateTime.UtcNow;
-        _context.ApplicationHistories.Add(new ApplicationHistory
-        {
-            ApplicationId = applicationId,
-            ActorId = userId,
-            Action = "Procedimento de Arrendamento Iniciado",
-            Message = $"Data proposta: {dto.ProposedStartDate:dd/MM/yyyy}, Duração: {application.DurationMonths} meses."
+            Message = $"Procedimento de arrendamento iniciado. Data proposta: {dto.ProposedStartDate:dd/MM/yyyy}, Duração: {appContext.DurationMonths} meses."
         });
 
         _context.Leases.Add(lease);
         await _context.SaveChangesAsync();
 
-        // Notificar a outra parte
-        var recipientId = userId == property.LandlordId ? application.TenantId : property.LandlordId;
-        await _notificationService.SendNotificationAsync(
-            recipientId, "lease",
-            $"Foi proposta a data de início do arrendamento: {dto.ProposedStartDate:dd/MM/yyyy}.",
-            lease.Id);
+        // Update application status via cross-module access
+        await _catalogAccess.UpdateApplicationStatusAsync(applicationId, (int)ApplicationStatus.LeaseStartDateProposed, userId,
+            "Procedimento de Arrendamento Iniciado",
+            $"Data proposta: {dto.ProposedStartDate:dd/MM/yyyy}, Duração: {appContext.DurationMonths} meses.");
+
+        var recipientId = userId == appContext.LandlordId ? appContext.TenantId : appContext.LandlordId;
+        await _notificationService.SendNotificationAsync(recipientId, "lease",
+            $"Foi proposta a data de início do arrendamento: {dto.ProposedStartDate:dd/MM/yyyy}.", lease.Id);
 
         return lease.ToDto();
     }
@@ -112,20 +101,17 @@ public class LeaseService : ILeaseService
     {
         var lease = await _context.Leases
             .Include(l => l.History)
-            .Include(l => l.Property)
             .FirstOrDefaultAsync(l => l.Id == leaseId)
             ?? throw new KeyNotFoundException("Arrendamento não encontrado.");
 
-        var application = await _context.Applications
-            .Include(a => a.History)
-            .FirstOrDefaultAsync(a => a.Id == lease.ApplicationId)
+        var appContext = await _catalogAccess.GetApplicationContextAsync(lease.ApplicationId)
             ?? throw new KeyNotFoundException("Candidatura associada não encontrada.");
 
         LeaseValidator.ValidateConfirmStartDate(lease, userId, dto.StartDate);
 
         lease.StartDate = dto.StartDate.ToUniversalTime();
-        lease.EndDate = dto.StartDate.AddMonths(application.DurationMonths).ToUniversalTime();
-        lease.DurationMonths = application.DurationMonths;
+        lease.EndDate = dto.StartDate.AddMonths(appContext.DurationMonths).ToUniversalTime();
+        lease.DurationMonths = appContext.DurationMonths;
         lease.UpdatedAt = DateTime.UtcNow;
 
         lease.History.Add(new LeaseHistory
@@ -133,34 +119,26 @@ public class LeaseService : ILeaseService
             LeaseId = lease.Id,
             ActorId = userId,
             Action = "StartDateConfirmed",
-            Message = $"Data de início confirmada: {dto.StartDate:dd/MM/yyyy}, Duração: {application.DurationMonths} meses."
+            Message = $"Data de início confirmada: {dto.StartDate:dd/MM/yyyy}, Duração: {appContext.DurationMonths} meses."
         });
 
-        application.Status = ApplicationStatus.LeaseStartDateConfirmed;
-        application.UpdatedAt = DateTime.UtcNow;
-        application.History.Add(new ApplicationHistory
-        {
-            ApplicationId = application.Id,
-            ActorId = userId,
-            Action = "Data de Início Confirmada",
-            Message = $"Data: {dto.StartDate:dd/MM/yyyy}, Fim: {lease.EndDate:dd/MM/yyyy}"
-        });
-
-        // Gerar contrato se oficial
+        // Generate contract if official
         if (lease.ContractType == "Official")
         {
-            await GenerateContractInternalAsync(lease, application);
+            await GenerateContractInternalAsync(lease, appContext);
         }
 
-        // Mudar para a fase de assinatura sequencial
+        // Move to signature phase
         if (lease.ContractType == "Official")
             lease.Status = LeaseStatus.PendingLandlordSignature;
         else
             lease.Status = LeaseStatus.AwaitingSignatures;
 
-        application.Status = ApplicationStatus.ContractPendingSignature;
-
         await _context.SaveChangesAsync();
+
+        await _catalogAccess.UpdateApplicationStatusAsync(lease.ApplicationId, (int)ApplicationStatus.ContractPendingSignature, userId,
+            "Data de Início Confirmada",
+            $"Data: {dto.StartDate:dd/MM/yyyy}, Fim: {lease.EndDate:dd/MM/yyyy}");
 
         var recipientId = userId == lease.LandlordId ? lease.TenantId : lease.LandlordId;
         var msg = lease.ContractType == "Official"
@@ -169,7 +147,6 @@ public class LeaseService : ILeaseService
 
         await _notificationService.SendNotificationAsync(recipientId, "lease", msg, lease.Id);
 
-        // Notificar também o senhorio se for oficial (é ele quem tem de agir primeiro)
         if (lease.ContractType == "Official" && userId != lease.LandlordId)
             await _notificationService.SendNotificationAsync(lease.LandlordId, "lease",
                 "A data de início foi confirmada. Descarrega, assina e faz upload do contrato para dar início ao processo.", lease.Id);
@@ -181,20 +158,17 @@ public class LeaseService : ILeaseService
     {
         var lease = await _context.Leases
             .Include(l => l.History)
-            .Include(l => l.Property)
             .FirstOrDefaultAsync(l => l.Id == leaseId)
             ?? throw new KeyNotFoundException("Arrendamento não encontrado.");
 
-        var application = await _context.Applications
-            .Include(a => a.History)
-            .FirstOrDefaultAsync(a => a.Id == lease.ApplicationId)
+        var appContext = await _catalogAccess.GetApplicationContextAsync(lease.ApplicationId)
             ?? throw new KeyNotFoundException("Candidatura associada não encontrada.");
 
         LeaseValidator.ValidateCounterProposeStartDate(lease, userId, dto.StartDate);
 
         lease.StartDate = dto.StartDate.ToUniversalTime();
-        lease.EndDate = dto.StartDate.AddMonths(application.DurationMonths).ToUniversalTime();
-        lease.DurationMonths = application.DurationMonths;
+        lease.EndDate = dto.StartDate.AddMonths(appContext.DurationMonths).ToUniversalTime();
+        lease.DurationMonths = appContext.DurationMonths;
         lease.UpdatedAt = DateTime.UtcNow;
 
         lease.History.Add(new LeaseHistory
@@ -202,19 +176,14 @@ public class LeaseService : ILeaseService
             LeaseId = lease.Id,
             ActorId = userId,
             Action = "StartDateCounterProposed",
-            Message = $"Nova data proposta: {dto.StartDate:dd/MM/yyyy}, Duração: {application.DurationMonths} meses."
-        });
-
-        application.UpdatedAt = DateTime.UtcNow;
-        application.History.Add(new ApplicationHistory
-        {
-            ApplicationId = application.Id,
-            ActorId = userId,
-            Action = "Nova Data de Arrendamento Proposta",
-            Message = $"Data proposta: {dto.StartDate:dd/MM/yyyy}, Duração: {application.DurationMonths} meses."
+            Message = $"Nova data proposta: {dto.StartDate:dd/MM/yyyy}, Duração: {appContext.DurationMonths} meses."
         });
 
         await _context.SaveChangesAsync();
+
+        await _catalogAccess.UpdateApplicationStatusAsync(lease.ApplicationId, (int)ApplicationStatus.LeaseStartDateProposed, userId,
+            "Nova Data de Arrendamento Proposta",
+            $"Data proposta: {dto.StartDate:dd/MM/yyyy}, Duração: {appContext.DurationMonths} meses.");
 
         var recipientId = userId == lease.LandlordId ? lease.TenantId : lease.LandlordId;
         await _notificationService.SendNotificationAsync(recipientId, "lease",
@@ -238,7 +207,6 @@ public class LeaseService : ILeaseService
         var contractBytes = await _contractGenerationService.GetContractBytesAsync(lease.ContractFilePath);
         var documentHash = Convert.ToBase64String(SHA256.HashData(contractBytes));
 
-        // Obter email do utilizador (aproximação: usar userId como placeholder — em produção passar do contexto)
         var userEmail = $"{userId}@trustrent.local";
 
         var result = await _digitalSignatureService.InitiateCmdSignatureAsync(documentHash, dto.PhoneNumber, userEmail);
@@ -247,7 +215,6 @@ public class LeaseService : ILeaseService
 
         lease.History.Add(new LeaseHistory
         {
-
             LeaseId = lease.Id,
             ActorId = userId,
             Action = "SignatureRequested",
@@ -267,11 +234,6 @@ public class LeaseService : ILeaseService
             .Include(l => l.History)
             .FirstOrDefaultAsync(l => l.Id == leaseId)
             ?? throw new KeyNotFoundException("Arrendamento não encontrado.");
-
-        var application = await _context.Applications
-            .Include(a => a.History)
-            .FirstOrDefaultAsync(a => a.Id == lease.ApplicationId)
-            ?? throw new KeyNotFoundException("Candidatura associada não encontrada.");
 
         LeaseValidator.ValidateConfirmSignature(lease, userId);
 
@@ -295,24 +257,23 @@ public class LeaseService : ILeaseService
 
         lease.History.Add(new LeaseHistory
         {
-
             LeaseId = lease.Id,
             ActorId = userId,
             Action = "SignatureConfirmed",
-            Message = $"Assinatura confirmada via CMD.",
+            Message = "Assinatura confirmada via CMD.",
             EventData = result.SignatureRef
         });
 
         lease.UpdatedAt = now;
 
         if (lease.LandlordSigned && lease.TenantSigned)
-            await ActivateLeaseAsync(lease, application, now);
+            await ActivateLeaseAsync(lease);
 
         await _context.SaveChangesAsync();
 
         if (lease.Status == LeaseStatus.AwaitingPayment)
         {
-            // As notificações de pagamento são enviadas dentro do ActivateLeaseAsync
+            // Notifications sent inside ActivateLeaseAsync
         }
         else
         {
@@ -330,11 +291,6 @@ public class LeaseService : ILeaseService
             .Include(l => l.History)
             .FirstOrDefaultAsync(l => l.Id == leaseId)
             ?? throw new KeyNotFoundException("Arrendamento não encontrado.");
-
-        var application = await _context.Applications
-            .Include(a => a.History)
-            .FirstOrDefaultAsync(a => a.Id == lease.ApplicationId)
-            ?? throw new KeyNotFoundException("Candidatura associada não encontrada.");
 
         LeaseValidator.ValidateAcceptTerms(lease, userId);
 
@@ -355,7 +311,6 @@ public class LeaseService : ILeaseService
 
         lease.History.Add(new LeaseHistory
         {
-
             LeaseId = lease.Id,
             ActorId = userId,
             Action = "TermsAccepted",
@@ -365,13 +320,13 @@ public class LeaseService : ILeaseService
         lease.UpdatedAt = now;
 
         if (lease.LandlordSigned && lease.TenantSigned)
-            await ActivateLeaseAsync(lease, application, now);
+            await ActivateLeaseAsync(lease);
 
         await _context.SaveChangesAsync();
 
         if (lease.Status == LeaseStatus.AwaitingPayment)
         {
-            // As notificações de pagamento são enviadas dentro do ActivateLeaseAsync
+            // Notifications sent inside ActivateLeaseAsync
         }
         else
         {
@@ -387,7 +342,6 @@ public class LeaseService : ILeaseService
     {
         var lease = await _context.Leases
             .Include(l => l.History)
-            .Include(l => l.Property)
             .FirstOrDefaultAsync(l => l.Id == leaseId);
 
         if (lease == null) return null;
@@ -431,9 +385,7 @@ public class LeaseService : ILeaseService
 
     public async Task<byte[]> GenerateContractAsync(Guid leaseId, Guid userId)
     {
-        var lease = await _context.Leases
-            .Include(l => l.Property)
-            .FirstOrDefaultAsync(l => l.Id == leaseId)
+        var lease = await _context.Leases.FirstOrDefaultAsync(l => l.Id == leaseId)
             ?? throw new KeyNotFoundException("Arrendamento não encontrado.");
 
         if (userId != lease.TenantId && userId != lease.LandlordId)
@@ -452,11 +404,6 @@ public class LeaseService : ILeaseService
             .FirstOrDefaultAsync(l => l.Id == leaseId)
             ?? throw new KeyNotFoundException("Arrendamento não encontrado.");
 
-        var application = await _context.Applications
-            .Include(a => a.History)
-            .FirstOrDefaultAsync(a => a.Id == lease.ApplicationId)
-            ?? throw new KeyNotFoundException("Candidatura associada não encontrada.");
-
         LeaseValidator.ValidateCancel(lease, userId);
 
         lease.Status = LeaseStatus.Cancelled;
@@ -464,25 +411,16 @@ public class LeaseService : ILeaseService
 
         lease.History.Add(new LeaseHistory
         {
-
             LeaseId = lease.Id,
             ActorId = userId,
             Action = "LeaseCancelled",
             Message = dto.Reason
         });
 
-        application.Status = ApplicationStatus.Rejected;
-        application.UpdatedAt = DateTime.UtcNow;
-        application.History.Add(new ApplicationHistory
-        {
-
-            ApplicationId = application.Id,
-            ActorId = userId,
-            Action = "Arrendamento Cancelado",
-            Message = dto.Reason
-        });
-
         await _context.SaveChangesAsync();
+
+        await _catalogAccess.UpdateApplicationStatusAsync(lease.ApplicationId, (int)ApplicationStatus.Rejected, userId,
+            "Arrendamento Cancelado", dto.Reason);
 
         var recipientId = userId == lease.LandlordId ? lease.TenantId : lease.LandlordId;
         await _notificationService.SendNotificationAsync(recipientId, "lease",
@@ -511,11 +449,6 @@ public class LeaseService : ILeaseService
             .FirstOrDefaultAsync(l => l.Id == leaseId)
             ?? throw new KeyNotFoundException("Arrendamento não encontrado.");
 
-        var application = await _context.Applications
-            .Include(a => a.History)
-            .FirstOrDefaultAsync(a => a.Id == lease.ApplicationId)
-            ?? throw new KeyNotFoundException("Candidatura associada não encontrada.");
-
         if (userId != lease.LandlordId && userId != lease.TenantId)
             throw new UnauthorizedAccessException("Sem permissão para fazer upload neste arrendamento.");
 
@@ -525,24 +458,18 @@ public class LeaseService : ILeaseService
         if (lease.Status == LeaseStatus.PendingLandlordSignature)
         {
             if (userId != lease.LandlordId)
-                throw new UnauthorizedAccessException(
-                    "Apenas o proprietário pode fazer upload do contrato nesta fase. O inquilino deve aguardar.");
+                throw new UnauthorizedAccessException("Apenas o proprietário pode fazer upload do contrato nesta fase.");
 
             var verification = await _signedPdfVerification.VerifySignaturesAsync(pdfBytes, 1);
             if (!verification.IsValid)
-                throw new InvalidOperationException(
-                    $"O documento não contém uma assinatura digital válida. {verification.ErrorMessage}");
+                throw new InvalidOperationException($"O documento não contém uma assinatura digital válida. {verification.ErrorMessage}");
 
-            // ---- Verificar integridade: o PDF assinado deve ter sido derivado do contrato original ----
-            // GetRevision devolve os bytes do documento tal como estavam antes da assinatura ser aplicada.
-            // Comparamos o hash desses bytes com o hash do contrato original guardado na BD.
             var signedDocHash = verification.PreSignatureDocumentHashes.FirstOrDefault();
             if (!string.IsNullOrEmpty(lease.ContractFileHash) && !string.IsNullOrEmpty(signedDocHash))
             {
                 if (signedDocHash != lease.ContractFileHash)
                     throw new InvalidOperationException(
-                        "O documento que assinou não corresponde ao contrato gerado pela plataforma. " +
-                        "Por favor descarrega o contrato original da plataforma, assina esse ficheiro e volta a fazer upload.");
+                        "O documento que assinou não corresponde ao contrato gerado pela plataforma.");
             }
 
             var path = SaveSignedPdf(pdfBytes, lease.Id, "landlord", originalFileName);
@@ -551,7 +478,6 @@ public class LeaseService : ILeaseService
             lease.LandlordSignedAt = now;
             lease.LandlordSignatureVerified = true;
             lease.LandlordSignatureCertSubject = verification.Signatures.FirstOrDefault()?.CertificateSubject;
-            // Guardar hash do PDF assinado pelo senhorio — o inquilino deve assinar exactamente este ficheiro
             lease.LandlordSignedFileHash = Convert.ToBase64String(SHA256.HashData(pdfBytes));
             lease.Status = LeaseStatus.PendingTenantSignature;
             lease.UpdatedAt = now;
@@ -563,14 +489,11 @@ public class LeaseService : ILeaseService
                 Message = $"Proprietário fez upload do contrato assinado. Cert: {lease.LandlordSignatureCertSubject}"
             });
 
-            application.History.Add(new ApplicationHistory
-            {
-                ApplicationId = application.Id, ActorId = userId,
-                Action = "Contrato Assinado pelo Proprietário",
-                Message = "O proprietário fez upload do contrato assinado digitalmente. O inquilino deve agora assinar."
-            });
-
             await _context.SaveChangesAsync();
+
+            await _catalogAccess.UpdateApplicationStatusAsync(lease.ApplicationId, (int)ApplicationStatus.ContractPendingSignature, userId,
+                "Contrato Assinado pelo Proprietário",
+                "O proprietário fez upload do contrato assinado digitalmente. O inquilino deve agora assinar.");
 
             await _notificationService.SendNotificationAsync(lease.TenantId, "lease",
                 "O proprietário assinou o contrato. Descarrega o documento, assina-o com a tua Chave Móvel Digital e faz upload.",
@@ -583,29 +506,23 @@ public class LeaseService : ILeaseService
         if (lease.Status == LeaseStatus.PendingTenantSignature)
         {
             if (userId != lease.TenantId)
-                throw new UnauthorizedAccessException(
-                    "Apenas o inquilino pode fazer upload do contrato nesta fase.");
+                throw new UnauthorizedAccessException("Apenas o inquilino pode fazer upload do contrato nesta fase.");
 
             var verificationT = await _signedPdfVerification.VerifySignaturesAsync(pdfBytes, 2);
             if (!verificationT.IsValid)
-                throw new InvalidOperationException(
-                    $"O documento deve conter a assinatura do proprietário e a tua. {verificationT.ErrorMessage}");
+                throw new InvalidOperationException($"O documento deve conter a assinatura do proprietário e a tua. {verificationT.ErrorMessage}");
 
-            // ---- Verificar integridade: o documento que o inquilino assinou deve ser o PDF do senhorio ----
-            // A 2ª assinatura foi aplicada sobre o PDF já assinado pelo senhorio.
-            // O hash da revisão antes da 2ª assinatura deve coincidir com o hash do PDF do senhorio.
             var tenantBaseHash = verificationT.PreSignatureDocumentHashes.ElementAtOrDefault(1);
             if (!string.IsNullOrEmpty(lease.LandlordSignedFileHash) && !string.IsNullOrEmpty(tenantBaseHash))
             {
                 if (tenantBaseHash != lease.LandlordSignedFileHash)
                     throw new InvalidOperationException(
-                        "O documento que assinou não é o mesmo que o proprietário assinou. " +
-                        "Por favor descarrega o documento (já assinado pelo proprietário) da plataforma, assina esse ficheiro e volta a fazer upload.");
+                        "O documento que assinou não é o mesmo que o proprietário assinou.");
             }
 
             var path = SaveSignedPdf(pdfBytes, lease.Id, "final", originalFileName);
             lease.TenantSignedFilePath = path;
-            lease.ContractFilePath = path; // documento final substitui o original
+            lease.ContractFilePath = path;
             lease.TenantSigned = true;
             lease.TenantSignedAt = now;
             lease.TenantSignatureVerified = true;
@@ -620,23 +537,17 @@ public class LeaseService : ILeaseService
                 Message = $"Inquilino fez upload do contrato com ambas as assinaturas. Cert: {lease.TenantSignatureCertSubject}"
             });
 
-            application.History.Add(new ApplicationHistory
-            {
-                ApplicationId = application.Id, ActorId = userId,
-                Action = "Contrato Assinado pelo Inquilino",
-                Message = "O inquilino assinou o contrato. Ambas as assinaturas verificadas — arrendamento ativo."
-            });
-
-            await ActivateLeaseAsync(lease, application, now);
+            await ActivateLeaseAsync(lease);
             await _context.SaveChangesAsync();
 
-            // Notificações de pagamento são enviadas dentro do ActivateLeaseAsync
+            await _catalogAccess.UpdateApplicationStatusAsync(lease.ApplicationId, (int)ApplicationStatus.AwaitingPayment, Guid.Empty,
+                "Aguarda Pagamento",
+                "Termos aceites por ambas as partes. O inquilino deve efetuar o pagamento inicial para ativar o arrendamento.");
 
             return lease.ToDto();
         }
 
-        throw new InvalidOperationException(
-            $"Este arrendamento não está numa fase de upload de assinatura (estado atual: {lease.Status}).");
+        throw new InvalidOperationException($"Este arrendamento não está numa fase de upload de assinatura (estado atual: {lease.Status}).");
     }
 
     public async Task<byte[]?> GetLandlordSignedContractAsync(Guid leaseId, Guid userId)
@@ -660,9 +571,7 @@ public class LeaseService : ILeaseService
         return path;
     }
 
-    // ---- Private helpers ----
-
-    private async Task GenerateContractInternalAsync(Lease lease, Application application)
+    private async Task GenerateContractInternalAsync(Lease lease, ApplicationContext appContext)
     {
         var landlordProfile = await _userService.GetProfileAsync(lease.LandlordId);
         var tenantProfile = await _userService.GetProfileAsync(lease.TenantId);
@@ -673,12 +582,8 @@ public class LeaseService : ILeaseService
         if (string.IsNullOrWhiteSpace(tenantProfile?.Nif) || string.IsNullOrWhiteSpace(tenantProfile?.Address))
             throw new InvalidOperationException("O contrato não pode ser gerado: o Inquilino não tem o NIF ou a Morada preenchidos no perfil.");
 
-        var property = lease.Property;
-        if (property != null)
-        {
-            if (string.IsNullOrWhiteSpace(property.Street) || string.IsNullOrWhiteSpace(property.PostalCode) || string.IsNullOrWhiteSpace(property.Municipality))
-                throw new InvalidOperationException("O contrato não pode ser gerado: o Imóvel não tem a Morada, Código Postal ou Localidade devidamente preenchidos.");
-        }
+        if (string.IsNullOrWhiteSpace(appContext.Street) || string.IsNullOrWhiteSpace(appContext.PostalCode) || string.IsNullOrWhiteSpace(appContext.Municipality))
+            throw new InvalidOperationException("O contrato não pode ser gerado: o Imóvel não tem a Morada, Código Postal ou Localidade devidamente preenchidos.");
 
         var landlordName = landlordProfile?.Name ?? $"Proprietário {lease.LandlordId.ToString()[..8]}";
         var landlordNif = landlordProfile?.Nif ?? "000000000";
@@ -692,14 +597,31 @@ public class LeaseService : ILeaseService
         if (!string.IsNullOrEmpty(tenantProfile?.PostalCode))
             tenantAddress += $", {tenantProfile.PostalCode}";
 
+        var propertyInfo = new ContractPropertyInfo
+        {
+            Street = appContext.Street,
+            DoorNumber = appContext.DoorNumber,
+            PostalCode = appContext.PostalCode,
+            Parish = appContext.Parish,
+            Municipality = appContext.Municipality,
+            District = appContext.District,
+            Typology = appContext.Typology,
+            MatrixArticle = appContext.MatrixArticle,
+            PropertyFraction = appContext.PropertyFraction,
+            UsageLicenseNumber = appContext.UsageLicenseNumber,
+            UsageLicenseDate = appContext.UsageLicenseDate,
+            UsageLicenseIssuer = appContext.UsageLicenseIssuer,
+            EnergyCertificateNumber = appContext.EnergyCertificateNumber,
+            EnergyClass = appContext.EnergyClass
+        };
+
         var filePath = await _contractGenerationService.GenerateContractPdfAsync(
             lease, landlordName, landlordNif, landlordAddress,
-            tenantName, tenantNif, tenantAddress);
+            tenantName, tenantNif, tenantAddress, propertyInfo);
 
         lease.ContractFilePath = filePath;
         lease.ContractGeneratedAt = DateTime.UtcNow;
 
-        // Guardar hash do ficheiro original para validar integridade no upload
         var contractBytes = await File.ReadAllBytesAsync(filePath);
         lease.ContractFileHash = Convert.ToBase64String(SHA256.HashData(contractBytes));
 
@@ -712,43 +634,28 @@ public class LeaseService : ILeaseService
             EventData = filePath
         });
 
-        application.History.Add(new ApplicationHistory
-        {
-            ApplicationId = application.Id,
-            ActorId = Guid.Empty,
-            Action = "Contrato Gerado",
-            Message = "O contrato de arrendamento foi gerado e está pronto para assinatura."
-        });
+        await _catalogAccess.UpdateApplicationStatusAsync(lease.ApplicationId, (int)ApplicationStatus.ContractPendingSignature, Guid.Empty,
+            "Contrato Gerado",
+            "O contrato de arrendamento foi gerado e está pronto para assinatura.");
     }
 
-    private async Task ActivateLeaseAsync(Lease lease, Application application, DateTime now)
+    private async Task ActivateLeaseAsync(Lease lease)
     {
-        // Em vez de ativar diretamente, colocar em AwaitingPayment
-        // O lease será ativado pelo CatalogLeaseActivationService após pagamento confirmado
         lease.Status = LeaseStatus.AwaitingPayment;
-        lease.ContractSignedAt = now;
+        lease.ContractSignedAt = DateTime.UtcNow;
 
         lease.History.Add(new LeaseHistory
         {
-
             LeaseId = lease.Id,
             ActorId = Guid.Empty,
             Action = "AwaitingPayment",
             Message = "Contrato assinado/aceite por ambas as partes. Aguarda pagamento inicial do inquilino."
         });
 
-        application.Status = ApplicationStatus.AwaitingPayment;
-        application.UpdatedAt = now;
-        application.History.Add(new ApplicationHistory
-        {
+        await _catalogAccess.UpdateApplicationStatusAsync(lease.ApplicationId, (int)ApplicationStatus.AwaitingPayment, Guid.Empty,
+            "Aguarda Pagamento",
+            "Termos aceites por ambas as partes. O inquilino deve efetuar o pagamento inicial para ativar o arrendamento.");
 
-            ApplicationId = application.Id,
-            ActorId = Guid.Empty,
-            Action = "Aguarda Pagamento",
-            Message = "Termos aceites por ambas as partes. O inquilino deve efetuar o pagamento inicial para ativar o arrendamento."
-        });
-
-        // Notificar inquilino que deve efetuar o pagamento
         await _notificationService.SendNotificationAsync(lease.TenantId, "payment",
             "O contrato foi aceite por ambas as partes. Efetua o pagamento inicial para ativar o arrendamento.", lease.Id);
         await _notificationService.SendNotificationAsync(lease.LandlordId, "payment",
