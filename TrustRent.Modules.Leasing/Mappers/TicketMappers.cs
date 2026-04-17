@@ -46,7 +46,8 @@ public static class TicketMappers
             Status = ticket.Status.ToString(),
             CreatedAt = ticket.CreatedAt,
             CommentCount = ticket.Comments?.Count ?? 0,
-            AttachmentCount = ticket.Attachments?.Count ?? 0
+            AttachmentCount = ticket.Attachments?.Count ?? 0,
+            TenantId = ticket.TenantId
         };
     }
 

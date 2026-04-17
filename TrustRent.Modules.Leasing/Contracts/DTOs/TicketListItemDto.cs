@@ -10,4 +10,9 @@ public class TicketListItemDto
     public DateTime CreatedAt { get; set; }
     public int CommentCount { get; set; }
     public int AttachmentCount { get; set; }
+
+    // Tenant info
+    public Guid TenantId { get; set; }
+    public string TenantName { get; set; } = string.Empty;
+    public string? TenantProfilePictureUrl { get; set; }
 }

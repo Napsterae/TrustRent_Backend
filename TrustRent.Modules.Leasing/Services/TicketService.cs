@@ -4,6 +4,7 @@ using TrustRent.Modules.Leasing.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Mappers;
 using TrustRent.Modules.Leasing.Models;
 using TrustRent.Modules.Leasing.Repositories;
+using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Shared.Contracts.Interfaces;
 
 namespace TrustRent.Modules.Leasing.Services;
@@ -12,17 +13,23 @@ public class TicketService : ITicketService
 {
     private readonly ILeasingUnitOfWork _unitOfWork;
     private readonly ILeaseAccessService _leaseAccessService;
+    private readonly ICatalogAccessService _catalogAccessService;
+    private readonly IUserService _userService;
     private readonly INotificationService _notificationService;
     private readonly ILogger<TicketService> _logger;
 
     public TicketService(
         ILeasingUnitOfWork unitOfWork,
         ILeaseAccessService leaseAccessService,
+        ICatalogAccessService catalogAccessService,
+        IUserService userService,
         INotificationService notificationService,
         ILogger<TicketService> logger)
     {
         _unitOfWork = unitOfWork;
         _leaseAccessService = leaseAccessService;
+        _catalogAccessService = catalogAccessService;
+        _userService = userService;
         _notificationService = notificationService;
         _logger = logger;
     }
@@ -99,7 +106,27 @@ public class TicketService : ITicketService
 
         var tickets = await _unitOfWork.Tickets.GetByLeaseIdAsync(leaseId);
 
-        return tickets.Select(t => t.ToListDto());
+        var items = tickets.Select(t => t.ToListDto()).ToList();
+        await EnrichListItemsWithTenantInfoAsync(items);
+        return items;
+    }
+
+    public async Task<IEnumerable<TicketListItemDto>> GetTicketsByPropertyAsync(Guid propertyId, Guid userId)
+    {
+        _logger.LogInformation("Getting tickets for property {PropertyId} by user {UserId}", propertyId, userId);
+
+        // Verify user is the landlord of this property
+        var property = await _catalogAccessService.GetPropertyContextAsync(propertyId)
+            ?? throw new KeyNotFoundException("Imóvel não encontrado.");
+
+        if (property.LandlordId != userId)
+            throw new UnauthorizedAccessException("Apenas o proprietário pode ver tickets deste imóvel.");
+
+        var tickets = await _unitOfWork.Tickets.GetByPropertyIdAsync(propertyId);
+
+        var items = tickets.Select(t => t.ToListDto()).ToList();
+        await EnrichListItemsWithTenantInfoAsync(items);
+        return items;
     }
 
     public async Task<TicketDto?> GetTicketByIdAsync(Guid ticketId, Guid userId)
@@ -115,7 +142,14 @@ public class TicketService : ITicketService
         if (userId != ticket.TenantId && userId != ticket.LandlordId)
             throw new UnauthorizedAccessException("Acesso negado a este ticket.");
 
-        return ticket.ToDto();
+        var dto = ticket.ToDto();
+        var tenantProfile = await _userService.GetProfileDtoAsync(ticket.TenantId);
+        if (tenantProfile != null)
+        {
+            dto.TenantName = tenantProfile.Name;
+            dto.TenantProfilePictureUrl = tenantProfile.ProfilePictureUrl;
+        }
+        return dto;
     }
 
     public async Task<TicketDto> UpdateTicketStatusAsync(Guid ticketId, Guid userId, UpdateTicketStatusDto dto)
@@ -125,9 +159,11 @@ public class TicketService : ITicketService
         var ticket = await _unitOfWork.Tickets.GetByIdWithCommentsAndAttachmentsAsync(ticketId)
             ?? throw new KeyNotFoundException("Ticket não encontrado.");
 
-        // Only landlord can update status
-        if (userId != ticket.LandlordId)
-            throw new UnauthorizedAccessException("Apenas o senhorio pode atualizar o status do ticket.");
+        // Validate role-based status update permissions
+        var isLandlord = userId == ticket.LandlordId;
+        var isTenant = userId == ticket.TenantId;
+        if (!isLandlord && !isTenant)
+            throw new UnauthorizedAccessException("Apenas o senhorio ou inquilino podem atualizar o status do ticket.");
 
         // Parse new status
         var newStatus = Enum.TryParse<TicketStatus>(dto.Status, true, out var parsedStatus)
@@ -137,6 +173,12 @@ public class TicketService : ITicketService
         // Validate state transition
         if (!IsValidStatusTransition(ticket.Status, newStatus))
             throw new InvalidOperationException($"Transição inválida de {ticket.Status} para {newStatus}.");
+
+        // Role-based transition rules: tenant can only mark as Resolved, landlord handles the rest
+        if (isTenant && newStatus != TicketStatus.Resolved)
+            throw new UnauthorizedAccessException("O inquilino apenas pode marcar o ticket como resolvido.");
+        if (isLandlord && newStatus == TicketStatus.Resolved)
+            throw new UnauthorizedAccessException("Apenas o inquilino pode marcar o ticket como resolvido.");
 
         ticket.Status = newStatus;
         ticket.UpdatedAt = DateTime.UtcNow;
@@ -149,18 +191,19 @@ public class TicketService : ITicketService
 
         _logger.LogInformation("Ticket {TicketId} status updated to {Status}", ticketId, newStatus);
 
-        // Send notification to tenant
+        // Send notification to the other party
+        var notifyUserId = isTenant ? ticket.LandlordId : ticket.TenantId;
         try
         {
             await _notificationService.SendNotificationAsync(
-                ticket.TenantId,
+                notifyUserId,
                 "TicketUpdate",
                 $"Ticket \"{ticket.Title}\" atualizado: {newStatus}",
                 ticket.Id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send notification to tenant {TenantId}", ticket.TenantId);
+            _logger.LogError(ex, "Failed to send notification to user {UserId}", notifyUserId);
         }
 
         return ticket.ToDto();
@@ -255,5 +298,27 @@ public class TicketService : ITicketService
             (TicketStatus.Resolved, TicketStatus.Open) => true,
             _ => false
         };
+    }
+
+    private async Task EnrichListItemsWithTenantInfoAsync(List<TicketListItemDto> items)
+    {
+        var tenantIds = items.Select(i => i.TenantId).Distinct().ToList();
+        var profiles = new Dictionary<Guid, (string Name, string? Avatar)>();
+
+        foreach (var tenantId in tenantIds)
+        {
+            var profile = await _userService.GetProfileDtoAsync(tenantId);
+            if (profile != null)
+                profiles[tenantId] = (profile.Name, profile.ProfilePictureUrl);
+        }
+
+        foreach (var item in items)
+        {
+            if (profiles.TryGetValue(item.TenantId, out var info))
+            {
+                item.TenantName = info.Name;
+                item.TenantProfilePictureUrl = info.Avatar;
+            }
+        }
     }
 }

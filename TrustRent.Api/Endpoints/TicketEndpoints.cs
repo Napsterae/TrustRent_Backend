@@ -12,6 +12,20 @@ public static class TicketEndpoints
     {
         var group = app.MapGroup("/api/tickets");
 
+        // GET /api/properties/{propertyId}/tickets - Get all tickets for a property (landlord only)
+        app.MapGet("/api/properties/{propertyId:guid}/tickets",
+            async (Guid propertyId, ITicketService service, ClaimsPrincipal user) =>
+            {
+                if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
+                try
+                {
+                    var tickets = await service.GetTicketsByPropertyAsync(propertyId, userId);
+                    return Results.Ok(tickets);
+                }
+                catch (KeyNotFoundException e) { return Results.NotFound(e.Message); }
+                catch (UnauthorizedAccessException) { return Results.Forbid(); }
+            }).RequireAuthorization();
+
         // POST /api/leases/{leaseId}/tickets - Create ticket
         app.MapPost("/api/leases/{leaseId:guid}/tickets",
             async (Guid leaseId, [FromBody] CreateTicketDto dto,

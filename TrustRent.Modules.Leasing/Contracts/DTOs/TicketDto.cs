@@ -17,6 +17,10 @@ public class TicketDto
     public DateTime? ResolvedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 
+    // Tenant info
+    public string TenantName { get; set; } = string.Empty;
+    public string? TenantProfilePictureUrl { get; set; }
+
     public List<TicketCommentDto> Comments { get; set; } = new();
     public List<TicketAttachmentDto> Attachments { get; set; } = new();
 }

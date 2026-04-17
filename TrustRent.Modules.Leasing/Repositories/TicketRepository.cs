@@ -36,6 +36,21 @@ public class TicketRepository : ITicketRepository
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<Ticket>> GetByPropertyIdAsync(Guid propertyId)
+    {
+        var leaseIds = await _context.Leases
+            .Where(l => l.PropertyId == propertyId)
+            .Select(l => l.Id)
+            .ToListAsync();
+
+        return await _context.Tickets
+            .Where(t => leaseIds.Contains(t.LeaseId))
+            .Include(t => t.Comments)
+            .Include(t => t.Attachments)
+            .OrderByDescending(t => t.CreatedAt)
+            .ToListAsync();
+    }
+
     public async Task AddAsync(Ticket ticket)
     {
         await _context.Tickets.AddAsync(ticket);
