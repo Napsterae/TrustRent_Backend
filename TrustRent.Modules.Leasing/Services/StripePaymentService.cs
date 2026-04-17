@@ -59,7 +59,7 @@ public class StripePaymentService : IStripePaymentService
     {
         var options = new SetupIntentCreateOptions
         {
-            PaymentMethodTypes = new List<string> { "card" },
+            PaymentMethodTypes = new List<string> { "card", "revolut_pay" },
             Metadata = new Dictionary<string, string> { ["trustrent_user_id"] = userId.ToString() }
         };
 
@@ -83,15 +83,40 @@ public class StripePaymentService : IStripePaymentService
 
         var isFirst = !await _db.TenantPaymentMethods.AnyAsync(t => t.UserId == userId);
 
+        // Determinar tipo e dados de exibição
+        var type = pm.Type ?? "card";
+        string displayName;
+        string? cardBrand = null, cardLast4 = null;
+        int? cardExpMonth = null, cardExpYear = null;
+
+        switch (type)
+        {
+            case "card":
+                cardBrand = pm.Card?.Brand ?? "unknown";
+                cardLast4 = pm.Card?.Last4 ?? "0000";
+                cardExpMonth = (int)(pm.Card?.ExpMonth ?? 0);
+                cardExpYear = (int)(pm.Card?.ExpYear ?? 0);
+                displayName = $"{cardBrand?.ToUpperInvariant()} •••• {cardLast4}";
+                break;
+            case "revolut_pay":
+                displayName = "Revolut Pay";
+                break;
+            default:
+                displayName = type.Replace("_", " ").ToUpperInvariant();
+                break;
+        }
+
         var method = new TenantPaymentMethod
         {
             Id = Guid.NewGuid(),
             UserId = userId,
             StripePaymentMethodId = stripePaymentMethodId,
-            CardBrand = pm.Card?.Brand ?? "unknown",
-            CardLast4 = pm.Card?.Last4 ?? "0000",
-            CardExpMonth = (int)(pm.Card?.ExpMonth ?? 0),
-            CardExpYear = (int)(pm.Card?.ExpYear ?? 0),
+            Type = type,
+            DisplayName = displayName,
+            CardBrand = cardBrand,
+            CardLast4 = cardLast4,
+            CardExpMonth = cardExpMonth,
+            CardExpYear = cardExpYear,
             IsDefault = isFirst,
             CreatedAt = DateTime.UtcNow
         };
@@ -227,10 +252,7 @@ public class StripePaymentService : IStripePaymentService
                 Destination = stripeAccount.StripeAccountId
             },
             Metadata = metadata,
-            AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions
-            {
-                Enabled = true
-            }
+            PaymentMethodTypes = new List<string> { "card", "mbway", "multibanco", "revolut_pay" }
         };
 
         // Se foi fornecido um paymentMethodId, anexar
@@ -451,7 +473,8 @@ public class StripePaymentService : IStripePaymentService
     );
 
     private static TenantPaymentMethodDto MapPaymentMethodToDto(TenantPaymentMethod m) => new(
-        m.Id, m.CardBrand, m.CardLast4, m.CardExpMonth, m.CardExpYear, m.IsDefault
+        m.Id, m.Type, m.DisplayName, m.StripePaymentMethodId,
+        m.CardBrand, m.CardLast4, m.CardExpMonth, m.CardExpYear, m.IsDefault
     );
 
     #endregion

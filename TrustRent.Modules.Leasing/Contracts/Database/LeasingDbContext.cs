@@ -132,6 +132,8 @@ public class LeasingDbContext : DbContext
         {
             builder.HasKey(t => t.Id);
             builder.Property(t => t.StripePaymentMethodId).IsRequired().HasMaxLength(200);
+            builder.Property(t => t.Type).IsRequired().HasMaxLength(50).HasDefaultValue("card");
+            builder.Property(t => t.DisplayName).HasMaxLength(200);
             builder.Property(t => t.CardBrand).HasMaxLength(50);
             builder.Property(t => t.CardLast4).HasMaxLength(4);
             builder.HasIndex(t => t.StripePaymentMethodId).IsUnique();
