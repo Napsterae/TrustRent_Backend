@@ -119,6 +119,7 @@ builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.IDigit
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.ISignedPdfVerificationService, TrustRent.Modules.Leasing.Services.SignedPdfVerificationService>();
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Repositories.ILeasingUnitOfWork, TrustRent.Modules.Leasing.Repositories.LeasingUnitOfWork>();
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.ITicketService, TrustRent.Modules.Leasing.Services.TicketService>();
+builder.Services.AddScoped<TrustRent.Modules.Leasing.Jobs.IContractGenerationJob, TrustRent.Modules.Leasing.Jobs.ContractGenerationJob>();
 
 /* STRIPE / PAYMENTS */
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.IStripeAccountService, TrustRent.Modules.Leasing.Services.StripeAccountService>();
@@ -191,6 +192,10 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// QuestPDF license must be set globally BEFORE any Hangfire job can use it.
+// Without this, QuestPDF calls Environment.Exit(1) and kills the process silently.
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 if (app.Environment.IsDevelopment())
 {

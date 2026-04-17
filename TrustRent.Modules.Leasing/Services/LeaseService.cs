@@ -1,8 +1,10 @@
 using System.Security.Cryptography;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Contracts.DTOs;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
+using TrustRent.Modules.Leasing.Jobs;
 using TrustRent.Modules.Leasing.Mappers;
 using TrustRent.Modules.Leasing.Models;
 using TrustRent.Shared.Contracts.DTOs;
@@ -21,6 +23,7 @@ public class LeaseService : ILeaseService
     private readonly IDigitalSignatureService _digitalSignatureService;
     private readonly ISignedPdfVerificationService _signedPdfVerification;
     private readonly IUserService _userService;
+    private readonly IBackgroundJobClient _backgroundJobs;
 
     public LeaseService(
         LeasingDbContext context,
@@ -29,7 +32,8 @@ public class LeaseService : ILeaseService
         IContractGenerationService contractGenerationService,
         IDigitalSignatureService digitalSignatureService,
         ISignedPdfVerificationService signedPdfVerification,
-        IUserService userService)
+        IUserService userService,
+        IBackgroundJobClient backgroundJobs)
     {
         _context = context;
         _catalogAccess = catalogAccess;
@@ -38,6 +42,7 @@ public class LeaseService : ILeaseService
         _digitalSignatureService = digitalSignatureService;
         _signedPdfVerification = signedPdfVerification;
         _userService = userService;
+        _backgroundJobs = backgroundJobs;
     }
 
     public async Task<LeaseDto> InitiateLeaseProcedureAsync(Guid applicationId, Guid userId, InitiateLeaseProcedureDto dto)
@@ -122,34 +127,41 @@ public class LeaseService : ILeaseService
             Message = $"Data de início confirmada: {dto.StartDate:dd/MM/yyyy}, Duração: {appContext.DurationMonths} meses."
         });
 
-        // Generate contract if official
+        // Generate contract if official (background job) or move to signatures
         if (lease.ContractType == "Official")
         {
-            await GenerateContractInternalAsync(lease, appContext);
+            lease.Status = LeaseStatus.GeneratingContract;
         }
-
-        // Move to signature phase
-        if (lease.ContractType == "Official")
-            lease.Status = LeaseStatus.PendingLandlordSignature;
         else
+        {
             lease.Status = LeaseStatus.AwaitingSignatures;
+        }
 
         await _context.SaveChangesAsync();
 
-        await _catalogAccess.UpdateApplicationStatusAsync(lease.ApplicationId, (int)ApplicationStatus.ContractPendingSignature, userId,
-            "Data de Início Confirmada",
-            $"Data: {dto.StartDate:dd/MM/yyyy}, Fim: {lease.EndDate:dd/MM/yyyy}");
+        if (lease.ContractType == "Official")
+        {
+            // Enqueue PDF generation as a background job
+            _backgroundJobs.Enqueue<IContractGenerationJob>(job => job.GenerateContractAsync(lease.Id));
 
-        var recipientId = userId == lease.LandlordId ? lease.TenantId : lease.LandlordId;
-        var msg = lease.ContractType == "Official"
-            ? "A data de início foi confirmada e o contrato foi gerado. O proprietário deve assiná-lo primeiro."
-            : "A data de início foi confirmada. Aguarda a aceitação dos termos do arrendamento.";
+            await _catalogAccess.UpdateApplicationStatusAsync(lease.ApplicationId, (int)ApplicationStatus.GeneratingContract, userId,
+                "Data de Início Confirmada",
+                $"Data: {dto.StartDate:dd/MM/yyyy}, Fim: {lease.EndDate:dd/MM/yyyy}. A gerar contrato...");
 
-        await _notificationService.SendNotificationAsync(recipientId, "lease", msg, lease.Id);
+            var recipientId = userId == lease.LandlordId ? lease.TenantId : lease.LandlordId;
+            await _notificationService.SendNotificationAsync(recipientId, "lease",
+                "A data de início foi confirmada. O contrato está a ser gerado...", lease.Id);
+        }
+        else
+        {
+            await _catalogAccess.UpdateApplicationStatusAsync(lease.ApplicationId, (int)ApplicationStatus.ContractPendingSignature, userId,
+                "Data de Início Confirmada",
+                $"Data: {dto.StartDate:dd/MM/yyyy}, Fim: {lease.EndDate:dd/MM/yyyy}");
 
-        if (lease.ContractType == "Official" && userId != lease.LandlordId)
-            await _notificationService.SendNotificationAsync(lease.LandlordId, "lease",
-                "A data de início foi confirmada. Descarrega, assina e faz upload do contrato para dar início ao processo.", lease.Id);
+            var recipientId = userId == lease.LandlordId ? lease.TenantId : lease.LandlordId;
+            await _notificationService.SendNotificationAsync(recipientId, "lease",
+                "A data de início foi confirmada. Aguarda a aceitação dos termos do arrendamento.", lease.Id);
+        }
 
         return lease.ToDto();
     }
@@ -569,74 +581,6 @@ public class LeaseService : ILeaseService
         var path = Path.Combine(dir, fileName);
         File.WriteAllBytes(path, pdfBytes);
         return path;
-    }
-
-    private async Task GenerateContractInternalAsync(Lease lease, ApplicationContext appContext)
-    {
-        var landlordProfile = await _userService.GetProfileAsync(lease.LandlordId);
-        var tenantProfile = await _userService.GetProfileAsync(lease.TenantId);
-
-        if (string.IsNullOrWhiteSpace(landlordProfile?.Nif) || string.IsNullOrWhiteSpace(landlordProfile?.Address))
-            throw new InvalidOperationException("O contrato não pode ser gerado: o Proprietário não tem o NIF ou a Morada preenchidos no perfil.");
-
-        if (string.IsNullOrWhiteSpace(tenantProfile?.Nif) || string.IsNullOrWhiteSpace(tenantProfile?.Address))
-            throw new InvalidOperationException("O contrato não pode ser gerado: o Inquilino não tem o NIF ou a Morada preenchidos no perfil.");
-
-        if (string.IsNullOrWhiteSpace(appContext.Street) || string.IsNullOrWhiteSpace(appContext.PostalCode) || string.IsNullOrWhiteSpace(appContext.Municipality))
-            throw new InvalidOperationException("O contrato não pode ser gerado: o Imóvel não tem a Morada, Código Postal ou Localidade devidamente preenchidos.");
-
-        var landlordName = landlordProfile?.Name ?? $"Proprietário {lease.LandlordId.ToString()[..8]}";
-        var landlordNif = landlordProfile?.Nif ?? "000000000";
-        var landlordAddress = landlordProfile?.Address ?? "Morada não definida";
-        if (!string.IsNullOrEmpty(landlordProfile?.PostalCode))
-            landlordAddress += $", {landlordProfile.PostalCode}";
-
-        var tenantName = tenantProfile?.Name ?? $"Inquilino {lease.TenantId.ToString()[..8]}";
-        var tenantNif = tenantProfile?.Nif ?? "000000000";
-        var tenantAddress = tenantProfile?.Address ?? "Morada não definida";
-        if (!string.IsNullOrEmpty(tenantProfile?.PostalCode))
-            tenantAddress += $", {tenantProfile.PostalCode}";
-
-        var propertyInfo = new ContractPropertyInfo
-        {
-            Street = appContext.Street,
-            DoorNumber = appContext.DoorNumber,
-            PostalCode = appContext.PostalCode,
-            Parish = appContext.Parish,
-            Municipality = appContext.Municipality,
-            District = appContext.District,
-            Typology = appContext.Typology,
-            MatrixArticle = appContext.MatrixArticle,
-            PropertyFraction = appContext.PropertyFraction,
-            UsageLicenseNumber = appContext.UsageLicenseNumber,
-            UsageLicenseDate = appContext.UsageLicenseDate,
-            UsageLicenseIssuer = appContext.UsageLicenseIssuer,
-            EnergyCertificateNumber = appContext.EnergyCertificateNumber,
-            EnergyClass = appContext.EnergyClass
-        };
-
-        var filePath = await _contractGenerationService.GenerateContractPdfAsync(
-            lease, landlordName, landlordNif, landlordAddress,
-            tenantName, tenantNif, tenantAddress, propertyInfo);
-
-        lease.ContractFilePath = filePath;
-        lease.ContractGeneratedAt = DateTime.UtcNow;
-
-        var contractBytes = await File.ReadAllBytesAsync(filePath);
-        lease.ContractFileHash = Convert.ToBase64String(SHA256.HashData(contractBytes));
-
-        lease.History.Add(new LeaseHistory
-        {
-            LeaseId = lease.Id,
-            ActorId = Guid.Empty,
-            Action = "ContractGenerated",
-            Message = "Contrato gerado automaticamente.",
-            EventData = filePath
-        });
-
-        await _catalogAccess.UpdateApplicationStatusAsync(lease.ApplicationId, (int)ApplicationStatus.ContractPendingSignature, Guid.Empty,
-            "Contrato Gerado",
-            "O contrato de arrendamento foi gerado e está pronto para assinatura.");
     }
 
     private async Task ActivateLeaseAsync(Lease lease)
