@@ -78,6 +78,11 @@ public class ApplicationService : IApplicationService
 
     public async Task<IEnumerable<ApplicationDto>> GetApplicationsForPropertyAsync(Guid propertyId, Guid landlordId)
     {
+        // Verify the caller is actually the landlord of this property
+        var property = await _context.Properties.FindAsync(propertyId);
+        if (property == null) throw new KeyNotFoundException("Imóvel não encontrado.");
+        if (property.LandlordId != landlordId) throw new UnauthorizedAccessException("Não tem permissão para ver as candidaturas deste imóvel.");
+
         var apps = await _context.Applications
             .Include(a => a.History)
             .Where(a => a.PropertyId == propertyId)
@@ -118,6 +123,13 @@ public class ApplicationService : IApplicationService
 
         if (application == null) return null;
 
+        // Verify the user is either the tenant or the landlord of this property
+        var property = await _context.Properties.FindAsync(application.PropertyId);
+        var landlordId = property?.LandlordId ?? Guid.Empty;
+        
+        if (application.TenantId != userId && landlordId != userId)
+            throw new UnauthorizedAccessException("Não tem permissão para ver esta candidatura.");
+
         // Load lease data from Leasing module
         var leaseDto = await _leasingAccess.GetLeaseByApplicationIdAsync(applicationId);
 
@@ -130,9 +142,6 @@ public class ApplicationService : IApplicationService
             application.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
-
-        var property = await _context.Properties.FindAsync(application.PropertyId);
-        var landlordId = property?.LandlordId ?? Guid.Empty;
 
         return application.ToDto(landlordId, leaseDto);
     }

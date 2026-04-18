@@ -402,7 +402,11 @@ public static class PropertyEndpoints
             // 4. Ir buscar o senhorio ao Identity
             var landlord = await userService.GetProfileAsync(property.LandlordId);
 
-            // 5. Compor a resposta final (Enrichment)
+            // 5. Verificar se o utilizador pode ver dados sensíveis de documentos
+            // Proprietário vê sempre; inquilino vê se tiver candidatura aceite ou arrendamento activo
+            var canSeeDocuments = showFullAddress;
+
+            // 6. Compor a resposta final (Enrichment)
             var response = new
             {
                 property.Id,
@@ -432,19 +436,24 @@ public static class PropertyEndpoints
                 property.Parish,
                 property.Municipality,
                 property.District,
-                property.Latitude,
-                property.Longitude,
-                property.MatrixArticle,
-                property.PropertyFraction,
-                property.ParishConcelho,
+
+                // Coordenadas mascaradas — só mostra exactas ao proprietário ou com visita aceite
+                Latitude = showFullAddress ? property.Latitude : Math.Round(property.Latitude, 2),
+                Longitude = showFullAddress ? property.Longitude : Math.Round(property.Longitude, 2),
+
+                // Dados de documentos — visíveis ao proprietário e inquilinos com candidatura aceite ou arrendamento activo
+                MatrixArticle = canSeeDocuments ? property.MatrixArticle : null,
+                PropertyFraction = canSeeDocuments ? property.PropertyFraction : null,
+                ParishConcelho = canSeeDocuments ? property.ParishConcelho : null,
                 property.EnergyClass,
-                property.EnergyCertificateNumber,
-                property.AtRegistrationNumber,
-                property.PermanentCertNumber,
-                property.PermanentCertOffice,
-                property.UsageLicenseNumber,
-                property.UsageLicenseDate,
-                property.UsageLicenseIssuer,
+                EnergyCertificateNumber = canSeeDocuments ? property.EnergyCertificateNumber : null,
+                AtRegistrationNumber = canSeeDocuments ? property.AtRegistrationNumber : null,
+                PermanentCertNumber = canSeeDocuments ? property.PermanentCertNumber : null,
+                PermanentCertOffice = canSeeDocuments ? property.PermanentCertOffice : null,
+                UsageLicenseNumber = canSeeDocuments ? property.UsageLicenseNumber : null,
+                UsageLicenseDate = canSeeDocuments ? property.UsageLicenseDate : null,
+                UsageLicenseIssuer = canSeeDocuments ? property.UsageLicenseIssuer : null,
+
                 property.Deposit,
                 property.AdvanceRentMonths,
                 property.CondominiumFeesPaidBy,

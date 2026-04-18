@@ -29,8 +29,13 @@ public static class ApplicationEndpoints
             if (!Guid.TryParse(userIdString, out Guid landlordId))
                 return Results.Unauthorized();
 
-            var applications = await service.GetApplicationsForPropertyAsync(propertyId, landlordId);
-            return Results.Ok(applications);
+            try
+            {
+                var applications = await service.GetApplicationsForPropertyAsync(propertyId, landlordId);
+                return Results.Ok(applications);
+            }
+            catch (KeyNotFoundException e) { return Results.NotFound(e.Message); }
+            catch (UnauthorizedAccessException) { return Results.Forbid(); }
         }).RequireAuthorization();
 
         // Tenant gets their own applications
@@ -51,12 +56,13 @@ public static class ApplicationEndpoints
             if (!Guid.TryParse(userIdString, out Guid userId))
                 return Results.Unauthorized();
 
-            // Needs to be added to IApplicationService
-            var application = await service.GetApplicationByIdAsync(id, userId);
-            
-            if (application == null) return Results.NotFound();
-
-            return Results.Ok(application);
+            try
+            {
+                var application = await service.GetApplicationByIdAsync(id, userId);
+                if (application == null) return Results.NotFound();
+                return Results.Ok(application);
+            }
+            catch (UnauthorizedAccessException) { return Results.Forbid(); }
         }).RequireAuthorization();
 
         group.MapPut("/applications/{id:guid}/visit", async (Guid id, [FromBody] UpdateApplicationVisitDto dto, IApplicationService service, ClaimsPrincipal user) =>

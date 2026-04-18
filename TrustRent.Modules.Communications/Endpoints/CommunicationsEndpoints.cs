@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Communications.Contracts.Database;
+using TrustRent.Shared.Contracts.Interfaces;
 
 namespace TrustRent.Modules.Communications.Endpoints;
 
@@ -14,8 +15,18 @@ public static class CommunicationsEndpoints
         var group = routes.MapGroup("/api").WithTags("Communications");
 
         // --- CHAT ENDPOINTS ---
-        group.MapGet("/applications/{applicationId:guid}/chat", async (Guid applicationId, CommunicationsDbContext db) =>
+        group.MapGet("/applications/{applicationId:guid}/chat", async (Guid applicationId, ClaimsPrincipal user, CommunicationsDbContext db, IApplicationStatusValidator statusValidator) =>
         {
+            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdStr)) return Results.Unauthorized();
+            var userId = Guid.Parse(userIdStr);
+
+            // Verify the user is a participant of this application
+            var participants = await statusValidator.GetApplicationParticipantsAsync(applicationId);
+            if (participants == null) return Results.NotFound();
+            if (participants.Value.TenantId != userId && participants.Value.LandlordId != userId)
+                return Results.Forbid();
+
             var messages = await db.Messages
                 .Where(m => m.ContextId == applicationId && m.ContextType == Models.MessageContextType.Application)
                 .OrderBy(m => m.CreatedAt)

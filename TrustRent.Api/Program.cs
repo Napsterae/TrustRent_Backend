@@ -26,6 +26,8 @@ using TrustRent.Modules.Catalog.Seeds;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Seeds;
 using TrustRent.Modules.Communications.Seeds;
+using TrustRent.Shared.Security;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -191,21 +193,60 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Rate limiting — protect auth endpoints from brute force attacks
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
+
 var app = builder.Build();
+
+// Initialize encryption keys from configuration
+EncryptionHelper.Initialize(builder.Configuration);
 
 // QuestPDF license must be set globally BEFORE any Hangfire job can use it.
 // Without this, QuestPDF calls Environment.Exit(1) and kills the process silently.
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
+// Global exception handler — prevents leaking internal details to clients
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+        
+        var response = app.Environment.IsDevelopment()
+            ? new { Error = "Ocorreu um erro interno no servidor.", Detail = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error?.Message }
+            : new { Error = "Ocorreu um erro interno no servidor.", Detail = (string?)null };
+        
+        await context.Response.WriteAsJsonAsync(response);
+    });
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-    app.UseHangfireDashboard();
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = new[] { new Hangfire.Dashboard.LocalRequestsOnlyAuthorizationFilter() }
+    });
 }
 
 app.UseStaticFiles();
 app.UseCors("AllowViteFrontend");
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

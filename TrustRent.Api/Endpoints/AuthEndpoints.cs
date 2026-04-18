@@ -7,7 +7,7 @@ namespace TrustRent.Api.Endpoints;
 
 public static class AuthEndpoints
 {
-    // MÈtodo de extens„o para mapear as rotas no Program.cs
+    // MÔøΩtodo de extensÔøΩo para mapear as rotas no Program.cs
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
         // Agrupamos todas as rotas sob "/api/auth"
@@ -25,7 +25,7 @@ public static class AuthEndpoints
             {
                 return Results.BadRequest(new { Error = ex.Message });
             }
-        });
+        }).RequireRateLimiting("auth");
 
         // Endpoint de Login
         group.MapPost("/login", async ([FromBody] LoginRequest request, IAuthService authService) =>
@@ -35,11 +35,11 @@ public static class AuthEndpoints
                 var token = await authService.LoginAsync(request.Email, request.Password);
                 return Results.Ok(new { Token = token });
             }
-            catch (Exception ex)
+            catch
             {
-                return Results.Json(new { Error = ex.Message }, statusCode: 401);
+                return Results.Json(new { Error = "Credenciais inv√°lidas." }, statusCode: 401);
             }
-        });     
+        }).RequireRateLimiting("auth");     
     }
 }
 

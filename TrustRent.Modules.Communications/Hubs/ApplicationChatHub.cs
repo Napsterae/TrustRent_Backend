@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using TrustRent.Modules.Communications.Contracts.Database;
 using TrustRent.Modules.Communications.Models;
@@ -5,6 +7,7 @@ using TrustRent.Shared.Contracts.Interfaces;
 
 namespace TrustRent.Modules.Communications.Hubs;
 
+[Authorize]
 public class ApplicationChatHub : Hub
 {
     private readonly CommunicationsDbContext _context;
@@ -18,19 +21,49 @@ public class ApplicationChatHub : Hub
         _notificationService = notificationService;
     }
 
+    private Guid GetAuthenticatedUserId()
+    {
+        var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier) ?? Context.User?.FindFirst("sub");
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+            throw new HubException("Utilizador não autenticado.");
+        return userId;
+    }
+
     /// <summary>
-    /// Join a room specific to an Application ID
+    /// Join a room specific to an Application ID — only participants can join
     /// </summary>
     public async Task JoinApplicationGroup(Guid applicationId)
     {
+        var userId = GetAuthenticatedUserId();
+        
+        // Verify the user is a participant of this application
+        var participants = await _statusValidator.GetApplicationParticipantsAsync(applicationId);
+        if (participants == null)
+            throw new HubException("Candidatura não encontrada.");
+        if (participants.Value.TenantId != userId && participants.Value.LandlordId != userId)
+            throw new HubException("Não tem permissão para aceder a esta conversa.");
+        
         await Groups.AddToGroupAsync(Context.ConnectionId, applicationId.ToString());
     }
 
     /// <summary>
-    /// Send a message within an application group
+    /// Send a message within an application group — sender must be authenticated user
     /// </summary>
     public async Task SendMessage(Guid applicationId, Guid senderId, string content)
     {
+        var userId = GetAuthenticatedUserId();
+        
+        // Prevent impersonation: senderId MUST match the authenticated user
+        if (senderId != userId)
+            throw new HubException("Não pode enviar mensagens em nome de outro utilizador.");
+
+        // Verify the user is a participant
+        var participants = await _statusValidator.GetApplicationParticipantsAsync(applicationId);
+        if (participants == null)
+            throw new HubException("Candidatura não encontrada.");
+        if (participants.Value.TenantId != userId && participants.Value.LandlordId != userId)
+            throw new HubException("Não tem permissão para enviar mensagens nesta conversa.");
+
         bool isLocked = await _statusValidator.IsApplicationChatLockedAsync(applicationId);
         if (isLocked)
         {
@@ -54,11 +87,7 @@ public class ApplicationChatHub : Hub
         await Clients.Group(applicationId.ToString()).SendAsync("ReceiveMessage", message);
 
         // 3. Notificar o outro participante (SignalR + Persistência)
-        var participants = await _statusValidator.GetApplicationParticipantsAsync(applicationId);
-        if (participants != null)
-        {
-            var recipientId = senderId == participants.Value.TenantId ? participants.Value.LandlordId : participants.Value.TenantId;
-            await _notificationService.SendNotificationAsync(recipientId, "application", "Recebeste uma nova mensagem na candidatura.", applicationId);
-        }
+        var recipientId = senderId == participants.Value.TenantId ? participants.Value.LandlordId : participants.Value.TenantId;
+        await _notificationService.SendNotificationAsync(recipientId, "application", "Recebeste uma nova mensagem na candidatura.", applicationId);
     }
 }
