@@ -1,52 +1,175 @@
-# 🏢 TrustRent API - Backend
+# 🏢 TrustRent — Backend API
 
-![.NET](https://img.shields.io/badge/.NET_8-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)
+![.NET 8](https://img.shields.io/badge/.NET_8-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)
 ![C#](https://img.shields.io/badge/C%23-239120?style=for-the-badge&logo=c-sharp&logoColor=white)
-![Entity Framework](https://img.shields.io/badge/EF_Core-38B2AC?style=for-the-badge&logo=nuget&logoColor=white)
-![Google Cloud Vision](https://img.shields.io/badge/Google_Vision_AI-4285F4?style=for-the-badge&logo=google-cloud&logoColor=white)
-![Clean Architecture](https://img.shields.io/badge/Architecture-Clean_&_Modular-FF7139?style=for-the-badge)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![EF Core](https://img.shields.io/badge/EF_Core-38B2AC?style=for-the-badge&logo=nuget&logoColor=white)
+![Hangfire](https://img.shields.io/badge/Hangfire-Jobs-FF7139?style=for-the-badge)
+![Stripe](https://img.shields.io/badge/Stripe-635BFF?style=for-the-badge&logo=stripe&logoColor=white)
+![Gemini AI](https://img.shields.io/badge/Gemini_AI-4285F4?style=for-the-badge&logo=google&logoColor=white)
 
-> A API RESTful que alimenta a plataforma TrustRent. Construída com foco em segurança, escalabilidade e Clean Architecture.
+> API RESTful da plataforma TrustRent. Arquitetura modular com .NET 8, PostgreSQL, Hangfire e integrações com Stripe, Gemini AI e Cloudinary.
+
+---
 
 ## ✨ Funcionalidades Principais
 
-* **🛡️ Identity & Segurança:** Autenticação JWT com controlo de permissões e perfis de utilizador.
-* **🧠 KYC & Validação de Documentos (OCR):** Integração com a Google Cloud Vision API para leitura automática, validação e extração de datas de Cartões de Cidadão e Certidões da AT.
-* **☁️ Cloud Storage:** Serviço agnóstico de armazenamento de ficheiros (preparado para Cloudinary, AWS S3 ou Cloudflare R2) com conversão automática de imagens para WebP via `ImageSharp`.
-* **🏗️ Arquitetura Modular:** Separação clara de responsabilidades através de módulos (Identity, Shared, Catalog).
+### 🛡️ Identity & Autenticação
+- Registo e login com JWT (Bearer Token)
+- Perfis de utilizador com Trust Score
+- Verificação KYC: Cartão de Cidadão e Certidão de Não Dívida via Gemini AI (extração de NIF, nome, validade)
+- Upload de avatar via Cloudinary com conversão automática para WebP (ImageSharp)
 
-## 🛠️ Tecnologias Utilizadas
+### 🏡 Catálogo de Imóveis
+- CRUD completo de imóveis com imagens, comodidades e periodicidades
+- Listagem pública com filtros (tipologia, preço, localização, regime)
+- Candidaturas com histórico de eventos e sistema de visitas
+- Jobs recorrentes (Hangfire) para expiração automática de candidaturas pendentes
 
-* **Framework:** [.NET 8 / 9](https://dotnet.microsoft.com/) (ASP.NET Core Web API)
-* **Linguagem:** C#
-* **ORM:** Entity Framework Core
-* **Processamento de Imagem:** SixLabors.ImageSharp
-* **Integrações Externas:** Google.Cloud.Vision.V1, CloudinaryDotNet
+### 📄 Arrendamento (Leasing)
+- Ciclo de vida completo do contrato: criação → assinatura → ativo → renovação/rescisão
+- Assinatura digital via Chave Móvel Digital (CMD)
+- Registo AT: validação do documento de registo nas Finanças por Gemini AI (NIF + nome do senhorio)
+- Notificações de renovação com prazos legais (NRAU)
+- Denúncia antecipada e atualização de renda (coeficiente INE)
+- Histórico completo de eventos por contrato
 
-## 🚀 Como Executar o Projeto Localmente
+### 💳 Pagamentos (Stripe)
+- Pagamento de rendas via Stripe PaymentIntents
+- Stripe Connect para recebimento direto por senhorios
+- Histórico de pagamentos e geração de recibos
+- Divisão de pagamento entre co-inquilinos
 
-### 1. Pré-requisitos
-* [.NET SDK](https://dotnet.microsoft.com/download) instalado.
-* Uma base de dados SQL Server (ou configurada para SQLite localmente).
-* Credenciais da Google Cloud Vision API e Cloudinary/S3.
+### 🔧 Manutenção & Tickets
+- Criação e gestão de tickets por imóvel/contrato
+- Comentários e anexos em tickets
+- Estados: aberto, em progresso, resolvido, fechado
 
-### 2. Configuração de Variáveis de Ambiente (`appsettings.json`)
-Cria ou atualiza o teu ficheiro `appsettings.Development.json` (não incluído no repositório por segurança) com as tuas chaves:
+### 💬 Comunicações
+- Chat em tempo real via SignalR
+- Centro de notificações persistentes
+- Comunicações legais com registo de data, hora e IP (valor probatório)
+
+### 🤖 IA (Gemini)
+- Serviço genérico `GeminiDocumentService` para extração de dados de documentos
+- Prompts especializados: Cartão de Cidadão, Certidão de Não Dívida, Registo AT
+- Validação de autenticidade, qualidade de imagem e campos extraídos
+
+---
+
+## 🏗️ Arquitetura
+
+Solução modular com separação clara de responsabilidades:
+
+```
+TrustRent.sln
+├── TrustRent.Api                    # Minimal API — endpoints, DI, middleware
+│   └── Endpoints/
+│       ├── AuthEndpoints.cs
+│       ├── UserEndpoints.cs
+│       ├── PropertyEndpoints.cs
+│       ├── ApplicationEndpoints.cs
+│       ├── LeaseEndpoints.cs
+│       ├── TicketEndpoints.cs
+│       ├── StripeEndpoints.cs
+│       └── ReviewEndpoints.cs
+│
+├── TrustRent.Modules.Identity       # Utilizadores, KYC, JWT
+├── TrustRent.Modules.Catalog        # Imóveis, candidaturas, jobs Hangfire
+├── TrustRent.Modules.Leasing        # Contratos, pagamentos, tickets, reviews
+├── TrustRent.Modules.Communications # Notificações, chat (SignalR), emails
+├── TrustRent.Shared                 # Serviços transversais (Gemini, Cloudinary, R2, email)
+└── TrustRent.Tests                  # Testes unitários por módulo
+```
+
+Cada módulo tem o seu próprio `DbContext`, `Migrations`, `Models`, `Services` e `Repositories`.
+
+---
+
+## 🛠️ Stack Tecnológico
+
+| Componente | Tecnologia |
+|---|---|
+| Framework | ASP.NET Core 8 (Minimal API) |
+| Base de Dados | PostgreSQL |
+| ORM | Entity Framework Core 8 |
+| Jobs Agendados | Hangfire (PostgreSQL) |
+| Tempo Real | SignalR |
+| IA / OCR | Google Gemini API |
+| Pagamentos | Stripe (PaymentIntents + Connect) |
+| Storage de Imagens | Cloudinary + Cloudflare R2 |
+| Processamento de Imagem | SixLabors.ImageSharp |
+| Autenticação | JWT Bearer |
+
+---
+
+## 🚀 Como Executar Localmente
+
+### Pré-requisitos
+- [.NET 8 SDK](https://dotnet.microsoft.com/download)
+- [PostgreSQL](https://www.postgresql.org/) a correr localmente
+- Conta Cloudinary (para uploads de imagens)
+- Chave API do Google Gemini
+- Conta Stripe (para pagamentos)
+
+### 1. Configurar `appsettings.Development.json`
+
+Cria o ficheiro `TrustRent.Api/appsettings.Development.json` (não versionado) com:
 
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost;Database=TrustRentDB;Trusted_Connection=True;TrustServerCertificate=True;"
+    "PostgresConnection": "Host=localhost;Database=trustrent_db;Username=trustrent_admin;Password=<PASSWORD>"
   },
   "JwtSettings": {
-    "Secret": "A_TUA_CHAVE_SUPER_SECRETA_AQUI"
-  },
-  "GoogleCloud": {
-    "CredentialsPath": "C:\\Caminho\\Seguro\\Para\\google-credentials.json"
+    "SecretKey": "<CHAVE_JWT_LONGA>",
+    "Issuer": "TrustRentApi",
+    "Audience": "TrustRentFrontend"
   },
   "CloudinarySettings": {
-    "CloudName": "teu_cloud_name",
-    "ApiKey": "tua_api_key",
-    "ApiSecret": "teu_api_secret"
+    "CloudName": "<CLOUD_NAME>",
+    "ApiKey": "<API_KEY>",
+    "ApiSecret": "<API_SECRET>"
+  },
+  "Gemini": {
+    "ApiKey": "<GEMINI_API_KEY>",
+    "Model": "gemini-2.0-flash"
+  },
+  "Stripe": {
+    "SecretKey": "<STRIPE_SECRET_KEY>",
+    "WebhookSecret": "<STRIPE_WEBHOOK_SECRET>"
   }
 }
+```
+
+### 2. Aplicar Migrações
+
+```bash
+cd TrustRent_Backend
+dotnet ef database update --project TrustRent.Modules.Identity --startup-project TrustRent.Api
+dotnet ef database update --project TrustRent.Modules.Catalog --startup-project TrustRent.Api
+dotnet ef database update --project TrustRent.Modules.Leasing --startup-project TrustRent.Api
+dotnet ef database update --project TrustRent.Modules.Communications --startup-project TrustRent.Api
+```
+
+### 3. Executar a API
+
+```bash
+cd TrustRent_Backend
+dotnet run --project TrustRent.Api\TrustRent.Api.csproj
+```
+
+A API fica disponível em `http://localhost:5281`.
+
+Os dados de seed são aplicados automaticamente na primeira execução (20 utilizadores, 70 imóveis, 5 contratos).
+
+---
+
+## 🧪 Testes
+
+```bash
+cd TrustRent_Backend
+dotnet test TrustRent.Tests\TrustRent.Tests.csproj
+```
+
+Os testes estão organizados por módulo em `TrustRent.Tests/` (Api, Catalog, Communications, Identity, Leasing, Shared).
