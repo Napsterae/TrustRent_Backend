@@ -121,7 +121,9 @@ builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.IDigit
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.ISignedPdfVerificationService, TrustRent.Modules.Leasing.Services.SignedPdfVerificationService>();
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Repositories.ILeasingUnitOfWork, TrustRent.Modules.Leasing.Repositories.LeasingUnitOfWork>();
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.ITicketService, TrustRent.Modules.Leasing.Services.TicketService>();
+builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.IReviewService, TrustRent.Modules.Leasing.Services.ReviewService>();
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Jobs.IContractGenerationJob, TrustRent.Modules.Leasing.Jobs.ContractGenerationJob>();
+builder.Services.AddScoped<TrustRent.Modules.Leasing.Jobs.IDailyMaintenanceJob, TrustRent.Modules.Leasing.Jobs.DailyMaintenanceJob>();
 
 /* STRIPE / PAYMENTS */
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.IStripeAccountService, TrustRent.Modules.Leasing.Services.StripeAccountService>();
@@ -257,6 +259,7 @@ app.MapApplicationEndpoints();
 app.MapLeaseEndpoints();
 app.MapTicketEndpoints();
 app.MapStripeEndpoints();
+app.MapReviewEndpoints();
 app.MapCommunicationsEndpoints();
 
 app.MapHub<ApplicationChatHub>("/api/chathub");
@@ -275,5 +278,11 @@ if (app.Environment.IsDevelopment())
     await LeasingSeeder.SeedAsync(leasingDb);
     await CommunicationsSeeder.SeedAsync(communicationsDb);
 }
+
+// Register Hangfire recurring jobs
+RecurringJob.AddOrUpdate<TrustRent.Modules.Leasing.Jobs.IDailyMaintenanceJob>(
+    "daily-maintenance",
+    job => job.ExecuteAsync(),
+    Cron.Daily(2, 0));
 
 app.Run();

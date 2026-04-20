@@ -15,6 +15,11 @@ public class LeasingDbContext : DbContext
     public DbSet<TenantPaymentMethod> TenantPaymentMethods { get; set; }
     public DbSet<Lease> Leases { get; set; }
     public DbSet<LeaseHistory> LeaseHistories { get; set; }
+    public DbSet<Review> Reviews { get; set; }
+    public DbSet<LeaseRenewalNotification> LeaseRenewalNotifications { get; set; }
+    public DbSet<LegalCommunicationLog> LegalCommunicationLogs { get; set; }
+    public DbSet<LeaseTerminationRequest> LeaseTerminationRequests { get; set; }
+    public DbSet<RentIncreaseRequest> RentIncreaseRequests { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -167,6 +172,56 @@ public class LeasingDbContext : DbContext
         {
             builder.HasKey(h => h.Id);
             builder.Property(h => h.Action).IsRequired().HasMaxLength(100);
+        });
+
+        // Review entity configuration
+        modelBuilder.Entity<Review>(builder =>
+        {
+            builder.HasKey(r => r.Id);
+
+            builder.Property(r => r.Rating).IsRequired();
+            builder.Property(r => r.Comment).HasMaxLength(2000);
+            builder.Property(r => r.Type).HasConversion<string>().HasMaxLength(50);
+            builder.Property(r => r.Status).HasConversion<string>().HasMaxLength(50);
+
+            builder.HasIndex(r => r.ReviewerId);
+            builder.HasIndex(r => r.ReviewedUserId);
+            builder.HasIndex(r => r.LeaseId);
+            builder.HasIndex(r => r.TicketId);
+            builder.HasIndex(r => r.PairId);
+            builder.HasIndex(r => r.Status);
+        });
+
+        // LeaseRenewalNotification entity configuration
+        modelBuilder.Entity<LeaseRenewalNotification>(builder =>
+        {
+            builder.HasKey(n => n.Id);
+
+            builder.Property(n => n.LandlordResponse).HasMaxLength(20);
+            builder.Property(n => n.TenantResponse).HasMaxLength(20);
+
+            builder.HasIndex(n => n.LeaseId);
+            builder.HasIndex(n => n.Processed);
+        });
+
+        // LegalCommunicationLog entity configuration
+        modelBuilder.Entity<LegalCommunicationLog>(builder =>
+        {
+            builder.HasKey(l => l.Id);
+            builder.Property(l => l.CommunicationType).IsRequired().HasMaxLength(100);
+            builder.Property(l => l.Content).IsRequired();
+            builder.Property(l => l.SenderIpAddress).IsRequired().HasMaxLength(45);
+            builder.Property(l => l.SenderUserAgent).HasMaxLength(500);
+            builder.Property(l => l.ViewerIpAddress).HasMaxLength(45);
+            builder.Property(l => l.ViewerUserAgent).HasMaxLength(500);
+            builder.Property(l => l.AcknowledgerIpAddress).HasMaxLength(45);
+            builder.Property(l => l.EmailRecipientAddress).HasMaxLength(320);
+            builder.Property(l => l.ContentHash).HasMaxLength(64);
+            builder.HasIndex(l => l.LeaseId);
+            builder.HasIndex(l => l.SenderId);
+            builder.HasIndex(l => l.RecipientId);
+            builder.HasIndex(l => l.CommunicationType);
+            builder.HasIndex(l => l.SentAt);
         });
     }
 }

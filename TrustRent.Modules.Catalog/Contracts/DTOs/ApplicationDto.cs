@@ -6,8 +6,14 @@ public class ApplicationDto
 {
     public Guid Id { get; set; }
     public Guid PropertyId { get; set; }
+    public string PropertyTitle { get; set; } = string.Empty;
+    public string? PropertyImageUrl { get; set; }
     public Guid TenantId { get; set; }
+    public string TenantName { get; set; } = string.Empty;
+    public string? TenantAvatarUrl { get; set; }
+    public int TenantReviewScore { get; set; }
     public Guid LandlordId { get; set; }
+    public string LandlordName { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
     public bool ShareProfile { get; set; }
     public bool WantsVisit { get; set; }

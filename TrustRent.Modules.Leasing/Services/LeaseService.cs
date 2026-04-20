@@ -53,7 +53,7 @@ public class LeaseService : ILeaseService
         if (userId != appContext.TenantId && userId != appContext.LandlordId)
             throw new UnauthorizedAccessException("Apenas o proprietário ou o inquilino podem iniciar o procedimento de arrendamento.");
 
-        LeaseValidator.ValidateInitiate(appContext.Status, dto.ProposedStartDate);
+        LeaseValidator.ValidateInitiate(appContext.Status, dto.ProposedStartDate, appContext.DurationMonths, appContext.LeaseRegime);
 
         var endDate = dto.ProposedStartDate.AddMonths(appContext.DurationMonths);
 
@@ -66,7 +66,7 @@ public class LeaseService : ILeaseService
             StartDate = dto.ProposedStartDate.ToUniversalTime(),
             EndDate = endDate.ToUniversalTime(),
             DurationMonths = appContext.DurationMonths,
-            AllowsRenewal = appContext.AllowsRenewal,
+            AllowsRenewal = true,
             MonthlyRent = appContext.Price,
             Deposit = appContext.Deposit,
             AdvanceRentMonths = appContext.AdvanceRentMonths,

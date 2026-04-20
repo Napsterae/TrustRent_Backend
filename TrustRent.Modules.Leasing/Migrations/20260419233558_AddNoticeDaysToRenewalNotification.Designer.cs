@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TrustRent.Modules.Leasing.Contracts.Database;
@@ -11,9 +12,11 @@ using TrustRent.Modules.Leasing.Contracts.Database;
 namespace TrustRent.Modules.Leasing.Migrations
 {
     [DbContext(typeof(LeasingDbContext))]
-    partial class LeasingDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260419233558_AddNoticeDaysToRenewalNotification")]
+    partial class AddNoticeDaysToRenewalNotification
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -82,9 +85,6 @@ namespace TrustRent.Modules.Leasing.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<bool>("IsRegisteredWithTaxAuthority")
-                        .HasColumnType("boolean");
-
                     b.Property<Guid>("LandlordId")
                         .HasColumnType("uuid");
 
@@ -130,12 +130,6 @@ namespace TrustRent.Modules.Leasing.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime?>("TaxRegistrationDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("TaxRegistrationReference")
-                        .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
@@ -259,83 +253,6 @@ namespace TrustRent.Modules.Leasing.Migrations
                     b.HasIndex("Processed");
 
                     b.ToTable("LeaseRenewalNotifications", "leasing");
-                });
-
-            modelBuilder.Entity("TrustRent.Modules.Leasing.Models.LeaseTerminationRequest", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("BeneficiaryName")
-                        .HasColumnType("text");
-
-                    b.Property<string>("BeneficiaryRelation")
-                        .HasColumnType("text");
-
-                    b.Property<bool?>("DeclaresNoAlternativeHousing")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("EarliestTerminationDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("HasPassedOneThird")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal?>("IndemnificationAmount")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("IndemnificationReason")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IndemnificationRequired")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("LeaseId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("OneThirdDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("ProcessedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ProcessedByNote")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("ProposedTerminationDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("RequestedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("RequestedById")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("RequesterIpAddress")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RequesterUserAgent")
-                        .HasColumnType("text");
-
-                    b.Property<int>("RequiredNoticeDays")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TerminationType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("LeaseTerminationRequests", "leasing");
                 });
 
             modelBuilder.Entity("TrustRent.Modules.Leasing.Models.LegalCommunicationLog", b =>
@@ -516,81 +433,6 @@ namespace TrustRent.Modules.Leasing.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("Payments", "leasing");
-                });
-
-            modelBuilder.Entity("TrustRent.Modules.Leasing.Models.RentIncreaseRequest", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("AccumulatedCoefficients")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("AccumulatedDetails")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("Applied")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal>("CoefficientApplied")
-                        .HasColumnType("numeric");
-
-                    b.Property<int>("CoefficientYear")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("ContestationDeadline")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ContestationReason")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ContestationResolution")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("Contested")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("ContestedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("CurrentRent")
-                        .HasColumnType("numeric");
-
-                    b.Property<DateTime>("EffectiveDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("IncreasePercentage")
-                        .HasColumnType("numeric");
-
-                    b.Property<Guid>("LeaseId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("ProcessedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("ProposedRent")
-                        .HasColumnType("numeric");
-
-                    b.Property<DateTime>("RequestedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("RequestedById")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("RequesterIpAddress")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RequesterUserAgent")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("RentIncreaseRequests", "leasing");
                 });
 
             modelBuilder.Entity("TrustRent.Modules.Leasing.Models.Review", b =>

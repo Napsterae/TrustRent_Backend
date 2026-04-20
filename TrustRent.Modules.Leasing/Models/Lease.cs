@@ -26,6 +26,11 @@ public class Lease
     public string? LeaseRegime { get; set; }
     public string ContractType { get; set; } = "Informal"; // "Official" ou "Informal"
 
+    // Registo nas Finanças (Autoridade Tributária)
+    public bool IsRegisteredWithTaxAuthority { get; set; } = false;
+    public DateTime? TaxRegistrationDate { get; set; }
+    public string? TaxRegistrationReference { get; set; }
+
     // Responsabilidades de pagamento (copiadas da Property)
     public string CondominiumFeesPaidBy { get; set; } = "Inquilino";
     public string WaterPaidBy { get; set; } = "Inquilino";

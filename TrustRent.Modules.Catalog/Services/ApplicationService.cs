@@ -5,6 +5,7 @@ using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Mappers;
 using TrustRent.Modules.Catalog.Models;
+using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Models;
 
@@ -15,12 +16,14 @@ public class ApplicationService : IApplicationService
     private readonly CatalogDbContext _context;
     private readonly INotificationService _notificationService;
     private readonly ILeasingAccessService _leasingAccess;
+    private readonly IUserService _userService;
 
-    public ApplicationService(CatalogDbContext context, INotificationService notificationService, ILeasingAccessService leasingAccess)
+    public ApplicationService(CatalogDbContext context, INotificationService notificationService, ILeasingAccessService leasingAccess, IUserService userService)
     {
         _context = context;
         _notificationService = notificationService;
         _leasingAccess = leasingAccess;
+        _userService = userService;
     }
 
     public async Task<ApplicationDto> SubmitApplicationAsync(Guid propertyId, Guid tenantId, SubmitApplicationDto dto)
@@ -37,6 +40,10 @@ public class ApplicationService : IApplicationService
         // Validação: o proprietário não se pode candidatar ao seu próprio imóvel
         if (property.LandlordId == tenantId)
             throw new Exception("Não te podes candidatar a um imóvel do qual és proprietário.");
+
+        // Lei do Arrendamento 2026: Habitação Permanente requer duração mínima de 3 anos (36 meses)
+        if (property.LeaseRegime == LeaseRegime.PermanentHousing && dto.DurationMonths < 36)
+            throw new Exception("Nos termos da Lei do Arrendamento, contratos de Habitação Permanente têm uma duração mínima obrigatória de 3 anos (36 meses).");
 
         var application = new Application
         {
@@ -92,7 +99,36 @@ public class ApplicationService : IApplicationService
         var leases = await _leasingAccess.GetLeasesByApplicationIdsAsync(apps.Select(a => a.Id));
         await ReconcileAwaitingPaymentAsync(apps, leases);
 
-        return apps.Select(a => a.ToDto(landlordId, leases.GetValueOrDefault(a.Id)));
+        var tenantIds = apps
+            .Select(a => a.TenantId)
+            .Distinct()
+            .ToList();
+
+        var tenantInfoById = new Dictionary<Guid, (string Name, string? AvatarUrl, int ReviewScore)>();
+        foreach (var tenantId in tenantIds)
+        {
+            var profile = await _userService.GetPublicProfileAsync(tenantId, landlordId);
+            tenantInfoById[tenantId] = (
+                profile?.Name ?? "Inquilino",
+                profile?.ProfilePictureUrl,
+                profile?.TrustScore ?? 0
+            );
+        }
+
+        var dtos = apps.Select(a =>
+        {
+            var dto = a.ToDto(landlordId, leases.GetValueOrDefault(a.Id));
+            if (tenantInfoById.TryGetValue(a.TenantId, out var tenantInfo))
+            {
+                dto.TenantName = tenantInfo.Name;
+                dto.TenantAvatarUrl = tenantInfo.AvatarUrl;
+                dto.TenantReviewScore = tenantInfo.ReviewScore;
+            }
+
+            return dto;
+        });
+
+        return dtos;
     }
 
     public async Task<IEnumerable<ApplicationDto>> GetApplicationsForTenantAsync(Guid tenantId)
@@ -106,13 +142,46 @@ public class ApplicationService : IApplicationService
         var leases = await _leasingAccess.GetLeasesByApplicationIdsAsync(apps.Select(a => a.Id));
         await ReconcileAwaitingPaymentAsync(apps, leases);
 
-        // For each application, look up the property's LandlordId
         var propertyIds = apps.Select(a => a.PropertyId).Distinct().ToList();
         var properties = await _context.Properties
             .Where(p => propertyIds.Contains(p.Id))
-            .ToDictionaryAsync(p => p.Id, p => p.LandlordId);
+            .Select(p => new
+            {
+                p.Id,
+                p.LandlordId,
+                p.Title,
+                MainImageUrl = p.Images.Where(i => i.IsMain).Select(i => i.Url).FirstOrDefault()
+                    ?? p.Images.Select(i => i.Url).FirstOrDefault()
+            })
+            .ToDictionaryAsync(p => p.Id);
 
-        return apps.Select(a => a.ToDto(properties.GetValueOrDefault(a.PropertyId), leases.GetValueOrDefault(a.Id)));
+        var landlordIds = properties.Values
+            .Select(p => p.LandlordId)
+            .Distinct()
+            .ToList();
+
+        var landlordNames = new Dictionary<Guid, string>();
+        foreach (var landlordId in landlordIds)
+        {
+            var profile = await _userService.GetPublicProfileAsync(landlordId, tenantId);
+            landlordNames[landlordId] = profile?.Name ?? "Senhorio";
+        }
+
+        var applicationDtos = apps.Select(a =>
+        {
+            var dto = a.ToDto(properties.GetValueOrDefault(a.PropertyId)?.LandlordId ?? Guid.Empty, leases.GetValueOrDefault(a.Id));
+
+            if (properties.TryGetValue(a.PropertyId, out var propertyInfo))
+            {
+                dto.PropertyTitle = propertyInfo.Title;
+                dto.PropertyImageUrl = propertyInfo.MainImageUrl;
+                dto.LandlordName = landlordNames.GetValueOrDefault(propertyInfo.LandlordId, "Senhorio");
+            }
+
+            return dto;
+        });
+
+        return applicationDtos;
     }
 
     public async Task<ApplicationDto?> GetApplicationByIdAsync(Guid applicationId, Guid userId)

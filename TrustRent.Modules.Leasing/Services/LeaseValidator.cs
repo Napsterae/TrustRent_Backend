@@ -5,13 +5,17 @@ namespace TrustRent.Modules.Leasing.Services;
 
 public static class LeaseValidator
 {
-    public static void ValidateInitiate(int applicationStatus, DateTime proposedStartDate)
+    public static void ValidateInitiate(int applicationStatus, DateTime proposedStartDate, int durationMonths = 0, string? leaseRegime = null)
     {
         if (applicationStatus != (int)ApplicationStatus.Accepted)
             throw new InvalidOperationException("Só é possível iniciar um arrendamento em candidaturas com status 'Accepted'.");
 
         if (proposedStartDate.Date <= DateTime.UtcNow.Date)
             throw new ArgumentException("A data de início deve ser no futuro.");
+
+        // Lei do Arrendamento 2026: Habitação Permanente requer duração mínima de 3 anos
+        if (leaseRegime == "PermanentHousing" && durationMonths > 0 && durationMonths < 36)
+            throw new ArgumentException("Nos termos da Lei do Arrendamento, contratos de Habitação Permanente têm uma duração mínima obrigatória de 3 anos (36 meses).");
     }
 
     public static void ValidateConfirmStartDate(Lease lease, Guid userId, DateTime startDate)
@@ -92,6 +96,27 @@ public static class LeaseValidator
 
         if (lease.Status == LeaseStatus.Cancelled)
             throw new InvalidOperationException("Este arrendamento já foi cancelado.");
+    }
+
+    /// <summary>
+    /// Valida denúncia antecipada pelo inquilino (Art. 1098.º do Código Civil).
+    /// O inquilino pode denunciar após 1/3 da duração do contrato.
+    /// </summary>
+    public static void ValidateEarlyTermination(Lease lease, Guid userId)
+    {
+        EnsureParticipant(lease, userId);
+
+        if (lease.Status != LeaseStatus.Active)
+            throw new InvalidOperationException("Apenas contratos ativos podem ser denunciados.");
+
+        if (userId != lease.TenantId)
+            throw new InvalidOperationException("Apenas o inquilino pode efetuar denúncia antecipada. O senhorio deve utilizar os mecanismos de resolução por justa causa ou necessidade de habitação.");
+
+        var oneThirdDays = lease.DurationMonths * 30.44 / 3;
+        var oneThirdDate = lease.StartDate.AddDays(oneThirdDays);
+        if (DateTime.UtcNow < oneThirdDate)
+            throw new InvalidOperationException(
+                $"Nos termos do Art. 1098.º do CC, a denúncia só é possível após {oneThirdDate:dd/MM/yyyy} (1/3 da duração do contrato).");
     }
 
     private static void EnsureParticipant(Lease lease, Guid userId)

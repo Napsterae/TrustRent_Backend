@@ -4,6 +4,7 @@ using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Modules.Catalog.Services;
+using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Models;
 
@@ -13,11 +14,13 @@ public class ApplicationServiceTests
 {
     private readonly Mock<INotificationService> _notificationMock;
     private readonly Mock<ILeasingAccessService> _leasingAccessMock;
+    private readonly Mock<IUserService> _userServiceMock;
 
     public ApplicationServiceTests()
     {
         _notificationMock = new Mock<INotificationService>();
         _leasingAccessMock = new Mock<ILeasingAccessService>();
+        _userServiceMock = new Mock<IUserService>();
     }
 
     private (ApplicationService Service, CatalogDbContext Context) CreateService()
@@ -27,7 +30,7 @@ public class ApplicationServiceTests
             .Options;
         var context = new CatalogDbContext(options);
 
-        var service = new ApplicationService(context, _notificationMock.Object, _leasingAccessMock.Object);
+        var service = new ApplicationService(context, _notificationMock.Object, _leasingAccessMock.Object, _userServiceMock.Object);
         return (service, context);
     }
 

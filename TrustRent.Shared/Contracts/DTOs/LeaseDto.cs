@@ -32,6 +32,9 @@ public class LeaseDto
     public DateTime? TenantSignedAt { get; set; }
     public string? TenantSignatureCertSubject { get; set; }
     public bool TenantSignatureVerified { get; set; }
+    public bool IsRegisteredWithTaxAuthority { get; set; }
+    public DateTime? TaxRegistrationDate { get; set; }
+    public string? TaxRegistrationReference { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }

@@ -1,9 +1,13 @@
 using System.Security.Claims;
 using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Modules.Leasing.Contracts.Database;
+using TrustRent.Modules.Leasing.Models;
 using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Shared.Models;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
 
 namespace TrustRent.Api.Endpoints;
@@ -79,7 +83,6 @@ public static class PropertyEndpoints
 
                     // Periodicidade e Regime
                     LeaseRegime = form["leaseRegime"].ToString(),
-                    AllowsRenewal = form["allowsRenewal"] == "true",
                     NonPermanentReason = form["nonPermanentReason"].ToString(),
                 };
 
@@ -152,14 +155,49 @@ public static class PropertyEndpoints
         }).DisableAntiforgery(); // Necessário para aceitar multipart/form-data nas Minimal APIs
 
 
-        propertyGroup.MapGet("/my-properties", async (ClaimsPrincipal userClaims, IPropertyService propertyService) =>
+        propertyGroup.MapGet("/my-properties", async (ClaimsPrincipal userClaims, IPropertyService propertyService, LeasingDbContext leasingDb) =>
         {
             try
             {
                 var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
                 var properties = await propertyService.GetPropertiesByLandlordAsync(userId);
 
-                return Results.Ok(properties);
+                var occupiedLikeStatuses = new[]
+                {
+                    LeaseStatus.Active,
+                    LeaseStatus.AwaitingPayment,
+                    LeaseStatus.PendingLandlordSignature,
+                    LeaseStatus.PendingTenantSignature,
+                    LeaseStatus.AwaitingSignatures,
+                    LeaseStatus.SignaturesVerified,
+                    LeaseStatus.GeneratingContract
+                };
+
+                // Enriquecer com info de lease ativo
+                var propertyIds = properties.Select(p => p.Id).ToList();
+                var activeLeases = await leasingDb.Leases
+                    .Where(l => propertyIds.Contains(l.PropertyId) && occupiedLikeStatuses.Contains(l.Status))
+                    .Select(l => new { l.PropertyId, l.EndDate, l.Status })
+                    .ToListAsync();
+
+                var enriched = properties.Select(p =>
+                {
+                    var lease = activeLeases
+                        .Where(l => l.PropertyId == p.Id)
+                        .OrderByDescending(l => l.Status == LeaseStatus.Active)
+                        .ThenByDescending(l => l.EndDate)
+                        .FirstOrDefault();
+
+                    return new
+                    {
+                        p.Id, p.Title, p.District, p.Municipality, p.Parish,
+                        p.IsPublic, p.IsUnderMaintenance, p.MainImageUrl,
+                        ActiveLeaseEndDate = lease?.EndDate,
+                        ActiveLeaseStatus = lease?.Status.ToString()
+                    };
+                });
+
+                return Results.Ok(enriched);
             }
             catch (Exception ex)
             {
@@ -167,14 +205,51 @@ public static class PropertyEndpoints
             }
         });
 
-        propertyGroup.MapGet("/my-rented-properties", async (ClaimsPrincipal userClaims, IPropertyService propertyService) =>
+        propertyGroup.MapGet("/my-rented-properties", async (ClaimsPrincipal userClaims, IPropertyService propertyService, LeasingDbContext leasingDb) =>
         {
             try
             {
                 var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
                 var properties = await propertyService.GetPropertiesByTenantAsync(userId);
 
-                return Results.Ok(properties);
+                var occupiedLikeStatuses = new[]
+                {
+                    LeaseStatus.Active,
+                    LeaseStatus.AwaitingPayment,
+                    LeaseStatus.PendingLandlordSignature,
+                    LeaseStatus.PendingTenantSignature,
+                    LeaseStatus.AwaitingSignatures,
+                    LeaseStatus.SignaturesVerified,
+                    LeaseStatus.GeneratingContract
+                };
+
+                // Enriquecer com info de lease ativo
+                var propertyIds = properties.Select(p => p.Id).ToList();
+                var activeLeases = await leasingDb.Leases
+                    .Where(l => propertyIds.Contains(l.PropertyId)
+                        && l.TenantId == userId
+                        && occupiedLikeStatuses.Contains(l.Status))
+                    .Select(l => new { l.PropertyId, l.EndDate, l.Status })
+                    .ToListAsync();
+
+                var enriched = properties.Select(p =>
+                {
+                    var lease = activeLeases
+                        .Where(l => l.PropertyId == p.Id)
+                        .OrderByDescending(l => l.Status == LeaseStatus.Active)
+                        .ThenByDescending(l => l.EndDate)
+                        .FirstOrDefault();
+
+                    return new
+                    {
+                        p.Id, p.Title, p.District, p.Municipality, p.Parish,
+                        p.IsPublic, p.IsUnderMaintenance, p.MainImageUrl,
+                        ActiveLeaseEndDate = lease?.EndDate,
+                        ActiveLeaseStatus = lease?.Status.ToString()
+                    };
+                });
+
+                return Results.Ok(enriched);
             }
             catch (Exception ex)
             {
@@ -203,7 +278,7 @@ public static class PropertyEndpoints
 
 
         // 2. PUT: Atualizar o imóvel
-        propertyGroup.MapPut("/{id:guid}", async (Guid id, HttpRequest request, ClaimsPrincipal userClaims, IPropertyService propertyService, IStripeAccountService stripeAccountService) =>
+        propertyGroup.MapPut("/{id:guid}", async (Guid id, HttpRequest request, ClaimsPrincipal userClaims, IPropertyService propertyService, IStripeAccountService stripeAccountService, LeasingDbContext leasingDb) =>
         {
             try
             {
@@ -258,7 +333,6 @@ public static class PropertyEndpoints
 
                     // Periodicidade e Regime
                     LeaseRegime = form["leaseRegime"].ToString(),
-                    AllowsRenewal = form["allowsRenewal"] == "true",
                     NonPermanentReason = form["nonPermanentReason"].ToString(),
                 };
 
@@ -280,6 +354,19 @@ public static class PropertyEndpoints
 
                     if (dto.LeaseRegime == "NonPermanentHousing" && string.IsNullOrEmpty(dto.NonPermanentReason))
                         return Results.BadRequest(new { Error = "O motivo é obrigatório para regime não permanente." });
+
+                    // Regra de ocupação: imóvel com arrendamento em curso/finalização não pode ser publicado,
+                    // exceto nas situações legais de transição (não renovação iminente ou denúncia antecipada iniciada).
+                    var canPublishOccupiedProperty = await CanPublishOccupiedPropertyAsync(id, leasingDb);
+                    if (!canPublishOccupiedProperty)
+                    {
+                        return Results.BadRequest(new
+                        {
+                            Error = "Não é possível publicar um imóvel ocupado enquanto o arrendamento estiver em curso. " +
+                                    "Só é permitido publicar quando faltar até 14 dias para o fim e houver oposição à renovação " +
+                                    "por alguma das partes, ou quando já existir um pedido de denúncia antecipada pendente."
+                        });
+                    }
                 }
 
                 // Apanhar apenas as NOVAS imagens adicionadas na edição
@@ -373,7 +460,7 @@ public static class PropertyEndpoints
         {
             // 1. Identificar o utilizador (se autenticado)
             var userIdString = userClaims.FindFirstValue(ClaimTypes.NameIdentifier);
-            var currentUserId = string.IsNullOrEmpty(userIdString) ? Guid.Empty : Guid.Parse(userIdString);
+            var currentUserId = Guid.TryParse(userIdString, out var parsedUserId) ? parsedUserId : Guid.Empty;
 
             // 2. Ir buscar o imóvel ao Catalog
             var property = await propertyService.GetPropertyByIdAsync(id);
@@ -462,7 +549,6 @@ public static class PropertyEndpoints
                 property.GasPaidBy,
                 property.HasOfficialContract,
                 property.LeaseRegime,
-                property.AllowsRenewal,
                 property.NonPermanentReason,
                 AcceptedPeriodicities = property.AcceptedPeriodicities.Select(pp => pp.DurationMonths),
                 Images = property.Images.Select(img => new {
@@ -504,5 +590,52 @@ public static class PropertyEndpoints
             }));
         });
 
+    }
+
+    private static readonly LeaseStatus[] PublicationBlockingLeaseStatuses =
+    {
+        LeaseStatus.Active,
+        LeaseStatus.AwaitingPayment,
+        LeaseStatus.PendingLandlordSignature,
+        LeaseStatus.PendingTenantSignature,
+        LeaseStatus.AwaitingSignatures,
+        LeaseStatus.SignaturesVerified,
+        LeaseStatus.GeneratingContract
+    };
+
+    private static async Task<bool> CanPublishOccupiedPropertyAsync(Guid propertyId, LeasingDbContext leasingDb)
+    {
+        var now = DateTime.UtcNow;
+
+        var lease = await leasingDb.Leases
+            .Where(l => l.PropertyId == propertyId && PublicationBlockingLeaseStatuses.Contains(l.Status))
+            .OrderByDescending(l => l.Status == LeaseStatus.Active)
+            .ThenByDescending(l => l.EndDate)
+            .FirstOrDefaultAsync();
+
+        // Sem arrendamento em curso/finalização -> pode publicar.
+        if (lease == null)
+            return true;
+
+        // Exceção 1: denúncia antecipada já iniciada por algum interveniente.
+        var hasPendingEarlyTermination = await leasingDb.LeaseTerminationRequests
+            .AnyAsync(r => r.LeaseId == lease.Id && r.Status == "Pending");
+
+        if (hasPendingEarlyTermination)
+            return true;
+
+        // Exceção 2: até 14 dias do fim e com oposição à renovação por qualquer parte.
+        var isWithinLastTwoWeeks = lease.EndDate >= now && lease.EndDate <= now.AddDays(14);
+        if (isWithinLastTwoWeeks)
+        {
+            var hasNonRenewalResponse = await leasingDb.LeaseRenewalNotifications
+                .AnyAsync(n => n.LeaseId == lease.Id
+                    && (n.LandlordResponse == "Cancel" || n.TenantResponse == "Cancel"));
+
+            if (hasNonRenewalResponse)
+                return true;
+        }
+
+        return false;
     }
 }

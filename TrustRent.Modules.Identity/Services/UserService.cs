@@ -454,4 +454,13 @@ public class UserService : IUserService
 
         return stringBuilder.ToString().Normalize(NormalizationForm.FormC);
     }
+
+    public async Task UpdateTrustScoreAsync(Guid userId, int newScore)
+    {
+        var user = await _uow.Users.GetByIdAsync(userId)
+            ?? throw new Exception("Utilizador não encontrado.");
+
+        user.TrustScore = Math.Clamp(newScore, 0, 100);
+        await _uow.SaveChangesAsync();
+    }
 }

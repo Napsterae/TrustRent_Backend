@@ -31,6 +31,11 @@ public class CancelLeaseDto
     public string Reason { get; set; } = string.Empty;
 }
 
+public class RegisterTaxDto
+{
+    public string? Reference { get; set; }
+}
+
 public class LeaseSignatureStatusDto
 {
     public Guid LeaseId { get; set; }

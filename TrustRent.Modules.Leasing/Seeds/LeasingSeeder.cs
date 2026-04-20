@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -81,8 +83,8 @@ public static class LeasingSeeder
             LandlordId = LandlordId,
             ApplicationId = LeaseActiveApplication1Id,
             StartDate = DateTime.UtcNow.AddMonths(-3),
-            EndDate = DateTime.UtcNow.AddMonths(9),
-            DurationMonths = 12,
+            EndDate = DateTime.UtcNow.AddMonths(33),
+            DurationMonths = 36,
             AllowsRenewal = true,
             MonthlyRent = 2500,
             Deposit = 5000,
@@ -164,8 +166,8 @@ public static class LeasingSeeder
             LandlordId = LandlordId,
             ApplicationId = ContractPendingApplicationId,
             StartDate = DateTime.UtcNow.AddDays(18),
-            EndDate = DateTime.UtcNow.AddDays(18).AddMonths(24),
-            DurationMonths = 24,
+            EndDate = DateTime.UtcNow.AddDays(18).AddMonths(36),
+            DurationMonths = 36,
             AllowsRenewal = true,
             MonthlyRent = 1450,
             Deposit = 1450,
@@ -194,8 +196,8 @@ public static class LeasingSeeder
             LandlordId = Landlord2Id,
             ApplicationId = AwaitingPaymentApplicationId,
             StartDate = DateTime.UtcNow.AddDays(10),
-            EndDate = DateTime.UtcNow.AddDays(10).AddMonths(12),
-            DurationMonths = 12,
+            EndDate = DateTime.UtcNow.AddDays(10).AddMonths(36),
+            DurationMonths = 36,
             AllowsRenewal = true,
             MonthlyRent = 780,
             Deposit = 780,
@@ -220,8 +222,8 @@ public static class LeasingSeeder
             LandlordId = Landlord2Id,
             ApplicationId = LeaseStartDateProposedApplicationId,
             StartDate = DateTime.UtcNow.AddDays(22),
-            EndDate = DateTime.UtcNow.AddDays(22).AddMonths(12),
-            DurationMonths = 12,
+            EndDate = DateTime.UtcNow.AddDays(22).AddMonths(36),
+            DurationMonths = 36,
             AllowsRenewal = true,
             MonthlyRent = 980,
             Deposit = 980,
@@ -460,6 +462,230 @@ public static class LeasingSeeder
         ticket3.Comments.Add(new TicketComment { Id = Guid.NewGuid(), TicketId = Ticket3Id, AuthorId = Tenant2Id, Content = "Nao ha urgencia, e apenas planeamento preventivo.", CreatedAt = ticket3.CreatedAt.AddHours(1) });
         tickets.Add(ticket3);
 
+        // ══════════════════════════════════════════════════════════
+        // REVIEWS — Publicadas, pendentes e expiradas para teste
+        // ══════════════════════════════════════════════════════════
+        var reviews = new List<Review>();
+
+        // Pair 1: Lease Review — Lease1 (Carlos ↔ Ana) — ambas publicadas
+        var reviewPair1 = Guid.NewGuid();
+        reviews.Add(new Review
+        {
+            Id = Guid.Parse("aaaa0001-ae01-ae01-ae01-aaaaaaaaaaaa"),
+            ReviewerId = TenantId,       // Ana avalia Carlos
+            ReviewedUserId = LandlordId,
+            LeaseId = Lease1Id,
+            Rating = 5,
+            Comment = "Excelente senhorio. Muito atencioso e resolve tudo rapidamente.",
+            Type = ReviewType.LeaseReview,
+            Status = ReviewStatus.Published,
+            PairId = reviewPair1,
+            CreatedAt = DateTime.UtcNow.AddDays(-30),
+            SubmittedAt = DateTime.UtcNow.AddDays(-28),
+            PublishedAt = DateTime.UtcNow.AddDays(-28),
+            ExpiresAt = DateTime.UtcNow.AddDays(-20)
+        });
+        reviews.Add(new Review
+        {
+            Id = Guid.Parse("aaaa0002-ae02-ae02-ae02-aaaaaaaaaaaa"),
+            ReviewerId = LandlordId,     // Carlos avalia Ana
+            ReviewedUserId = TenantId,
+            LeaseId = Lease1Id,
+            Rating = 4,
+            Comment = "Boa inquilina. Paga sempre a tempo e cuida bem do imovel.",
+            Type = ReviewType.LeaseReview,
+            Status = ReviewStatus.Published,
+            PairId = reviewPair1,
+            CreatedAt = DateTime.UtcNow.AddDays(-30),
+            SubmittedAt = DateTime.UtcNow.AddDays(-27),
+            PublishedAt = DateTime.UtcNow.AddDays(-27),
+            ExpiresAt = DateTime.UtcNow.AddDays(-20)
+        });
+
+        // Pair 2: Ticket Review — Ticket2 (resolved) — Carlos ↔ Ana — ambas publicadas
+        var reviewPair2 = Guid.NewGuid();
+        reviews.Add(new Review
+        {
+            Id = Guid.Parse("aaaa0003-ae03-ae03-ae03-aaaaaaaaaaaa"),
+            ReviewerId = TenantId,
+            ReviewedUserId = LandlordId,
+            TicketId = Ticket2Id,
+            Rating = 5,
+            Comment = "Resolveu o problema da pressao da agua em dois dias. Impecavel.",
+            Type = ReviewType.TicketReview,
+            Status = ReviewStatus.Published,
+            PairId = reviewPair2,
+            CreatedAt = DateTime.UtcNow.AddDays(-15),
+            SubmittedAt = DateTime.UtcNow.AddDays(-14),
+            PublishedAt = DateTime.UtcNow.AddDays(-14),
+            ExpiresAt = DateTime.UtcNow.AddDays(-5)
+        });
+        reviews.Add(new Review
+        {
+            Id = Guid.Parse("aaaa0004-ae04-ae04-ae04-aaaaaaaaaaaa"),
+            ReviewerId = LandlordId,
+            ReviewedUserId = TenantId,
+            TicketId = Ticket2Id,
+            Rating = 5,
+            Comment = "Reportou o problema de forma clara e facilitou o acesso ao tecnico.",
+            Type = ReviewType.TicketReview,
+            Status = ReviewStatus.Published,
+            PairId = reviewPair2,
+            CreatedAt = DateTime.UtcNow.AddDays(-15),
+            SubmittedAt = DateTime.UtcNow.AddDays(-13),
+            PublishedAt = DateTime.UtcNow.AddDays(-13),
+            ExpiresAt = DateTime.UtcNow.AddDays(-5)
+        });
+
+        // Pair 3: Lease Review — Lease2 (Sofia ↔ Miguel) — Sofia respondeu, Miguel pendente
+        var reviewPair3 = Guid.NewGuid();
+        reviews.Add(new Review
+        {
+            Id = Guid.Parse("aaaa0005-ae05-ae05-ae05-aaaaaaaaaaaa"),
+            ReviewerId = Landlord2Id,    // Sofia avalia Miguel
+            ReviewedUserId = Tenant2Id,
+            LeaseId = Lease2Id,
+            Rating = 3,
+            Comment = "Inquilino razoavel, mas por vezes atrasa-se no pagamento.",
+            Type = ReviewType.LeaseReview,
+            Status = ReviewStatus.Submitted,
+            PairId = reviewPair3,
+            CreatedAt = DateTime.UtcNow.AddDays(-5),
+            SubmittedAt = DateTime.UtcNow.AddDays(-4),
+            ExpiresAt = DateTime.UtcNow.AddDays(5)
+        });
+        reviews.Add(new Review
+        {
+            Id = Guid.Parse("aaaa0006-ae06-ae06-ae06-aaaaaaaaaaaa"),
+            ReviewerId = Tenant2Id,      // Miguel ainda nao avaliou Sofia
+            ReviewedUserId = Landlord2Id,
+            LeaseId = Lease2Id,
+            Type = ReviewType.LeaseReview,
+            Status = ReviewStatus.Pending,
+            PairId = reviewPair3,
+            Rating = 0,
+            CreatedAt = DateTime.UtcNow.AddDays(-5),
+            ExpiresAt = DateTime.UtcNow.AddDays(5)
+        });
+
+        // Pair 4: Expired review — Lease1 older quarter — ambas expiraram sem resposta
+        var reviewPair4 = Guid.NewGuid();
+        reviews.Add(new Review
+        {
+            Id = Guid.Parse("aaaa0007-ae07-ae07-ae07-aaaaaaaaaaaa"),
+            ReviewerId = TenantId,
+            ReviewedUserId = LandlordId,
+            LeaseId = Lease1Id,
+            Type = ReviewType.LeaseReview,
+            Status = ReviewStatus.Expired,
+            PairId = reviewPair4,
+            Rating = 0,
+            CreatedAt = DateTime.UtcNow.AddDays(-60),
+            ExpiresAt = DateTime.UtcNow.AddDays(-50)
+        });
+        reviews.Add(new Review
+        {
+            Id = Guid.Parse("aaaa0008-ae08-ae08-ae08-aaaaaaaaaaaa"),
+            ReviewerId = LandlordId,
+            ReviewedUserId = TenantId,
+            LeaseId = Lease1Id,
+            Type = ReviewType.LeaseReview,
+            Status = ReviewStatus.Expired,
+            PairId = reviewPair4,
+            Rating = 0,
+            CreatedAt = DateTime.UtcNow.AddDays(-60),
+            ExpiresAt = DateTime.UtcNow.AddDays(-50)
+        });
+
+        // ══════════════════════════════════════════════════════════
+        // RENEWAL NOTIFICATIONS — Lease1 tem notificacao pendente
+        // ══════════════════════════════════════════════════════════
+        var renewalNotifications = new List<LeaseRenewalNotification>();
+
+        // Lease1: notificacao ativa — landlord já respondeu "Renew", tenant ainda nao respondeu
+        var renewal1Id = Guid.Parse("aaaa0010-abce-abce-abce-aaaaaaaaaaaa");
+        renewalNotifications.Add(new LeaseRenewalNotification
+        {
+            Id = renewal1Id,
+            LeaseId = Lease1Id,
+            NotifiedAt = DateTime.UtcNow.AddDays(-3),
+            DeadlineDate = DateTime.UtcNow.AddDays(11),
+            LandlordResponse = "Renew",
+            LandlordRespondedAt = DateTime.UtcNow.AddDays(-2),
+            LandlordResponseIpAddress = "203.0.113.42",
+            TenantResponse = null,
+            TenantRespondedAt = null,
+            TenantResponseIpAddress = null,
+            Processed = false
+        });
+
+        // ══════════════════════════════════════════════════════════
+        // LEGAL COMMUNICATION LOGS — registos de auditoria
+        // ══════════════════════════════════════════════════════════
+        var legalLogs = new List<LegalCommunicationLog>();
+
+        var renewalMsgLandlord = "O seu contrato de arrendamento termina em 14 dias. Deseja renovar ou cancelar?";
+        var renewalMsgTenant = renewalMsgLandlord;
+        var renewResponseMsg = "O utilizador comunicou a sua intencao de RENOVAR o contrato de arrendamento (Lease ID: " + Lease1Id + ").";
+
+        // Log 1: Sistema envia notificacao de renovacao ao senhorio
+        legalLogs.Add(new LegalCommunicationLog
+        {
+            Id = Guid.Parse("aaaa0020-1001-1001-1001-aaaaaaaaaaaa"),
+            LeaseId = Lease1Id,
+            CommunicationType = "RenewalNotification",
+            SenderId = Guid.Empty,
+            RecipientId = LandlordId,
+            Content = renewalMsgLandlord,
+            SentAt = DateTime.UtcNow.AddDays(-3),
+            SenderIpAddress = "system",
+            RenewalNotificationId = renewal1Id,
+            ContentHash = ComputeSha256(renewalMsgLandlord),
+            ViewedAt = DateTime.UtcNow.AddDays(-2).AddHours(-1),
+            ViewerIpAddress = "203.0.113.42",
+            ViewerUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            AcknowledgedAt = DateTime.UtcNow.AddDays(-2).AddHours(-1),
+            AcknowledgerIpAddress = "203.0.113.42"
+        });
+
+        // Log 2: Sistema envia notificacao de renovacao ao inquilino
+        legalLogs.Add(new LegalCommunicationLog
+        {
+            Id = Guid.Parse("aaaa0021-1002-1002-1002-aaaaaaaaaaaa"),
+            LeaseId = Lease1Id,
+            CommunicationType = "RenewalNotification",
+            SenderId = Guid.Empty,
+            RecipientId = TenantId,
+            Content = renewalMsgTenant,
+            SentAt = DateTime.UtcNow.AddDays(-3),
+            SenderIpAddress = "system",
+            RenewalNotificationId = renewal1Id,
+            ContentHash = ComputeSha256(renewalMsgTenant),
+            ViewedAt = DateTime.UtcNow.AddDays(-1),
+            ViewerIpAddress = "198.51.100.23",
+            ViewerUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+            // Tenant viewed but has NOT acknowledged yet
+        });
+
+        // Log 3: Senhorio respondeu "Renovar"
+        legalLogs.Add(new LegalCommunicationLog
+        {
+            Id = Guid.Parse("aaaa0022-1003-1003-1003-aaaaaaaaaaaa"),
+            LeaseId = Lease1Id,
+            CommunicationType = "RenewalResponse",
+            SenderId = LandlordId,
+            RecipientId = TenantId,
+            Content = renewResponseMsg,
+            SentAt = DateTime.UtcNow.AddDays(-2),
+            SenderIpAddress = "203.0.113.42",
+            SenderUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            RenewalNotificationId = renewal1Id,
+            ContentHash = ComputeSha256(renewResponseMsg),
+            ViewedAt = DateTime.UtcNow.AddDays(-1),
+            ViewerIpAddress = "198.51.100.23",
+            ViewerUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"
+        });
+
         try
         {
             context.Leases.AddRange(leases);
@@ -467,8 +693,11 @@ public static class LeasingSeeder
             context.TenantPaymentMethods.AddRange(paymentMethods);
             context.Payments.AddRange(payments);
             context.Tickets.AddRange(tickets);
+            context.Reviews.AddRange(reviews);
+            context.LeaseRenewalNotifications.AddRange(renewalNotifications);
+            context.LegalCommunicationLogs.AddRange(legalLogs);
             await context.SaveChangesAsync();
-            Console.WriteLine($"[SEED] Leasing: {leases.Count} contratos, {payments.Count} pagamentos, {tickets.Count} tickets e dados Stripe de teste criados.");
+            Console.WriteLine($"[SEED] Leasing: {leases.Count} contratos, {payments.Count} pagamentos, {tickets.Count} tickets, {reviews.Count} reviews, {renewalNotifications.Count} renovacoes, {legalLogs.Count} registos legais criados.");
         }
         catch (Exception ex)
         {
@@ -504,5 +733,11 @@ public static class LeasingSeeder
         }).GeneratePdf(filePath);
 
         return filePath;
+    }
+
+    private static string ComputeSha256(string content)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 }

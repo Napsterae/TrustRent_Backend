@@ -37,7 +37,7 @@ public class CatalogAccessService : ICatalogAccessService
                 AdvanceRentMonths = a.Property.AdvanceRentMonths,
                 LeaseRegime = a.Property.LeaseRegime.HasValue ? a.Property.LeaseRegime.Value.ToString() : null,
                 HasOfficialContract = a.Property.HasOfficialContract,
-                AllowsRenewal = a.Property.AllowsRenewal,
+                AllowsRenewal = true,
                 CondominiumFeesPaidBy = a.Property.CondominiumFeesPaidBy,
                 WaterPaidBy = a.Property.WaterPaidBy,
                 ElectricityPaidBy = a.Property.ElectricityPaidBy,

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TrustRent.Modules.Leasing.Contracts.Database;
@@ -11,9 +12,11 @@ using TrustRent.Modules.Leasing.Contracts.Database;
 namespace TrustRent.Modules.Leasing.Migrations
 {
     [DbContext(typeof(LeasingDbContext))]
-    partial class LeasingDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260419235324_AddRentIncreaseRequest")]
+    partial class AddRentIncreaseRequest
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -82,9 +85,6 @@ namespace TrustRent.Modules.Leasing.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<bool>("IsRegisteredWithTaxAuthority")
-                        .HasColumnType("boolean");
-
                     b.Property<Guid>("LandlordId")
                         .HasColumnType("uuid");
 
@@ -130,12 +130,6 @@ namespace TrustRent.Modules.Leasing.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime?>("TaxRegistrationDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("TaxRegistrationReference")
-                        .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");

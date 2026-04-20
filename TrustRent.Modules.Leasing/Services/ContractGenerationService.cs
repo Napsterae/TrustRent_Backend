@@ -132,7 +132,7 @@ public class ContractGenerationService : IContractGenerationService
                             
                         DrawTableRow(table, "Data de Início:", lease.StartDate.ToString("dd 'de' MMMM 'de' yyyy", ptCulture));
                         DrawTableRow(table, "Duração Inicial:", $"{lease.DurationMonths} meses (Termo: {lease.EndDate.ToString("dd/MM/yyyy", ptCulture)})");
-                        DrawTableRow(table, "Renovação:", lease.AllowsRenewal ? "Automática por iguais períodos" : "Não renovável");
+                        DrawTableRow(table, "Renovação:", "Automática por regra legal, salvo oposição válida nos prazos de pré-aviso.");
                         
                         if (!string.IsNullOrEmpty(lease.LeaseRegime))
                             DrawTableRow(table, "Regime Legal:", lease.LeaseRegime == "PermanentHousing" ? "Habitação Permanente" : "Habitação Não Permanente");
@@ -180,6 +180,75 @@ public class ContractGenerationService : IContractGenerationService
                         DrawClause(clausulas, "5. Benfeitorias", "O Segundo Outorgante não poderá realizar obras ou benfeitorias sem autorização prévia e por escrito do Primeiro Outorgante. As obras autorizadas ficarão a fazer parte integrante do imóvel, sem direito a qualquer retenção ou indemnização.");
                         DrawClause(clausulas, "6. Rescisão", "A denúncia ou oposição à renovação do contrato por qualquer das partes obedece aos prazos e formas previstos na lei em vigor (NRAU).");
                         DrawClause(clausulas, "7. Foro Competente", "Para dirimir quaisquer litígios emergentes da interpretação ou execução deste contrato, as partes estipulam como competente o foro da comarca onde se situa o imóvel.");
+                    });
+
+                    // === COMUNICAÇÕES E NOTIFICAÇÕES ===
+                    col.Item().PaddingTop(15).Element(c => SectionHeader(c, "VI. COMUNICAÇÕES E NOTIFICAÇÕES"));
+                    col.Item().PaddingTop(5).Column(comms =>
+                    {
+                        DrawClause(comms, "1. Canal Oficial de Comunicações",
+                            "As partes acordam que todas as comunicações, notificações e declarações relacionadas com o presente contrato — " +
+                            "incluindo, mas não se limitando a, oposição à renovação, denúncia, atualização de renda, pedidos de obras e " +
+                            "quaisquer outras declarações com relevância contratual ou legal — serão efetuadas preferencialmente " +
+                            "através da plataforma eletrónica WeKaza e/ou dos endereços de correio eletrónico gerados pela mesma.");
+
+                        DrawClause(comms, "2. Fundamentação Legal",
+                            "Este acordo fundamenta-se nas seguintes disposições legais: " +
+                            "(a) Artigo 9.º do Novo Regime do Arrendamento Urbano (NRAU, Lei n.º 6/2006, de 27 de fevereiro, " +
+                            "com as alterações introduzidas pela Lei n.º 13/2019, de 12 de fevereiro), que permite que as comunicações " +
+                            "entre senhorio e arrendatário sejam efetuadas por meios que assegurem a sua receção; " +
+                            "(b) Artigo 224.º do Código Civil, que estabelece que a declaração negocial é eficaz logo que chega ao " +
+                            "poder do destinatário ou é dele conhecida; " +
+                            "(c) Artigo 3.º do Decreto-Lei n.º 290-D/99, de 2 de agosto (na redação dada pelo Decreto-Lei " +
+                            "n.º 62/2003, de 3 de abril), que reconhece a validade e o valor probatório dos documentos eletrónicos; " +
+                            "(d) Regulamento (UE) n.º 910/2014 (eIDAS), relativo à identificação eletrónica e aos serviços de confiança " +
+                            "para transações eletrónicas no mercado interno.");
+
+                        DrawClause(comms, "3. Valor Probatório",
+                            "As comunicações realizadas através da plataforma são registadas automaticamente com data, hora (UTC), " +
+                            "endereço IP do remetente e do destinatário no momento do envio e da visualização, constituindo prova " +
+                            "bastante da efetivação da comunicação nos termos do artigo 224.º, n.º 2, do Código Civil. " +
+                            "É gerado um hash criptográfico (SHA-256) do conteúdo de cada comunicação para garantir a sua integridade " +
+                            "e inalterabilidade.");
+
+                        DrawClause(comms, "4. Comunicação por Correio Eletrónico",
+                            "Sem prejuízo das comunicações pela plataforma, estas poderão igualmente ser efetuadas por correio " +
+                            "eletrónico para os endereços indicados pelas partes, considerando-se cumprida a obrigação de comunicação " +
+                            "quando haja prova do envio pelo sistema, nos termos do artigo 10.º do NRAU.");
+
+                        DrawClause(comms, "5. Comunicação Judicial ou Extrajudicial",
+                            "Quando a lei exija forma específica de comunicação (nomeadamente carta registada com aviso de receção, " +
+                            "conforme artigo 10.º do NRAU), as partes poderão utilizar cumulativamente a plataforma e o meio legalmente " +
+                            "exigido, prevalecendo este último em caso de conflito.");
+                    });
+
+                    // === CONFIRMAÇÃO DE RECEÇÃO ===
+                    col.Item().PaddingTop(15).Element(c => SectionHeader(c, "VII. CONFIRMAÇÃO DE RECEÇÃO DE COMUNICAÇÕES"));
+                    col.Item().PaddingTop(5).Column(ack =>
+                    {
+                        DrawClause(ack, "1. Obrigação de Confirmação",
+                            "As partes obrigam-se a confirmar a receção de qualquer comunicação oficial efetuada pela plataforma " +
+                            "ou por correio eletrónico gerado pela mesma, num prazo máximo de 5 (cinco) dias úteis após a sua " +
+                            "receção, utilizando para o efeito o mecanismo de confirmação disponibilizado pela plataforma.");
+
+                        DrawClause(ack, "2. Presunção de Receção",
+                            "A falta de confirmação de receção por parte do destinatário, dentro do prazo referido no número anterior, " +
+                            "não invalida a comunicação nem afasta os seus efeitos legais, desde que o sistema registe prova " +
+                            "do envio e/ou da disponibilização da comunicação ao destinatário, nos termos do artigo 224.º, n.º 2, " +
+                            "do Código Civil — que estabelece que a declaração negocial é também eficaz quando só por culpa " +
+                            "do destinatário não foi por ele oportunamente recebida.");
+
+                        DrawClause(ack, "3. Registo de Confirmação",
+                            "Cada confirmação de receção efetuada pela plataforma regista automaticamente a data, hora, " +
+                            "endereço IP e identificação do utilizador, constituindo prova bastante nos termos do " +
+                            "Decreto-Lei n.º 290-D/99.");
+
+                        DrawClause(ack, "4. Efeitos da Notificação",
+                            "Para todos os efeitos legais, incluindo o cômputo dos prazos de oposição à renovação, denúncia " +
+                            "e demais comunicações previstas no NRAU (artigos 9.º a 15.º da Lei n.º 6/2006), as comunicações " +
+                            "consideram-se eficazes: (a) na data da confirmação de receção pelo destinatário; ou " +
+                            "(b) decorridos 5 (cinco) dias úteis após o envio pelo sistema, quando não haja confirmação, " +
+                            "desde que exista prova de envio.");
                     });
 
                     // === ASSINATURAS ===

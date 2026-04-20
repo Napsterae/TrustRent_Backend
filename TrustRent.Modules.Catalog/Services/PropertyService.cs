@@ -40,6 +40,7 @@ public class PropertyService : IPropertyService
         IList<int>? acceptedPeriodicities = null)
     {
         ValidateFinancialTerms(dto);
+        ValidatePeriodicities(dto, acceptedPeriodicities);
 
         // 1. Mapear o DTO para o nosso Modelo da Base de Dados
         var property = dto.ToEntity(landlordId);
@@ -189,6 +190,7 @@ public class PropertyService : IPropertyService
         IList<int>? acceptedPeriodicities = null)
     {
         ValidateFinancialTerms(dto);
+        ValidatePeriodicities(dto, acceptedPeriodicities);
 
         // 1. Carregar a entidade com todas as suas coleções
         var property = await _uow.Properties.GetByIdAndLandlordWithImagesAsync(propertyId, landlordId);
@@ -346,5 +348,23 @@ public class PropertyService : IPropertyService
         var maxDeposit = dto.Price * 2;
         if (dto.Deposit.Value > maxDeposit)
             throw new InvalidOperationException($"A caução não pode ultrapassar {maxDeposit:0.##}€, o equivalente a 2 meses de renda.");
+    }
+
+    /// <summary>
+    /// Lei do Arrendamento 2026: Habitação Permanente requer duração mínima de 36 meses.
+    /// </summary>
+    private static void ValidatePeriodicities(CreatePropertyDto dto, IList<int>? acceptedPeriodicities)
+    {
+        if (acceptedPeriodicities == null || acceptedPeriodicities.Count == 0)
+            return;
+
+        if (Enum.TryParse<LeaseRegime>(dto.LeaseRegime, out var regime) && regime == LeaseRegime.PermanentHousing)
+        {
+            var invalidPeriods = acceptedPeriodicities.Where(p => p < 36).ToList();
+            if (invalidPeriods.Count > 0)
+                throw new InvalidOperationException(
+                    "Nos termos da Lei do Arrendamento 2026, contratos de Habitação Permanente têm uma duração mínima obrigatória de 3 anos (36 meses). " +
+                    $"As seguintes durações são inválidas: {string.Join(", ", invalidPeriods.Select(p => $"{p} meses"))}.");
+        }
     }
 }

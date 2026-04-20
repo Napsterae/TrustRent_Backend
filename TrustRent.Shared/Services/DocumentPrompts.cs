@@ -99,6 +99,34 @@ public static class DocumentPrompts
         }
         """;
 
+    public static string RegistoAtTaxValidation => $$"""
+        Estás a analisar um comprovativo de REGISTO DE CONTRATO DE ARRENDAMENTO NAS FINANÇAS (AT/Portal das Finanças, Portugal).
+        Este documento deve comprovar o registo do contrato por parte do senhorio.
+
+        {{CommonInstructions}}
+
+        CAMPOS A EXTRAIR:
+        - atRegistrationNumber: O número de registo/comunicação/recibo do contrato. Pode aparecer como "N.º de Registo", "N.º da Declaração", "N.º do Recibo" ou equivalente.
+        - landlordName: Nome completo do senhorio/contribuinte que aparece no comprovativo.
+        - landlordNif: NIF do senhorio/contribuinte. Devolve apenas 9 dígitos, sem espaços nem símbolos.
+
+        DICAS DE LOCALIZAÇÃO:
+        - O número de registo costuma estar no topo do comprovativo.
+        - O nome e NIF do contribuinte aparecem numa secção de identificação do sujeito passivo/senhorio.
+        - Se houver múltiplos NIFs, escolhe o NIF que estiver associado ao senhorio/contribuinte principal do contrato.
+
+        SCHEMA JSON DE RESPOSTA:
+        {
+            "isAuthentic": boolean,
+            "fraudReason": string | null,
+            "imageQuality": "good" | "blurry" | "dark" | "cropped" | "unreadable",
+            "allFieldsExtracted": boolean,
+            "atRegistrationNumber": string | null,
+            "landlordName": string | null,
+            "landlordNif": string | null
+        }
+        """;
+
     public static string CertidaoPermanente => $$"""
         Estás a analisar uma CERTIDÃO PERMANENTE portuguesa (documento da Conservatória do Registo Predial).
         Este documento online comprova a descrição, titularidade, ónus e encargos que incidem sobre o imóvel.
