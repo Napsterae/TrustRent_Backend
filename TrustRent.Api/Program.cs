@@ -156,16 +156,26 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             OnMessageReceived = context =>
             {
+                var path = context.HttpContext.Request.Path;
                 var accessToken = context.Request.Query["access_token"];
 
-                // Se o pedido for para o nosso hub (SignalR envia o token por query string)
-                var path = context.HttpContext.Request.Path;
+                // Fallback temporário: SignalR pode enviar o token por query-string.
+                // Será removido quando o frontend deixar de enviar accessTokenFactory.
                 if (!string.IsNullOrEmpty(accessToken) &&
                     (path.StartsWithSegments("/api/chathub") || path.StartsWithSegments("/api/notificationhub")))
                 {
-                    // Lê o token do query string
                     context.Token = accessToken;
+                    return Task.CompletedTask;
                 }
+
+                // Fonte primária: cookie httpOnly definido por /api/auth/login e /api/auth/register.
+                if (string.IsNullOrEmpty(context.Token) &&
+                    context.Request.Cookies.TryGetValue(AuthEndpoints.AuthCookieName, out var cookieToken) &&
+                    !string.IsNullOrEmpty(cookieToken))
+                {
+                    context.Token = cookieToken;
+                }
+
                 return Task.CompletedTask;
             }
         };
@@ -186,9 +196,15 @@ builder.Services.ConfigureHttpJsonOptions(options => {
 
 builder.Services.AddCors(options =>
 {
+    // Origens permitidas via configuração (CorsSettings:AllowedOrigins) com fallback para dev local.
+    var configuredOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>();
+    var allowedOrigins = (configuredOrigins is { Length: > 0 })
+        ? configuredOrigins
+        : new[] { "http://localhost:5173" };
+
     options.AddPolicy("AllowViteFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173") 
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -245,6 +261,42 @@ if (app.Environment.IsDevelopment())
         Authorization = new[] { new Hangfire.Dashboard.LocalRequestsOnlyAuthorizationFilter() }
     });
 }
+else
+{
+    // Em produção: HSTS + redirect HTTPS + headers de segurança.
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
+
+// Headers de segurança transversais
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["X-Frame-Options"] = "DENY";
+    headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()";
+
+    // Content Security Policy. Aplica-se sobretudo a respostas HTML servidas pela API
+    // (Hangfire dashboard, páginas de erro). Mantemos uma política restritiva.
+    // O frontend Vite tem o seu próprio CSP no index.html quando necessário.
+    if (!context.Response.Headers.ContainsKey("Content-Security-Policy"))
+    {
+        headers["Content-Security-Policy"] =
+            "default-src 'self'; " +
+            "script-src 'self'; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data: blob: https:; " +
+            "font-src 'self' data:; " +
+            "connect-src 'self' https: wss:; " +
+            "frame-ancestors 'none'; " +
+            "base-uri 'self'; " +
+            "form-action 'self'; " +
+            "object-src 'none';";
+    }
+
+    await next();
+});
 
 app.UseStaticFiles();
 app.UseCors("AllowViteFrontend");
