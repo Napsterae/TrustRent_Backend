@@ -194,8 +194,7 @@ builder.Services.ConfigureHttpJsonOptions(options => {
     options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
 });
 
-builder.Services.AddCors(options =>
-{
+builder.Services.AddCors(options =>{
     // Origens permitidas via configuração (CorsSettings:AllowedOrigins) com fallback para dev local.
     var configuredOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>();
     var allowedOrigins = (configuredOrigins is { Length: > 0 })
@@ -211,11 +210,20 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Compressão (gzip + brotli) — reduz JSON de reference data ~70-80%
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+    options.MimeTypes = Microsoft.AspNetCore.ResponseCompression.ResponseCompressionDefaults
+        .MimeTypes.Concat(new[] { "application/json" });
+});
+
 // Rate limiting — protect auth endpoints from brute force attacks
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    
     options.AddPolicy("auth", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -300,6 +308,7 @@ app.Use(async (context, next) =>
 
 app.UseStaticFiles();
 app.UseCors("AllowViteFrontend");
+app.UseResponseCompression();
 app.UseRateLimiter();
 
 app.UseAuthentication();
@@ -314,8 +323,20 @@ app.MapStripeEndpoints();
 app.MapReviewEndpoints();
 app.MapCommunicationsEndpoints();
 
+app.MapReferenceDataEndpoints();
+
 app.MapHub<ApplicationChatHub>("/api/chathub");
 app.MapHub<NotificationHub>("/api/notificationhub");
+
+// Reference data seeders — correm em TODOS os ambientes (produzem/actualizam tabelas lookup
+// sem nunca apagar ou sobrescrever registos existentes, para preservar edições de back-office)
+using (var refScope = app.Services.CreateScope())
+{
+    var catalogDbForRef = refScope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+    var identityDbForRef = refScope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+    await TrustRent.Modules.Catalog.Seeds.ReferenceDataSeeder.SeedAsync(catalogDbForRef);
+    await TrustRent.Modules.Identity.Seeds.IdentityReferenceDataSeeder.SeedAsync(identityDbForRef);
+}
 
 if (app.Environment.IsDevelopment())
 {

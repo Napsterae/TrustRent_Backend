@@ -1,6 +1,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Models;
+using TrustRent.Modules.Catalog.Models.ReferenceData;
 
 namespace TrustRent.Modules.Catalog.Contracts.Database;
 
@@ -15,6 +16,13 @@ public class CatalogDbContext : DbContext
     public DbSet<Amenity> Amenities { get; set; }
     public DbSet<PropertyAmenity> PropertyAmenities { get; set; }
     public DbSet<PropertyPeriodicity> PropertyPeriodicities { get; set; }
+
+    // Reference data (editável via back-office futuro)
+    public DbSet<District> Districts { get; set; }
+    public DbSet<Municipality> Municipalities { get; set; }
+    public DbSet<Parish> Parishes { get; set; }
+    public DbSet<PropertyType> PropertyTypes { get; set; }
+    public DbSet<Typology> Typologies { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -94,6 +102,60 @@ public class CatalogDbContext : DbContext
         modelBuilder.Entity<Property>()
             .Property(p => p.LeaseRegime)
             .HasConversion<string>();
+
+        // ===== Reference Data =====
+        modelBuilder.Entity<District>(b =>
+        {
+            b.ToTable("Districts", "catalog");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Code).IsRequired().HasMaxLength(80);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(150);
+            b.HasIndex(x => x.Code).IsUnique();
+            b.HasMany(x => x.Municipalities)
+             .WithOne(m => m.District)
+             .HasForeignKey(m => m.DistrictId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Municipality>(b =>
+        {
+            b.ToTable("Municipalities", "catalog");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Code).IsRequired().HasMaxLength(120);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(200);
+            b.HasIndex(x => new { x.DistrictId, x.Code }).IsUnique();
+            b.HasMany(x => x.Parishes)
+             .WithOne(p => p.Municipality)
+             .HasForeignKey(p => p.MunicipalityId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Parish>(b =>
+        {
+            b.ToTable("Parishes", "catalog");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Code).IsRequired().HasMaxLength(200);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(300);
+            b.HasIndex(x => new { x.MunicipalityId, x.Code }).IsUnique();
+        });
+
+        modelBuilder.Entity<PropertyType>(b =>
+        {
+            b.ToTable("PropertyTypes", "catalog");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Code).IsRequired().HasMaxLength(50);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(100);
+            b.HasIndex(x => x.Code).IsUnique();
+        });
+
+        modelBuilder.Entity<Typology>(b =>
+        {
+            b.ToTable("Typologies", "catalog");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Code).IsRequired().HasMaxLength(30);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(50);
+            b.HasIndex(x => x.Code).IsUnique();
+        });
 
         // Seed de Comodidades
         modelBuilder.Entity<Amenity>().HasData(
