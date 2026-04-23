@@ -46,7 +46,13 @@ public static class ApplicationMappers
                 EventData = h.EventData,
                 CreatedAt = h.CreatedAt
             }).OrderBy(h => h.CreatedAt).ToList() ?? new(),
-            Lease = leaseDto
+            Lease = leaseDto,
+            IsIncomeValidationRequested = application.IsIncomeValidationRequested,
+            IncomeValidationRequestedAt = application.IncomeValidationRequestedAt,
+            IsIncomeVerified = application.IncomeRangeId.HasValue,
+            IncomeRangeCode = application.IncomeRange?.Code,
+            IncomeRangeLabel = application.IncomeRange?.Label,
+            IncomeValidatedAt = application.IncomeValidatedAt
         };
     }
 }

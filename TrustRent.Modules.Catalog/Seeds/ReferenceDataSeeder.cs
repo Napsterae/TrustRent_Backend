@@ -20,6 +20,7 @@ public static class ReferenceDataSeeder
         await SeedPropertyTypesAsync(context);
         await SeedTypologiesAsync(context);
         await SeedLocationsAsync(context);
+        await SeedSalaryRangesAsync(context);
     }
 
     // ===== Property Types =====
@@ -72,6 +73,32 @@ public static class ReferenceDataSeeder
             await context.Typologies.AddRangeAsync(toAdd);
             await context.SaveChangesAsync();
             Console.WriteLine($"[SEED] ReferenceData: Adicionadas {toAdd.Count} tipologias.");
+        }
+    }
+
+    // ===== Salary Ranges =====
+    private static async Task SeedSalaryRangesAsync(CatalogDbContext context)
+    {
+        var defaults = new[]
+        {
+            new SalaryRange { Code = "LT_1000",     Label = "< 1.000 €",            MinAmount = null,    MaxAmount = 1000m, DisplayOrder = 10 },
+            new SalaryRange { Code = "R_1000_2000", Label = "1.000 € – 2.000 €",    MinAmount = 1000m,   MaxAmount = 2000m, DisplayOrder = 20 },
+            new SalaryRange { Code = "R_2000_3000", Label = "2.000 € – 3.000 €",    MinAmount = 2000m,   MaxAmount = 3000m, DisplayOrder = 30 },
+            new SalaryRange { Code = "R_3000_5000", Label = "3.000 € – 5.000 €",    MinAmount = 3000m,   MaxAmount = 5000m, DisplayOrder = 40 },
+            new SalaryRange { Code = "GT_5000",     Label = "> 5.000 €",            MinAmount = 5000m,   MaxAmount = null,  DisplayOrder = 50 }
+        };
+
+        var existingCodes = await context.SalaryRanges.Select(r => r.Code).ToListAsync();
+        var toAdd = defaults
+            .Where(d => !existingCodes.Contains(d.Code))
+            .Select(d => { d.Id = Guid.NewGuid(); return d; })
+            .ToList();
+
+        if (toAdd.Count > 0)
+        {
+            await context.SalaryRanges.AddRangeAsync(toAdd);
+            await context.SaveChangesAsync();
+            Console.WriteLine($"[SEED] ReferenceData: Adicionadas {toAdd.Count} faixas salariais.");
         }
     }
 

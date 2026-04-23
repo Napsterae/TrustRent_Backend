@@ -10,6 +10,7 @@ public class DocumentPromptsTests
     [InlineData("modelo2")]
     [InlineData("certidao")]
     [InlineData("licenca")]
+    [InlineData("recibo")]
     public void GetPromptForDocType_ValidType_ReturnsNonEmptyPrompt(string docType)
     {
         var result = DocumentPrompts.GetPromptForDocType(docType);
@@ -64,8 +65,19 @@ public class DocumentPromptsTests
         Assert.Contains("licenseIssuer", result);
     }
 
+    [Fact]
+    public void GetPromptForDocType_Recibo_ContainsExpectedFields()
+    {
+        var result = DocumentPrompts.GetPromptForDocType("recibo");
+
+        Assert.Contains("employeeName", result);
+        Assert.Contains("employeeNif", result);
+        Assert.Contains("netSalary", result);
+        Assert.Contains("grossSalary", result);
+        Assert.Contains("referenceMonth", result);
+    }
+
     [Theory]
-    [InlineData("unknown")]
     [InlineData("")]
     [InlineData("invalid_type")]
     public void GetPromptForDocType_InvalidType_ThrowsArgumentException(string docType)
@@ -82,7 +94,8 @@ public class DocumentPromptsTests
             DocumentPrompts.CertificadoEnergetico,
             DocumentPrompts.RegistoAt,
             DocumentPrompts.CertidaoPermanente,
-            DocumentPrompts.LicencaUtilizacao
+            DocumentPrompts.LicencaUtilizacao,
+            DocumentPrompts.ReciboVencimento
         };
 
         foreach (var prompt in prompts)

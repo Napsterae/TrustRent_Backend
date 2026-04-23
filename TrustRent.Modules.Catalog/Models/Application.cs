@@ -1,3 +1,4 @@
+using TrustRent.Modules.Catalog.Models.ReferenceData;
 using TrustRent.Shared.Models;
 
 namespace TrustRent.Modules.Catalog.Models;
@@ -27,4 +28,13 @@ public class Application
     public Property? Property { get; set; }
     
     public Guid? LeaseId { get; set; }
+
+    // ===== Validação de rendimentos via IA (recibos de vencimento) =====
+    // O senhorio pode pedir, após visita, que o inquilino valide rendimentos.
+    // Não armazenamos ficheiros nem valor exato — apenas a faixa salarial calculada.
+    public bool IsIncomeValidationRequested { get; set; }
+    public DateTime? IncomeValidationRequestedAt { get; set; }
+    public Guid? IncomeRangeId { get; set; }
+    public DateTime? IncomeValidatedAt { get; set; }
+    public SalaryRange? IncomeRange { get; set; }
 }

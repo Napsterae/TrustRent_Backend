@@ -74,5 +74,79 @@ public static class ApplicationEndpoints
             var result = await service.UpdateVisitStatusAsync(id, userId, dto);
             return Results.Ok(result);
         }).RequireAuthorization();
+
+        // ===== Income Validation (recibos de vencimento via IA) =====
+
+        // Senhorio pede ao inquilino para validar rendimentos
+        group.MapPost("/applications/{id:guid}/income-validation/request",
+            async (Guid id, IIncomeValidationService svc, ClaimsPrincipal user) =>
+        {
+            var userIdString = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdString, out Guid landlordId))
+                return Results.Unauthorized();
+
+            try
+            {
+                await svc.RequestValidationAsync(id, landlordId);
+                return Results.NoContent();
+            }
+            catch (KeyNotFoundException ex) { return Results.NotFound(new { Error = ex.Message }); }
+            catch (UnauthorizedAccessException) { return Results.Forbid(); }
+            catch (InvalidOperationException ex) { return Results.BadRequest(new { Error = ex.Message }); }
+        }).RequireAuthorization();
+
+        // Inquilino faz upload dos 3 recibos
+        group.MapPost("/applications/{id:guid}/income-validation",
+            async (Guid id, IFormFileCollection payslips, IIncomeValidationService svc, ClaimsPrincipal user) =>
+        {
+            var userIdString = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdString, out Guid tenantId))
+                return Results.Unauthorized();
+
+            if (payslips == null || payslips.Count != svc.RequiredPayslipCount)
+                return Results.BadRequest(new { Error = $"Tens de enviar exatamente {svc.RequiredPayslipCount} recibos de vencimento." });
+
+            const long maxBytes = 8L * 1024 * 1024; // 8 MB por ficheiro
+            var allowedMime = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "application/pdf", "image/jpeg", "image/png", "image/webp"
+            };
+
+            foreach (var f in payslips)
+            {
+                if (f.Length <= 0 || f.Length > maxBytes)
+                    return Results.BadRequest(new { Error = $"Cada ficheiro tem de ter entre 1 byte e 8 MB ('{f.FileName}')." });
+                if (!allowedMime.Contains(f.ContentType))
+                    return Results.BadRequest(new { Error = $"Formato não suportado para '{f.FileName}'. Usa PDF, JPG, PNG ou WEBP." });
+            }
+
+            var openedStreams = new List<Stream>();
+            try
+            {
+                var files = payslips
+                    .Select(f =>
+                    {
+                        var s = f.OpenReadStream();
+                        openedStreams.Add(s);
+                        return (Stream: s, FileName: f.FileName);
+                    })
+                    .ToList();
+
+                var result = await svc.ValidatePayslipsAsync(id, tenantId, files);
+                return Results.Ok(result);
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new { Error = ex.Message }); }
+            catch (KeyNotFoundException ex) { return Results.NotFound(new { Error = ex.Message }); }
+            catch (UnauthorizedAccessException) { return Results.Forbid(); }
+            catch (InvalidOperationException ex) { return Results.BadRequest(new { Error = ex.Message }); }
+            catch (Exception ex) { return Results.BadRequest(new { Error = ex.Message }); }
+            finally
+            {
+                foreach (var s in openedStreams) s.Dispose();
+            }
+        })
+        .RequireAuthorization()
+        .DisableAntiforgery()
+        .RequireRateLimiting("incomeValidation");
     }
 }

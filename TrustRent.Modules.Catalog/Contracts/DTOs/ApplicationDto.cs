@@ -25,4 +25,12 @@ public class ApplicationDto
     public DateTime CreatedAt { get; set; }
     public List<ApplicationHistoryDto> History { get; set; } = new();
     public LeaseDto? Lease { get; set; }
+
+    // Validação de rendimentos via IA
+    public bool IsIncomeValidationRequested { get; set; }
+    public DateTime? IncomeValidationRequestedAt { get; set; }
+    public bool IsIncomeVerified { get; set; }
+    public string? IncomeRangeCode { get; set; }
+    public string? IncomeRangeLabel { get; set; }
+    public DateTime? IncomeValidatedAt { get; set; }
 }

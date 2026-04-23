@@ -28,5 +28,6 @@ public enum ApplicationStatus
     ContractPendingSignature, // 8
     AwaitingPayment,          // 9
     LeaseActive,              // 10
-    GeneratingContract = 11
+    GeneratingContract = 11,
+    IncomeValidationRequested = 12 // entre InterestConfirmed e Accepted, opcional
 }

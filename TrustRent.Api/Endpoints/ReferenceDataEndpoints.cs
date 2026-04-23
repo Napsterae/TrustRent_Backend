@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
 using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Contracts.Database;
 
 namespace TrustRent.Api.Endpoints;
@@ -99,6 +100,23 @@ public static class ReferenceDataEndpoints
                 .Select(t => new { t.Id, t.Code, t.Name, t.Bedrooms })
                 .ToListAsync();
             return Results.Ok(items);
+        });
+
+        // Faixas salariais (validação de rendimentos via IA)
+        group.MapGet("/salary-ranges", async (CatalogDbContext db, IIncomeValidationService incomeSvc, HttpContext ctx) =>
+        {
+            ApplyCacheHeaders(ctx);
+            var ranges = await db.SalaryRanges
+                .Where(r => r.IsActive)
+                .OrderBy(r => r.DisplayOrder)
+                .AsNoTracking()
+                .Select(r => new { r.Id, r.Code, r.Label, r.MinAmount, r.MaxAmount, r.DisplayOrder })
+                .ToListAsync();
+            return Results.Ok(new
+            {
+                requiredPayslipCount = incomeSvc.RequiredPayslipCount,
+                ranges
+            });
         });
 
         // Países de telefone

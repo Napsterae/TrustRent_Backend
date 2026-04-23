@@ -92,6 +92,7 @@ public class ApplicationService : IApplicationService
 
         var apps = await _context.Applications
             .Include(a => a.History)
+            .Include(a => a.IncomeRange)
             .Where(a => a.PropertyId == propertyId)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
@@ -135,6 +136,7 @@ public class ApplicationService : IApplicationService
     {
         var apps = await _context.Applications
             .Include(a => a.History)
+            .Include(a => a.IncomeRange)
             .Where(a => a.TenantId == tenantId)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
@@ -188,6 +190,7 @@ public class ApplicationService : IApplicationService
     {
         var application = await _context.Applications
             .Include(a => a.History)
+            .Include(a => a.IncomeRange)
             .FirstOrDefaultAsync(a => a.Id == applicationId);
 
         if (application == null) return null;
@@ -293,7 +296,9 @@ public class ApplicationService : IApplicationService
                 notificationMsg = "O inquilino confirmou interesse após a visita!";
                 break;
             case "Accepted":
-                if (application.Status != ApplicationStatus.InterestConfirmed && application.Status != ApplicationStatus.Pending)
+                if (application.Status != ApplicationStatus.InterestConfirmed
+                    && application.Status != ApplicationStatus.Pending
+                    && application.Status != ApplicationStatus.IncomeValidationRequested)
                     throw new Exception("Final acceptance can only happen after interest confirmation.");
                 
                 application.Status = ApplicationStatus.Accepted;

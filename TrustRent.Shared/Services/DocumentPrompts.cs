@@ -260,6 +260,53 @@ public static class DocumentPrompts
         }
         """;
 
+    public static string ReciboVencimento => $$"""
+        Estás a analisar um RECIBO DE VENCIMENTO português (folha de remunerações mensal emitida pela entidade empregadora).
+
+        {{CommonInstructions}}
+
+        CAMPOS A EXTRAIR:
+        - employeeName: Nome completo do trabalhador (titular do recibo). Aparece numa secção identificada como "Trabalhador", "Funcionário", "Colaborador" ou similar.
+        - employeeNif: NIF do trabalhador (9 dígitos, sem espaços nem pontos). Está na secção do trabalhador, identificado como "NIF", "Contribuinte" ou "Nº Contribuinte".
+        - employerName: Nome/razão social da entidade empregadora. Costuma estar no cabeçalho do recibo.
+        - employerNif: NIF da entidade empregadora (9 dígitos). Está no cabeçalho, junto à identificação da empresa.
+        - referenceMonth: Mês/ano a que o recibo se refere, formato MM/AAAA. Pode aparecer como "Mês de Referência", "Período", "Outubro/2025", "10/2025", etc.
+        - issueDate: Data de emissão do recibo, formato DD/MM/AAAA.
+        - grossSalary: Vencimento ilíquido total em euros (número decimal, ponto como separador, sem símbolo €). Pode aparecer como "Total Ilíquido", "Total Bruto", "Remunerações Brutas".
+        - netSalary: Vencimento líquido a receber em euros (número decimal, ponto como separador, sem símbolo €). Aparece como "Líquido a Receber", "Total Líquido", "Valor Líquido", "A Receber".
+        - currency: Moeda detectada (esperado "EUR" para recibos portugueses).
+
+        DICAS DE LOCALIZAÇÃO:
+        - Recibos portugueses têm normalmente: cabeçalho com a empresa, secção do trabalhador, tabela de remunerações (vencimento base, subsídios, prémios), tabela de descontos (IRS, Segurança Social), e total líquido em destaque.
+        - O líquido a receber está normalmente no fim do documento, em destaque ou negrito.
+        - O ilíquido é a soma de todas as remunerações ANTES dos descontos.
+        - Se houver várias colunas (mês corrente / acumulado anual), usa SEMPRE a coluna do mês corrente.
+        - Os valores em euros usam vírgula como separador decimal em PT — converte para ponto antes de devolver (ex: "1.234,56" → 1234.56).
+
+        SINAIS DE ADULTERAÇÃO A PROCURAR:
+        - Fontes diferentes nos números do líquido/ilíquido vs resto do documento.
+        - Sobreposições de texto, alinhamento estranho, pixels visíveis em redor de números.
+        - Datas inconsistentes (ex: data de emissão anterior ao mês de referência).
+        - NIF da empresa ou do trabalhador com menos/mais de 9 dígitos.
+
+        SCHEMA JSON DE RESPOSTA:
+        {
+            "isAuthentic": boolean,
+            "fraudReason": string | null,
+            "imageQuality": "good" | "blurry" | "dark" | "cropped" | "unreadable",
+            "allFieldsExtracted": boolean,
+            "employeeName": string | null,
+            "employeeNif": string | null,
+            "employerName": string | null,
+            "employerNif": string | null,
+            "referenceMonth": string | null,
+            "issueDate": string | null,
+            "grossSalary": number | null,
+            "netSalary": number | null,
+            "currency": string | null
+        }
+        """;
+
     public static string GetPromptForDocType(string docType) => docType switch
     {
         "caderneta" => CadernetaPredial,
@@ -267,6 +314,7 @@ public static class DocumentPrompts
         "modelo2" => RegistoAt,
         "certidao" => CertidaoPermanente,
         "licenca" => LicencaUtilizacao,
+        "recibo" => ReciboVencimento,
         _ => throw new ArgumentException($"Tipo de documento desconhecido: {docType}")
     };
 }

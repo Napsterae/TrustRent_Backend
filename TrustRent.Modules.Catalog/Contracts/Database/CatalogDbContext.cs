@@ -23,6 +23,7 @@ public class CatalogDbContext : DbContext
     public DbSet<Parish> Parishes { get; set; }
     public DbSet<PropertyType> PropertyTypes { get; set; }
     public DbSet<Typology> Typologies { get; set; }
+    public DbSet<SalaryRange> SalaryRanges { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -56,6 +57,11 @@ public class CatalogDbContext : DbContext
             builder.HasKey(a => a.Id);
             builder.HasOne(a => a.Property).WithMany().HasForeignKey(a => a.PropertyId).OnDelete(DeleteBehavior.Cascade);
             builder.HasMany(a => a.History).WithOne().HasForeignKey(h => h.ApplicationId).OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasOne(a => a.IncomeRange)
+                   .WithMany()
+                   .HasForeignKey(a => a.IncomeRangeId)
+                   .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<ApplicationHistory>(builder =>
@@ -154,6 +160,17 @@ public class CatalogDbContext : DbContext
             b.HasKey(x => x.Id);
             b.Property(x => x.Code).IsRequired().HasMaxLength(30);
             b.Property(x => x.Name).IsRequired().HasMaxLength(50);
+            b.HasIndex(x => x.Code).IsUnique();
+        });
+
+        modelBuilder.Entity<SalaryRange>(b =>
+        {
+            b.ToTable("SalaryRanges", "catalog");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Code).IsRequired().HasMaxLength(32);
+            b.Property(x => x.Label).IsRequired().HasMaxLength(64);
+            b.Property(x => x.MinAmount).HasColumnType("numeric(12,2)");
+            b.Property(x => x.MaxAmount).HasColumnType("numeric(12,2)");
             b.HasIndex(x => x.Code).IsUnique();
         });
 
