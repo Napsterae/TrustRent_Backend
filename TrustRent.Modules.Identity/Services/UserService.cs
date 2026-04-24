@@ -269,6 +269,74 @@ public class UserService : IUserService
         );
     }
 
+    /// <summary>
+    /// DEV-ONLY: Marca o Cartão de Cidadão como validado sem chamar a IA, reutilizando os
+    /// dados pessoais já presentes no perfil (preenchidos no registo). O endpoint que
+    /// expõe este método tem de ser bloqueado fora de ambientes de desenvolvimento.
+    /// </summary>
+    public async Task<VerificationResultDto> SimulateVerifyCitizenCardAsync(Guid userId)
+    {
+        var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
+
+        if (string.IsNullOrWhiteSpace(user.Nif) || string.IsNullOrWhiteSpace(user.CitizenCardNumber))
+        {
+            throw new Exception("Para simular a validação preenche primeiro o NIF e o número do Cartão de Cidadão no perfil.");
+        }
+
+        if (!user.IsIdentityVerified)
+        {
+            user.TrustScore += 20;
+        }
+
+        user.IsIdentityVerified = true;
+        user.IdentityExpiryDate = DateTime.UtcNow.AddYears(5);
+
+        await _uow.SaveChangesAsync();
+
+        return new VerificationResultDto(
+            user.IsIdentityVerified,
+            user.IdentityExpiryDate,
+            user.IsNoDebtVerified,
+            user.NoDebtExpiryDate,
+            user.TrustScore,
+            user.Name,
+            user.Nif,
+            user.CitizenCardNumber
+        );
+    }
+
+    /// <summary>
+    /// DEV-ONLY: Marca a Certidão de Não Dívida como validada sem chamar a IA. Exige NIF
+    /// preenchido (igual ao fluxo real). O endpoint é bloqueado fora de Development.
+    /// </summary>
+    public async Task<VerificationResultDto> SimulateVerifyNoDebtAsync(Guid userId)
+    {
+        var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
+
+        if (string.IsNullOrWhiteSpace(user.Nif))
+            throw new Exception("Para simular a validação preenche primeiro o NIF no perfil.");
+
+        if (!user.IsNoDebtVerified)
+            user.TrustScore += 15;
+
+        user.IsNoDebtVerified = true;
+        // As certidões de não dívida (AT/SS) costumam ter validade de 3 meses.
+        user.NoDebtExpiryDate = DateTime.UtcNow.AddMonths(3);
+
+        await _uow.SaveChangesAsync();
+
+        return new VerificationResultDto(
+            user.IsIdentityVerified,
+            user.IdentityExpiryDate,
+            user.IsNoDebtVerified,
+            user.NoDebtExpiryDate,
+            user.TrustScore,
+            user.Name,
+            user.Nif,
+            user.CitizenCardNumber
+        );
+    }
+
     private static void ValidateDocumentResponse(GeminiDocumentResponse response)
     {
         if (!response.IsAuthentic)

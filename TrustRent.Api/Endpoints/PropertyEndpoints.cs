@@ -442,6 +442,44 @@ public static class PropertyEndpoints
             }
         }).DisableAntiforgery();
 
+        // DEV-ONLY: devolve dados de extração simulados para cada tipo de documento de imóvel,
+        // sem ficheiro nem chamada à IA. Bloqueado fora de Development.
+        propertyGroup.MapPost("/extract-document/simulate", (HttpRequest request, IWebHostEnvironment env) =>
+        {
+            if (!env.IsDevelopment())
+                return Results.NotFound();
+
+            var docType = request.Query["docType"].ToString();
+            if (string.IsNullOrWhiteSpace(docType))
+                docType = request.HasFormContentType ? request.Form["docType"].ToString() : string.Empty;
+
+            DocumentExtractionResultDto result = docType switch
+            {
+                "caderneta" => new DocumentExtractionResultDto(
+                    MatrixArticle: "1234",
+                    PropertyFraction: "A",
+                    ParishConcelho: "União das Freguesias de Lisboa / Lisboa"),
+                "certificado" => new DocumentExtractionResultDto(
+                    EnergyClass: "B",
+                    EnergyCertNumber: "CE-2025-0001234"),
+                "modelo2" => new DocumentExtractionResultDto(
+                    AtRegistrationNumber: "AT-DEV-00000001"),
+                "certidao" => new DocumentExtractionResultDto(
+                    PermanentCertNumber: "PC-DEV-1234-5678-9012",
+                    PermanentCertOffice: "Conservatória do Registo Predial de Lisboa"),
+                "licenca" => new DocumentExtractionResultDto(
+                    LicenseNumber: "LU-2024-0001",
+                    LicenseDate: DateTime.UtcNow.AddYears(-5).ToString("yyyy-MM-dd"),
+                    LicenseIssuer: "Câmara Municipal de Lisboa"),
+                _ => null!
+            };
+
+            if (result == null)
+                return Results.BadRequest(new { Error = $"Tipo de documento não suportado: '{docType}'." });
+
+            return Results.Ok(result);
+        });
+
         app.MapGet("/api/properties", async ([AsParameters] PropertySearchQuery query, IPropertyService propertyService) =>
         {
             try

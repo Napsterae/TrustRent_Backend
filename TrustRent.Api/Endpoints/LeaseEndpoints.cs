@@ -1206,6 +1206,46 @@ public static class LeaseEndpoints
                     reference = extractedReference
                 });
             }).RequireAuthorization();
+
+        // DEV-ONLY: simular registo nas Finanças sem comprovativo nem chamada à IA.
+        group.MapPost("/{leaseId:guid}/tax-registration/simulate",
+            async (Guid leaseId, LeasingDbContext db, ClaimsPrincipal user, IWebHostEnvironment env) =>
+            {
+                if (!env.IsDevelopment())
+                    return Results.NotFound();
+
+                if (!TryGetUserId(user, out var userId))
+                    return Results.Unauthorized();
+
+                var lease = await db.Leases
+                    .Include(l => l.History)
+                    .FirstOrDefaultAsync(l => l.Id == leaseId);
+                if (lease == null) return Results.NotFound("Arrendamento não encontrado.");
+                if (userId != lease.LandlordId) return Results.Forbid();
+                if (lease.IsRegisteredWithTaxAuthority)
+                    return Results.BadRequest("Este contrato já se encontra registado nas Finanças.");
+
+                var fakeReference = $"DEV-{DateTime.UtcNow:yyyyMMddHHmmss}";
+                lease.IsRegisteredWithTaxAuthority = true;
+                lease.TaxRegistrationDate = DateTime.UtcNow;
+                lease.TaxRegistrationReference = fakeReference;
+                lease.UpdatedAt = DateTime.UtcNow;
+
+                lease.History.Add(new LeaseHistory
+                {
+                    LeaseId = lease.Id,
+                    ActorId = userId,
+                    Action = "TaxRegistered",
+                    Message = $"[DEV] Registo nas Finanças simulado. Referência: {fakeReference}"
+                });
+
+                await db.SaveChangesAsync();
+                return Results.Ok(new
+                {
+                    message = "[DEV] Registo nas Finanças simulado com sucesso.",
+                    reference = fakeReference
+                });
+            }).RequireAuthorization();
     }
 
     private static bool TryGetUserId(ClaimsPrincipal user, out Guid userId)

@@ -24,4 +24,10 @@ public interface IIncomeValidationService
         Guid applicationId,
         Guid tenantId,
         IReadOnlyList<(Stream Stream, string FileName)> payslips);
+
+    /// <summary>
+    /// DEV-ONLY: Marca a candidatura como rendimentos validados sem chamar a IA, atribuindo
+    /// a primeira faixa salarial activa. Apenas utilizado em ambiente de desenvolvimento.
+    /// </summary>
+    Task<IncomeValidationResultDto> SimulateValidationAsync(Guid applicationId, Guid tenantId);
 }

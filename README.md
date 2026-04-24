@@ -173,3 +173,88 @@ dotnet test TrustRent.Tests\TrustRent.Tests.csproj
 ```
 
 Os testes estão organizados por módulo em `TrustRent.Tests/` (Api, Catalog, Communications, Identity, Leasing, Shared).
+
+---
+
+## 🚀 Builds e Ambientes
+
+A API distingue dois ambientes através da variável `ASPNETCORE_ENVIRONMENT`:
+
+| Variável | Valor | Endpoints DEV (`/simulate-*`) | `appsettings` carregado |
+|---|---|---|---|
+| `ASPNETCORE_ENVIRONMENT` | `Development` | ✅ Ativos | `appsettings.json` + `appsettings.Development.json` |
+| `ASPNETCORE_ENVIRONMENT` | `Production` | ❌ Devolvem 404 | `appsettings.json` + `appsettings.Production.json` |
+
+> ⚠️ **Segurança**: os endpoints de simulação (`/api/user/verify-documents/simulate-cc`, `/api/user/verify-documents/simulate-no-debt`, `/api/applications/{id}/income-validation/simulate`, `/api/properties/extract-document/simulate`, `/api/leases/{id}/tax-registration/simulate`) começam todos com `if (!env.IsDevelopment()) return Results.NotFound();`. Em produção a rota responde **404 — indistinguível de uma rota que nunca existiu**, mesmo que o utilizador esteja autenticado.
+
+### 🧪 Build para ambiente de testes (com simulações DEV)
+
+Use este modo para QA, demos internas ou validação de fluxos sem precisar de documentos reais (CC, recibos, certificados, etc.).
+
+1. Confirme que `appsettings.Development.json` existe e tem as chaves locais (Gemini, Stripe test keys, Cloudinary).
+2. Execute em modo Development:
+
+   ```powershell
+   cd TrustRent_Backend\TrustRent.Api
+   $env:ASPNETCORE_ENVIRONMENT = "Development"
+   dotnet run
+   ```
+
+   Ou, para um build optimizado mas ainda em Development:
+
+   ```powershell
+   dotnet publish TrustRent.Api -c Release -o .\publish-test
+   cd .\publish-test
+   $env:ASPNETCORE_ENVIRONMENT = "Development"
+   .\TrustRent.Api.exe
+   ```
+
+3. Verifique que os endpoints DEV respondem (ex.: `POST http://localhost:5281/api/properties/extract-document/simulate?docType=caderneta` deve devolver 200 com dados canned).
+
+### 🏭 Build para ambiente de produção (sem simulações)
+
+Use este modo para qualquer deploy público — incluindo ambientes de "teste em produção" (UAT, staging com dados reais).
+
+1. Crie/garanta `appsettings.Production.json` com as chaves reais (Gemini, Stripe live, Cloudinary, JWT secret forte). **Nunca** comite este ficheiro.
+2. Faça publish em Release:
+
+   ```powershell
+   cd TrustRent_Backend
+   dotnet publish TrustRent.Api -c Release -o .\publish-prod
+   ```
+
+3. No servidor / container, defina **obrigatoriamente**:
+
+   ```powershell
+   $env:ASPNETCORE_ENVIRONMENT = "Production"
+   ```
+
+   Em **Azure App Service**: *Configuration → Application settings → `ASPNETCORE_ENVIRONMENT = Production`*.
+   Em **Docker**: `ENV ASPNETCORE_ENVIRONMENT=Production` no Dockerfile, ou `-e ASPNETCORE_ENVIRONMENT=Production` no `docker run`.
+
+4. Arranque a API:
+
+   ```powershell
+   cd .\publish-prod
+   .\TrustRent.Api.exe
+   ```
+
+5. **Smoke-test obrigatório** — confirme que os endpoints de simulação respondem 404:
+
+   ```powershell
+   curl -X POST https://<dominio>/api/properties/extract-document/simulate?docType=caderneta -i
+   # Esperado: HTTP/1.1 404 Not Found
+   ```
+
+   Se devolver 200, o ambiente está mal configurado e os endpoints DEV estão expostos — **PARE o deploy** e verifique `ASPNETCORE_ENVIRONMENT`.
+
+### 📋 Checklist de promoção para produção
+
+- [ ] `ASPNETCORE_ENVIRONMENT=Production` definido na plataforma de hosting
+- [ ] `appsettings.Production.json` com chaves reais (não as `COLOCA_AQUI`)
+- [ ] Stripe em modo **live** (`sk_live_…`, `pk_live_…`, webhook live)
+- [ ] `JwtSettings:Secret` aleatório forte (≥ 32 chars), **diferente** do de Development
+- [ ] CMD `MockEnabled = false` em produção
+- [ ] HTTPS obrigatório (cert válido)
+- [ ] Smoke-test: cada endpoint `/simulate-*` devolve 404
+- [ ] Connection string a apontar para a BD de produção

@@ -11,6 +11,8 @@ public interface IUserService
     Task UpdatePasswordAsync(Guid userId, string currentPassword, string newPassword);
     Task<string> UpdateAvatarAsync(Guid userId, Stream fileStream, string fileName);
     Task<VerificationResultDto> VerifyDocumentsAsync(Guid userId, Stream? ccFrontStream, string? ccFrontFileName, Stream? ccBackStream, string? ccBackFileName, Stream? noDebtStream, string? noDebtFileName);
+    Task<VerificationResultDto> SimulateVerifyCitizenCardAsync(Guid userId);
+    Task<VerificationResultDto> SimulateVerifyNoDebtAsync(Guid userId);
     Task UpdateTrustScoreAsync(Guid userId, int newScore);
 }
 

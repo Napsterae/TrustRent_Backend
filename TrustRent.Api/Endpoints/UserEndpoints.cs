@@ -83,6 +83,50 @@ public static class UserEndpoints
             }
         }).DisableAntiforgery();
 
+        // ── DEV-ONLY: simular validação do Cartão de Cidadão sem chamar a IA ──
+        // O endpoint só é montado quando a app está em ambiente de Development.
+        // Em Production/Staging devolve 404 porque a rota nem sequer existe.
+        userGroup.MapPost("/verify-documents/simulate-cc", async (
+            ClaimsPrincipal userClaims,
+            IUserService userService,
+            IWebHostEnvironment env) =>
+        {
+            if (!env.IsDevelopment())
+                return Results.NotFound();
+
+            try
+            {
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                var result = await userService.SimulateVerifyCitizenCardAsync(userId);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        // DEV-ONLY: simular validação da Certidão de Não Dívida.
+        userGroup.MapPost("/verify-documents/simulate-no-debt", async (
+            ClaimsPrincipal userClaims,
+            IUserService userService,
+            IWebHostEnvironment env) =>
+        {
+            if (!env.IsDevelopment())
+                return Results.NotFound();
+
+            try
+            {
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                var result = await userService.SimulateVerifyNoDebtAsync(userId);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
         userGroup.MapPut("/security", async (ClaimsPrincipal userClaims, [FromBody] UpdatePasswordRequest request, IUserService userService) =>
         {
             try

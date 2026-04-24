@@ -148,5 +148,27 @@ public static class ApplicationEndpoints
         .RequireAuthorization()
         .DisableAntiforgery()
         .RequireRateLimiting("incomeValidation");
+
+        // DEV-ONLY: simular validação de rendimentos sem ficheiros nem chamada à IA.
+        group.MapPost("/applications/{id:guid}/income-validation/simulate",
+            async (Guid id, IIncomeValidationService svc, ClaimsPrincipal user, IWebHostEnvironment env) =>
+        {
+            if (!env.IsDevelopment())
+                return Results.NotFound();
+
+            var userIdString = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdString, out Guid tenantId))
+                return Results.Unauthorized();
+
+            try
+            {
+                var result = await svc.SimulateValidationAsync(id, tenantId);
+                return Results.Ok(result);
+            }
+            catch (KeyNotFoundException ex) { return Results.NotFound(new { Error = ex.Message }); }
+            catch (UnauthorizedAccessException) { return Results.Forbid(); }
+            catch (InvalidOperationException ex) { return Results.BadRequest(new { Error = ex.Message }); }
+            catch (Exception ex) { return Results.BadRequest(new { Error = ex.Message }); }
+        }).RequireAuthorization();
     }
 }

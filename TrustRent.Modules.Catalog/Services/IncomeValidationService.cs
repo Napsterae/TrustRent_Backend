@@ -245,6 +245,74 @@ public class IncomeValidationService : IIncomeValidationService
         );
     }
 
+    public async Task<IncomeValidationResultDto> SimulateValidationAsync(Guid applicationId, Guid tenantId)
+    {
+        var application = await _context.Applications
+            .Include(a => a.Property)
+            .FirstOrDefaultAsync(a => a.Id == applicationId)
+            ?? throw new KeyNotFoundException("Candidatura não encontrada.");
+
+        if (application.TenantId != tenantId)
+            throw new UnauthorizedAccessException("Não és o titular desta candidatura.");
+
+        var allowedStatuses = new[]
+        {
+            ApplicationStatus.Pending,
+            ApplicationStatus.VisitAccepted,
+            ApplicationStatus.InterestConfirmed,
+            ApplicationStatus.IncomeValidationRequested,
+        };
+        if (!allowedStatuses.Contains(application.Status))
+            throw new InvalidOperationException("Já não é possível submeter recibos para esta candidatura.");
+
+        var wasRequestedByLandlord = application.Status == ApplicationStatus.IncomeValidationRequested;
+
+        var range = await _context.SalaryRanges
+            .Where(r => r.IsActive)
+            .OrderBy(r => r.DisplayOrder)
+            .FirstOrDefaultAsync()
+            ?? throw new InvalidOperationException("Não há faixas salariais configuradas.");
+
+        application.IncomeRangeId = range.Id;
+        application.IncomeValidatedAt = DateTime.UtcNow;
+        if (wasRequestedByLandlord)
+            application.Status = ApplicationStatus.InterestConfirmed;
+        application.UpdatedAt = DateTime.UtcNow;
+
+        _context.ApplicationHistories.Add(new ApplicationHistory
+        {
+            ApplicationId = application.Id,
+            ActorId = tenantId,
+            Action = "Rendimentos Validados (DEV)",
+            Message = $"[DEV] Validação simulada — faixa {range.Label}.",
+            EventData = range.Code
+        });
+
+        await _context.SaveChangesAsync();
+
+        var property = application.Property ?? await _context.Properties.FindAsync(application.PropertyId);
+        if (property != null)
+        {
+            await _notificationService.SendNotificationAsync(
+                property.LandlordId,
+                "application",
+                $"[DEV] Validação de rendimentos simulada — faixa {range.Label}.",
+                application.Id);
+        }
+
+        _logger.LogInformation(
+            "DEV income simulation for application {ApplicationId}: range {RangeCode}",
+            application.Id, range.Code);
+
+        return new IncomeValidationResultDto(
+            application.Id,
+            range.Id,
+            range.Code,
+            range.Label,
+            application.IncomeValidatedAt!.Value
+        );
+    }
+
     private async Task<SalaryRange?> ResolveRangeAsync(decimal avgNet)
     {
         var ranges = await _context.SalaryRanges
