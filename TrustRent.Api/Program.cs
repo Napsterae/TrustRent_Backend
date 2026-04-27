@@ -31,14 +31,23 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Per-endpoint request body size limits — configurable via appsettings.json
+builder.Services.Configure<RequestBodySizeOptions>(builder.Configuration.GetSection("RequestBodySize"));
+
+// Global default: 300 KB for JSON payloads. Upload endpoints override this via middleware.
+const long defaultMaxRequestBodySize = 300 * 1024; // 300 KB
+
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
-    serverOptions.Limits.MaxRequestBodySize = 104857600; // 100 MB
+    serverOptions.Limits.MaxRequestBodySize = defaultMaxRequestBodySize;
 });
 
 builder.Services.Configure<FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 104857600; // 100 MB
+    // MultipartBodyLengthLimit is global (not per-request). Set to the max upload limit (100 MB).
+    // Per-endpoint enforcement is handled by MaxRequestBodySize (Kestrel) which rejects first,
+    // and by the RequestBodySizeMiddleware which overrides MaxRequestBodySize per path.
+    options.MultipartBodyLengthLimit = 100 * 1024 * 1024; // 100 MB
 });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -326,6 +335,7 @@ app.Use(async (context, next) =>
 app.UseStaticFiles();
 app.UseCors("AllowViteFrontend");
 app.UseResponseCompression();
+app.UseRequestBodySizeLimiter();
 app.UseRateLimiter();
 
 app.UseAuthentication();
