@@ -9,5 +9,6 @@ public interface IUserRepository
     Task AddAsync(User user);
     Task<bool> IsNifUniqueAsync(string nif, Guid excludeUserId);
     Task<bool> IsCcUniqueAsync(string cc, Guid excludeUserId);
+    Task<bool> IsEmailUniqueAsync(string email, Guid excludeUserId);
 }
 

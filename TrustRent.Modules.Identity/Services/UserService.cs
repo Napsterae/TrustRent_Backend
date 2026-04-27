@@ -5,6 +5,7 @@ using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Models;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Models.DocumentExtraction;
+using TrustRent.Shared.Security;
 using TrustRent.Shared.Services;
 
 namespace TrustRent.Modules.Identity.Services;
@@ -106,7 +107,7 @@ public class UserService : IUserService
     {
         var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
         var normalizedName = request.Name.Trim();
-        var normalizedEmail = request.Email.Trim();
+        var normalizedEmail = EmailHelper.NormalizeEmail(request.Email);
         var normalizedNif = NormalizeOptionalValue(request.Nif);
         var normalizedCitizenCardNumber = NormalizeOptionalDigits(request.CitizenCardNumber);
         var normalizedAddress = NormalizeOptionalValue(request.Address);
@@ -138,6 +139,9 @@ public class UserService : IUserService
             if (!await _uow.Users.IsCcUniqueAsync(normalizedCitizenCardNumber, userId))
                 throw new Exception("Este Cartão de Cidadão já está registado noutra conta.");
         }
+
+        if (normalizedEmail != user.Email && !await _uow.Users.IsEmailUniqueAsync(normalizedEmail, userId))
+            throw new Exception("Este email já está registado noutra conta.");
 
         user.Name = normalizedName;
         user.Email = normalizedEmail;

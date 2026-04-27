@@ -162,6 +162,7 @@ public class UserServiceTests
         _userRepoMock.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
         _userRepoMock.Setup(r => r.IsNifUniqueAsync(It.IsAny<string>(), user.Id)).ReturnsAsync(true);
         _userRepoMock.Setup(r => r.IsCcUniqueAsync(It.IsAny<string>(), user.Id)).ReturnsAsync(true);
+        _userRepoMock.Setup(r => r.IsEmailUniqueAsync(It.IsAny<string>(), user.Id)).ReturnsAsync(true);
 
         var dto = new UpdateProfileDto("New Name", "new@example.com", "123456789", "12345678", "Rua X", "1000-001", "PT", "+351912345678");
 
@@ -213,6 +214,7 @@ public class UserServiceTests
     {
         var user = CreateTestUser();
         _userRepoMock.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _userRepoMock.Setup(r => r.IsEmailUniqueAsync(It.IsAny<string>(), user.Id)).ReturnsAsync(true);
         _userRepoMock.Setup(r => r.IsNifUniqueAsync("123456789", user.Id)).ReturnsAsync(false);
 
         var dto = new UpdateProfileDto("Name", "test@test.com", "123456789", null, null, null, null, null);
@@ -226,6 +228,7 @@ public class UserServiceTests
     {
         var user = CreateTestUser();
         _userRepoMock.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _userRepoMock.Setup(r => r.IsEmailUniqueAsync(It.IsAny<string>(), user.Id)).ReturnsAsync(true);
         _userRepoMock.Setup(r => r.IsNifUniqueAsync(It.IsAny<string>(), user.Id)).ReturnsAsync(true);
 
         var dto = new UpdateProfileDto("Name", "test@test.com", "123456789", "12345", null, null, null, null);

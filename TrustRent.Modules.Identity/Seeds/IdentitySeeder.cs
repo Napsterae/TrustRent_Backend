@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Models;
+using TrustRent.Shared.Security;
 
 namespace TrustRent.Modules.Identity.Seeds;
 
@@ -97,7 +98,7 @@ public static class IdentitySeeder
         {
             var (firstName, lastName, phoneCode, phone, nif, cc, address, postal, pic) = dynamicUsers[i];
             var fullName = $"{firstName} {lastName}";
-            var email = $"{firstName.ToLower()}.{lastName.ToLower()}@wekaza.pt";
+            var email = EmailHelper.NormalizeEmail($"{firstName}.{lastName}@wekaza.pt");
             var isIdVerified = random.NextDouble() > 0.3;
             var isDebtVerified = random.NextDouble() > 0.5;
 

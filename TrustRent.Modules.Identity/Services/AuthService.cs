@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Models;
+using TrustRent.Shared.Security;
 
 namespace TrustRent.Modules.Identity.Services;
 
@@ -22,14 +23,16 @@ public class AuthService : IAuthService
 
     public async Task<string> RegisterAsync(string name, string email, string password)
     {
-        var existingUser = await _uow.Users.GetByEmailAsync(email);
+        // Strict normalization here: rejects malformed emails at registration boundary.
+        var normalizedEmail = EmailHelper.NormalizeEmail(email);
+        var existingUser = await _uow.Users.GetByEmailAsync(normalizedEmail);
         if (existingUser != null) throw new Exception("Email já está em uso.");
 
         var user = new User
         {
             Id = Guid.NewGuid(),
             Name = name,
-            Email = email,
+            Email = normalizedEmail,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(password)
         };
 
@@ -41,6 +44,7 @@ public class AuthService : IAuthService
 
     public async Task<string> LoginAsync(string email, string password)
     {
+        // Repository handles normalization tolerantly; malformed input -> null user -> generic 401.
         var user = await _uow.Users.GetByEmailAsync(email);
         if (user == null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
         {
@@ -75,4 +79,3 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }
-
