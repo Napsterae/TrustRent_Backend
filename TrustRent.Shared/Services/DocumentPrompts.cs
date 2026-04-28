@@ -307,6 +307,163 @@ public static class DocumentPrompts
         }
         """;
 
+    public static string DeclaracaoEntidadeEmpregadora => $$"""
+        Estás a analisar uma DECLARAÇÃO DE EFETIVIDADE / DECLARAÇÃO DA ENTIDADE EMPREGADORA portuguesa.
+        É um documento emitido pelo empregador (em papel timbrado), normalmente assinado e carimbado,
+        que comprova que o trabalhador está ao seu serviço, indicando funções, tipo de contrato e data
+        de início. Usa-se para validar emprego ativo quando o trabalhador ainda não tem 3 recibos.
+
+        {{CommonInstructions}}
+
+        CAMPOS A EXTRAIR:
+        - employeeName: Nome completo do trabalhador. Aparece após "vem por este meio declarar que",
+          "que o(a) Sr(a).", "que o nosso colaborador" ou semelhante.
+        - employeeNif: NIF do trabalhador (9 dígitos). Pode aparecer como "NIF", "Contribuinte n.º".
+          Pode estar ausente se a declaração só identificar pelo nome — devolve null nesse caso.
+        - employerName: Nome / razão social da entidade empregadora. Costuma estar no cabeçalho
+          (papel timbrado), assinatura final ou carimbo.
+        - employerNif: NIF da entidade empregadora (9 dígitos). Cabeçalho, rodapé ou carimbo.
+        - position: Cargo ou função do trabalhador (ex: "Programador Junior", "Assistente Administrativa").
+          Procura "exerce as funções de", "categoria profissional", "cargo".
+        - contractType: Tipo de contrato. Devolve uma das categorias normalizadas:
+          "Sem termo" (efetivo / contrato sem termo / por tempo indeterminado),
+          "Termo certo", "Termo incerto", "Estágio", "Prestação de serviços". Se não for explícito, devolve null.
+        - employmentStartDate: Data de início do vínculo laboral, formato DD/MM/AAAA.
+          Procura "admitido em", "ao serviço desde", "desde".
+        - issueDate: Data de emissão da declaração, formato DD/MM/AAAA. Costuma estar no cabeçalho ou rodapé.
+        - hasSignatureAndStamp: true se o documento tem assinatura E carimbo / selo da empresa visíveis.
+          false se faltar algum dos dois.
+
+        DICAS DE LOCALIZAÇÃO:
+        - Documento curto (geralmente 1 página) com cabeçalho da empresa.
+        - A frase típica é: "X, Lda., NIPC YYY, declara que o(a) Sr(a). NOME, NIF ZZZ, exerce as
+          funções de CARGO desde DATA, com contrato sem termo."
+        - O carimbo costuma estar junto à assinatura, no rodapé.
+
+        SINAIS DE ADULTERAÇÃO:
+        - Falta de carimbo ou assinatura.
+        - NIF da empresa com menos/mais de 9 dígitos.
+        - Datas inconsistentes (ex: emissão anterior à data de admissão).
+        - Tipo de letra do nome/NIF do trabalhador diferente do resto do texto.
+
+        SCHEMA JSON DE RESPOSTA:
+        {
+            "isAuthentic": boolean,
+            "fraudReason": string | null,
+            "imageQuality": "good" | "blurry" | "dark" | "cropped" | "unreadable",
+            "allFieldsExtracted": boolean,
+            "employeeName": string | null,
+            "employeeNif": string | null,
+            "employerName": string | null,
+            "employerNif": string | null,
+            "position": string | null,
+            "contractType": string | null,
+            "employmentStartDate": string | null,
+            "issueDate": string | null,
+            "hasSignatureAndStamp": boolean | null
+        }
+        """;
+
+    public static string DeclaracaoInicioAtividade => $$"""
+        Estás a analisar uma DECLARAÇÃO DE INÍCIO DE ATIVIDADE ou comprovativo de "Consultar Atividade"
+        emitido pelo Portal das Finanças (AT). Comprova que um trabalhador independente está coletado
+        para efeitos fiscais, identificando o(s) CAE da atividade exercida e a data de início.
+
+        {{CommonInstructions}}
+
+        CAMPOS A EXTRAIR:
+        - taxpayerName: Nome do contribuinte / sujeito passivo (a pessoa coletada).
+        - taxpayerNif: NIF do contribuinte (9 dígitos).
+        - caeCodes: Lista de códigos CAE (Classificação das Atividades Económicas) declarados no documento.
+          Cada código tem 5 dígitos (ex: "62010", "70220"). Se o documento listar CAE principal e
+          secundários, devolve TODOS por ordem (principal primeiro). Devolve só os 5 dígitos sem descrição.
+        - caePrincipalDescription: Descrição textual da atividade principal (ex: "Atividades de programação informática").
+        - activityStartDate: Data de início da atividade, formato DD/MM/AAAA. Procura "Início de Atividade",
+          "Data de Início".
+        - activityStatus: Estado atual da atividade. Devolve uma das categorias:
+          "Activa" (em atividade), "Cessada" (cessou atividade), "Suspensa" ou null se ambíguo.
+        - issueDate: Data em que o documento foi consultado/emitido, formato DD/MM/AAAA.
+          Costuma estar no rodapé como "Documento emitido em".
+
+        DICAS DE LOCALIZAÇÃO:
+        - Documento do Portal das Finanças tem cabeçalho com brasão da República e logótipo da AT.
+        - O CAE costuma estar numa secção "Atividade" ou "CAE" com formato "XXXXX - Descrição".
+        - A data de início está numa secção de identificação fiscal ou histórico.
+        - O estado "Activa" / "Cessada" pode estar como rótulo destacado.
+
+        SINAIS DE ADULTERAÇÃO:
+        - Ausência de cabeçalho oficial AT / República.
+        - CAE com formato inválido (não 5 dígitos).
+        - NIF com menos/mais de 9 dígitos.
+        - Status "Cessada" mas o documento parece ser apresentado como prova de atividade — sinaliza.
+
+        SCHEMA JSON DE RESPOSTA:
+        {
+            "isAuthentic": boolean,
+            "fraudReason": string | null,
+            "imageQuality": "good" | "blurry" | "dark" | "cropped" | "unreadable",
+            "allFieldsExtracted": boolean,
+            "taxpayerName": string | null,
+            "taxpayerNif": string | null,
+            "caeCodes": [string] | null,
+            "caePrincipalDescription": string | null,
+            "activityStartDate": string | null,
+            "activityStatus": string | null,
+            "issueDate": string | null
+        }
+        """;
+
+    public static string ReciboVerde => $$"""
+        Estás a analisar um RECIBO VERDE / FATURA-RECIBO ELETRÓNICA emitido no Portal das Finanças
+        por um trabalhador independente (categoria B). Tem cabeçalho da AT, identificação do
+        prestador (emitente) e do adquirente (cliente), montante e data.
+
+        {{CommonInstructions}}
+
+        CAMPOS A EXTRAIR:
+        - issuerName: Nome do PRESTADOR de serviços (quem emite o recibo — o trabalhador independente).
+          Aparece numa secção "Prestador" ou "Emitente".
+        - issuerNif: NIF do prestador (9 dígitos).
+        - acquirerName: Nome do ADQUIRENTE (cliente que pagou). Pode ser empresa ou pessoa.
+        - acquirerNif: NIF do adquirente (9 dígitos). Pode estar ausente para clientes particulares — devolve null nesse caso.
+        - issueDate: Data de emissão do recibo, formato DD/MM/AAAA.
+        - referenceMonth: Mês a que se refere o serviço, formato MM/AAAA. Se não estiver explícito,
+          usa o mês da data de emissão (ex: emitido em 15/03/2026 → "03/2026").
+        - baseAmount: Valor base / honorários antes de IVA e retenção, em euros (decimal com ponto, sem €).
+          Aparece como "Base de Incidência em IRS", "Valor Base", "Honorários".
+        - totalAmount: Valor total a receber pelo prestador (decimal com ponto). Pode ser igual ao base
+          se não houver IVA nem retenções.
+        - currency: Moeda detectada (esperado "EUR").
+
+        DICAS DE LOCALIZAÇÃO:
+        - Documento eletrónico vertical com cabeçalho "FATURA-RECIBO" ou "RECIBO".
+        - O número da fatura-recibo costuma estar no topo (ex: "FR XXX/AAAA").
+        - Os valores em euros usam vírgula decimal em PT — converte para ponto (ex: "1.200,00" → 1200.00).
+        - Tem um código de validação / hash AT no rodapé.
+
+        SINAIS DE ADULTERAÇÃO:
+        - Ausência de hash de validação AT.
+        - NIF do prestador ou adquirente com formato inválido.
+        - Inconsistência entre base e total que não se explique por IVA/retenções razoáveis.
+
+        SCHEMA JSON DE RESPOSTA:
+        {
+            "isAuthentic": boolean,
+            "fraudReason": string | null,
+            "imageQuality": "good" | "blurry" | "dark" | "cropped" | "unreadable",
+            "allFieldsExtracted": boolean,
+            "issuerName": string | null,
+            "issuerNif": string | null,
+            "acquirerName": string | null,
+            "acquirerNif": string | null,
+            "issueDate": string | null,
+            "referenceMonth": string | null,
+            "baseAmount": number | null,
+            "totalAmount": number | null,
+            "currency": string | null
+        }
+        """;
+
     public static string GetPromptForDocType(string docType) => docType switch
     {
         "caderneta" => CadernetaPredial,
@@ -315,6 +472,9 @@ public static class DocumentPrompts
         "certidao" => CertidaoPermanente,
         "licenca" => LicencaUtilizacao,
         "recibo" => ReciboVencimento,
+        "declaracao-empregador" => DeclaracaoEntidadeEmpregadora,
+        "declaracao-atividade" => DeclaracaoInicioAtividade,
+        "recibo-verde" => ReciboVerde,
         _ => throw new ArgumentException($"Tipo de documento desconhecido: {docType}")
     };
 }

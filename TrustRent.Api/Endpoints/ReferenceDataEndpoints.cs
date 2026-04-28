@@ -114,7 +114,10 @@ public static class ReferenceDataEndpoints
                 .ToListAsync();
             return Results.Ok(new
             {
-                requiredPayslipCount = incomeSvc.RequiredPayslipCount,
+                maxPayslipCount = incomeSvc.MaxPayslipCount,
+                payslipsToSkipDeclaration = incomeSvc.PayslipsToSkipDeclaration,
+                // Manter para compatibilidade frontend antigo
+                requiredPayslipCount = incomeSvc.PayslipsToSkipDeclaration,
                 ranges
             });
         });

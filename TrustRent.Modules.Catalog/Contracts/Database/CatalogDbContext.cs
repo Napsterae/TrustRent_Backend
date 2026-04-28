@@ -62,6 +62,11 @@ public class CatalogDbContext : DbContext
                    .WithMany()
                    .HasForeignKey(a => a.IncomeRangeId)
                    .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Property(a => a.EmploymentType).HasConversion<int>();
+            builder.Property(a => a.IncomeValidationMethod).HasConversion<int>();
+            builder.Property(a => a.EmployerName).HasMaxLength(200);
+            builder.Property(a => a.EmployerNif).HasMaxLength(9);
         });
 
         modelBuilder.Entity<ApplicationHistory>(builder =>

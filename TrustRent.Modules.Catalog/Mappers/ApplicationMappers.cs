@@ -52,7 +52,13 @@ public static class ApplicationMappers
             IsIncomeVerified = application.IncomeRangeId.HasValue,
             IncomeRangeCode = application.IncomeRange?.Code,
             IncomeRangeLabel = application.IncomeRange?.Label,
-            IncomeValidatedAt = application.IncomeValidatedAt
+            IncomeValidatedAt = application.IncomeValidatedAt,
+            EmploymentType = application.EmploymentType?.ToString(),
+            IncomeValidationMethod = application.IncomeValidationMethod?.ToString(),
+            PayslipsProvidedCount = application.PayslipsProvidedCount,
+            EmployerName = application.EmployerName,
+            EmployerNif = application.EmployerNif,
+            EmploymentStartDate = application.EmploymentStartDate
         };
     }
 }

@@ -33,4 +33,14 @@ public class ApplicationDto
     public string? IncomeRangeCode { get; set; }
     public string? IncomeRangeLabel { get; set; }
     public DateTime? IncomeValidatedAt { get; set; }
+
+    // Tipo de relação laboral + método de validação efetivamente usado.
+    // EmploymentType: "Employee" | "SelfEmployed"
+    // IncomeValidationMethod: "Payslips" | "PayslipsWithEmployerDeclaration" | "ActivityWithGreenReceipts"
+    public string? EmploymentType { get; set; }
+    public string? IncomeValidationMethod { get; set; }
+    public int? PayslipsProvidedCount { get; set; }
+    public string? EmployerName { get; set; }
+    public string? EmployerNif { get; set; }
+    public DateTime? EmploymentStartDate { get; set; }
 }

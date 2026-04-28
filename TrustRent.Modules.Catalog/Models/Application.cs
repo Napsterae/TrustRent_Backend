@@ -37,4 +37,13 @@ public class Application
     public Guid? IncomeRangeId { get; set; }
     public DateTime? IncomeValidatedAt { get; set; }
     public SalaryRange? IncomeRange { get; set; }
+
+    // Tipo de relação laboral declarado e método de validação efetivamente usado.
+    // Empregador / atividade: extraídos dos documentos validados e expostos a senhorio + inquilino.
+    public EmploymentType? EmploymentType { get; set; }
+    public IncomeValidationMethod? IncomeValidationMethod { get; set; }
+    public int? PayslipsProvidedCount { get; set; }
+    public string? EmployerName { get; set; }    // empresa OU CAE principal (independentes)
+    public string? EmployerNif { get; set; }     // NIF da empresa (independentes: não preenchido)
+    public DateTime? EmploymentStartDate { get; set; }
 }

@@ -31,3 +31,22 @@ public enum ApplicationStatus
     GeneratingContract = 11,
     IncomeValidationRequested = 12 // entre InterestConfirmed e Accepted, opcional
 }
+
+/// <summary>
+/// Tipo de relação laboral declarado pelo inquilino na validação de rendimentos.
+/// </summary>
+public enum EmploymentType
+{
+    Employee = 0,      // Trabalhador por conta de outrem (CLT)
+    SelfEmployed = 1   // Trabalhador independente / recibos verdes
+}
+
+/// <summary>
+/// Combinação de provas usada para validar rendimentos numa candidatura.
+/// </summary>
+public enum IncomeValidationMethod
+{
+    Payslips = 0,                          // 3 recibos de vencimento (caso ideal)
+    PayslipsWithEmployerDeclaration = 1,   // 1-2 recibos + declaração da entidade empregadora
+    ActivityWithGreenReceipts = 2          // Declaração de início de atividade (Finanças) + recibos verdes
+}
