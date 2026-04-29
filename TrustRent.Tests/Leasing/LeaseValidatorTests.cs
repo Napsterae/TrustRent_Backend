@@ -179,6 +179,21 @@ public class LeaseValidatorTests
             LeaseValidator.ValidateRequestSignature(lease, Guid.NewGuid(), "+351912345678"));
     }
 
+    [Fact]
+    public void ValidateRequestSignature_TenantBeforeLandlord_ThrowsInvalidOperationException()
+    {
+        var lease = CreateTestLease(LeaseStatus.AwaitingSignatures);
+        lease.ContractType = "Official";
+        lease.Signatures.AddRange(new[]
+        {
+            new LeaseSignature { Id = Guid.NewGuid(), LeaseId = lease.Id, UserId = lease.LandlordId, Role = LeaseSignatoryRole.Landlord, SequenceOrder = 1 },
+            new LeaseSignature { Id = Guid.NewGuid(), LeaseId = lease.Id, UserId = lease.TenantId, Role = LeaseSignatoryRole.Tenant, SequenceOrder = 2 }
+        });
+
+        Assert.Throws<InvalidOperationException>(() =>
+            LeaseValidator.ValidateRequestSignature(lease, lease.TenantId, "+351912345678"));
+    }
+
     // --- ValidateConfirmSignature ---
 
     [Fact]
@@ -194,6 +209,23 @@ public class LeaseValidatorTests
         var lease = CreateTestLease(LeaseStatus.Pending);
         Assert.Throws<InvalidOperationException>(() =>
             LeaseValidator.ValidateConfirmSignature(lease, lease.TenantId));
+    }
+
+    [Fact]
+    public void ValidateConfirmSignature_CoTenantBeforeTenant_ThrowsInvalidOperationException()
+    {
+        var lease = CreateTestLease(LeaseStatus.AwaitingSignatures);
+        var coTenantId = Guid.NewGuid();
+        lease.CoTenantId = coTenantId;
+        lease.Signatures.AddRange(new[]
+        {
+            new LeaseSignature { Id = Guid.NewGuid(), LeaseId = lease.Id, UserId = lease.LandlordId, Role = LeaseSignatoryRole.Landlord, SequenceOrder = 1, Signed = true },
+            new LeaseSignature { Id = Guid.NewGuid(), LeaseId = lease.Id, UserId = lease.TenantId, Role = LeaseSignatoryRole.Tenant, SequenceOrder = 2 },
+            new LeaseSignature { Id = Guid.NewGuid(), LeaseId = lease.Id, UserId = coTenantId, Role = LeaseSignatoryRole.CoTenant, SequenceOrder = 3 }
+        });
+
+        Assert.Throws<InvalidOperationException>(() =>
+            LeaseValidator.ValidateConfirmSignature(lease, coTenantId));
     }
 
     // --- ValidateAcceptTerms ---
@@ -221,8 +253,30 @@ public class LeaseValidatorTests
         var lease = CreateTestLease(LeaseStatus.AwaitingSignatures);
         lease.ContractType = "Informal";
         lease.LandlordSigned = true;
+        lease.TermAcceptances.Add(new TrustRent.Modules.Leasing.Models.LeaseTermAcceptance
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = lease.LandlordId,
+            Role = TrustRent.Shared.Models.LeaseSignatoryRole.Landlord
+        });
         Assert.Throws<InvalidOperationException>(() =>
             LeaseValidator.ValidateAcceptTerms(lease, lease.LandlordId));
+    }
+
+    [Fact]
+    public void ValidateAcceptTerms_TenantBeforeLandlord_ThrowsInvalidOperationException()
+    {
+        var lease = CreateTestLease(LeaseStatus.AwaitingSignatures);
+        lease.ContractType = "Informal";
+        lease.Signatures.AddRange(new[]
+        {
+            new LeaseSignature { Id = Guid.NewGuid(), LeaseId = lease.Id, UserId = lease.LandlordId, Role = LeaseSignatoryRole.Landlord, SequenceOrder = 1 },
+            new LeaseSignature { Id = Guid.NewGuid(), LeaseId = lease.Id, UserId = lease.TenantId, Role = LeaseSignatoryRole.Tenant, SequenceOrder = 2 }
+        });
+
+        Assert.Throws<InvalidOperationException>(() =>
+            LeaseValidator.ValidateAcceptTerms(lease, lease.TenantId));
     }
 
     // --- ValidateCancel ---

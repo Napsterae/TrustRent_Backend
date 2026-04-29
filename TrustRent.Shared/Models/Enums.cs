@@ -12,7 +12,9 @@ public enum LeaseStatus
     Expired,            // 7
     TerminatedEarly,    // 8
     Cancelled,          // 9
-    GeneratingContract = 10
+    GeneratingContract = 10,
+    PendingCoTenantSignature = 11,
+    PendingGuarantorSignature = 12
 }
 
 public enum ApplicationStatus
@@ -29,7 +31,49 @@ public enum ApplicationStatus
     AwaitingPayment,          // 9
     LeaseActive,              // 10
     GeneratingContract = 11,
-    IncomeValidationRequested = 12 // entre InterestConfirmed e Accepted, opcional
+    IncomeValidationRequested = 12, // entre InterestConfirmed e Accepted, opcional
+    GuarantorRequested = 14,
+    GuarantorReview = 15,
+    GuarantorRejected = 16
+}
+
+// ===== Candidatura Conjunta & Fiador =====
+
+public enum CoTenantInviteStatus
+{
+    Pending = 0,
+    Accepted = 1,
+    Declined = 2,
+    Cancelled = 3,
+    Expired = 4
+}
+
+public enum GuarantorInviteStatus
+{
+    Pending = 0,
+    Accepted = 1,
+    Declined = 2,
+    Cancelled = 3,
+    Expired = 4
+}
+
+public enum GuarantorRequirementStatus
+{
+    NotRequested = 0,
+    Requested = 1,
+    Submitted = 2,
+    LandlordReviewing = 3,
+    Approved = 4,
+    Rejected = 5,
+    Waived = 6
+}
+
+public enum LeaseSignatoryRole
+{
+    Landlord = 0,
+    Tenant = 1,
+    CoTenant = 2,
+    Guarantor = 3
 }
 
 /// <summary>

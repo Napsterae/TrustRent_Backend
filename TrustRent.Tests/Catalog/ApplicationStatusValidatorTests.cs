@@ -93,6 +93,7 @@ public class ApplicationStatusValidatorTests
         using var context = CreateContext();
         var landlordId = Guid.NewGuid();
         var tenantId = Guid.NewGuid();
+        var coTenantId = Guid.NewGuid();
         var property = new Property
         {
             Id = Guid.NewGuid(),
@@ -120,6 +121,7 @@ public class ApplicationStatusValidatorTests
             Id = Guid.NewGuid(),
             PropertyId = property.Id,
             TenantId = tenantId,
+            CoTenantUserId = coTenantId,
             Status = ApplicationStatus.Pending,
             Property = property
         };
@@ -132,6 +134,7 @@ public class ApplicationStatusValidatorTests
         Assert.NotNull(result);
         Assert.Equal(tenantId, result!.Value.TenantId);
         Assert.Equal(landlordId, result.Value.LandlordId);
+        Assert.Equal(coTenantId, result.Value.CoTenantUserId);
     }
 
     [Fact]

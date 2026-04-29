@@ -36,6 +36,7 @@ public static class LeasingSeeder
     public static readonly Guid Lease3Id = Guid.Parse("bbbb3333-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     public static readonly Guid Lease4Id = Guid.Parse("bbbb4444-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     public static readonly Guid Lease5Id = Guid.Parse("bbbb5555-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    private static readonly Guid ApprovedLease5GuarantorId = Guid.Parse("fa000003-0000-0000-0000-000000000003");
 
     public static readonly Guid Ticket1Id = Guid.Parse("dddd1111-dddd-dddd-dddd-dddddddddddd");
     public static readonly Guid Ticket2Id = Guid.Parse("dddd2222-dddd-dddd-dddd-dddddddddddd");
@@ -110,9 +111,12 @@ public static class LeasingSeeder
             TenantSignatureVerified = true,
             ContractFileHash = "seed-hash-contract-lease1",
             LandlordSignedFileHash = "seed-hash-landlord-lease1",
+            RequiredSignaturesCount = 2,
             Status = LeaseStatus.Active,
             CreatedAt = DateTime.UtcNow.AddMonths(-3).AddDays(-5),
         };
+        AddSignature(lease1, LandlordId, LeaseSignatoryRole.Landlord, 1, signed: true, signedAt: lease1.LandlordSignedAt, signatureRef: lease1.LandlordSignatureRef, certSubject: lease1.LandlordSignatureCertSubject, signedFileHash: lease1.LandlordSignedFileHash);
+        AddSignature(lease1, TenantId, LeaseSignatoryRole.Tenant, 2, signed: true, signedAt: lease1.TenantSignedAt, signatureRef: lease1.TenantSignatureRef, certSubject: lease1.TenantSignatureCertSubject, signedFileHash: "seed-hash-final-lease1");
         lease1.History.Add(new LeaseHistory { Id = Guid.NewGuid(), LeaseId = Lease1Id, Action = "Contrato criado", ActorId = LandlordId, CreatedAt = lease1.CreatedAt });
         lease1.History.Add(new LeaseHistory { Id = Guid.NewGuid(), LeaseId = Lease1Id, Action = "Contrato ativado", ActorId = LandlordId, CreatedAt = lease1.StartDate });
         leases.Add(lease1);
@@ -138,9 +142,18 @@ public static class LeasingSeeder
             WaterPaidBy = "Inquilino",
             ElectricityPaidBy = "Inquilino",
             GasPaidBy = "Inquilino",
+            LandlordSigned = true,
+            LandlordSignedAt = DateTime.UtcNow.AddMonths(-2).AddDays(-2),
+            TenantSigned = true,
+            TenantSignedAt = DateTime.UtcNow.AddMonths(-2).AddDays(-1),
+            RequiredSignaturesCount = 2,
             Status = LeaseStatus.Active,
             CreatedAt = DateTime.UtcNow.AddMonths(-2).AddDays(-3),
         };
+        AddSignature(lease2, Landlord2Id, LeaseSignatoryRole.Landlord, 1, signed: true, signedAt: lease2.LandlordSignedAt, signatureRef: null, certSubject: "Aceitacao informal - Sofia Rodrigues");
+        AddSignature(lease2, Tenant2Id, LeaseSignatoryRole.Tenant, 2, signed: true, signedAt: lease2.TenantSignedAt, signatureRef: null, certSubject: "Aceitacao informal - Miguel Costa");
+        AddTermAcceptance(lease2, Landlord2Id, LeaseSignatoryRole.Landlord, lease2.LandlordSignedAt!.Value, "seed-terms-lease2");
+        AddTermAcceptance(lease2, Tenant2Id, LeaseSignatoryRole.Tenant, lease2.TenantSignedAt!.Value, "seed-terms-lease2");
         lease2.History.Add(new LeaseHistory { Id = Guid.NewGuid(), LeaseId = Lease2Id, Action = "Contrato criado", ActorId = Landlord2Id, CreatedAt = lease2.CreatedAt });
         lease2.History.Add(new LeaseHistory { Id = Guid.NewGuid(), LeaseId = Lease2Id, Action = "Contrato ativado", ActorId = Landlord2Id, CreatedAt = lease2.StartDate });
         leases.Add(lease2);
@@ -181,9 +194,12 @@ public static class LeasingSeeder
             ContractFilePath = lease3ContractPath,
             ContractGeneratedAt = DateTime.UtcNow.AddDays(-4),
             ContractFileHash = "seed-hash-contract-lease3",
+            RequiredSignaturesCount = 2,
             Status = LeaseStatus.PendingLandlordSignature,
             CreatedAt = DateTime.UtcNow.AddDays(-5)
         };
+        AddSignature(lease3, LandlordId, LeaseSignatoryRole.Landlord, 1);
+        AddSignature(lease3, Tenant2Id, LeaseSignatoryRole.Tenant, 2);
         lease3.History.Add(new LeaseHistory { Id = Guid.NewGuid(), LeaseId = Lease3Id, Action = "LeaseInitiated", ActorId = LandlordId, Message = "Data proposta para inicio do arrendamento enviada ao inquilino.", CreatedAt = lease3.CreatedAt });
         lease3.History.Add(new LeaseHistory { Id = Guid.NewGuid(), LeaseId = Lease3Id, Action = "StartDateConfirmed", ActorId = Tenant2Id, Message = "Data de inicio confirmada e contrato gerado.", CreatedAt = lease3.CreatedAt.AddDays(1) });
         leases.Add(lease3);
@@ -208,9 +224,18 @@ public static class LeasingSeeder
             WaterPaidBy = "Inquilino",
             ElectricityPaidBy = "Inquilino",
             GasPaidBy = "Nao aplicavel",
+            LandlordSigned = true,
+            LandlordSignedAt = DateTime.UtcNow.AddDays(-3),
+            TenantSigned = true,
+            TenantSignedAt = DateTime.UtcNow.AddDays(-3).AddHours(2),
+            RequiredSignaturesCount = 2,
             Status = LeaseStatus.AwaitingPayment,
             CreatedAt = DateTime.UtcNow.AddDays(-4)
         };
+        AddSignature(lease4, Landlord2Id, LeaseSignatoryRole.Landlord, 1, signed: true, signedAt: lease4.LandlordSignedAt, signatureRef: null, certSubject: "Aceitacao informal - Sofia Rodrigues");
+        AddSignature(lease4, TenantId, LeaseSignatoryRole.Tenant, 2, signed: true, signedAt: lease4.TenantSignedAt, signatureRef: null, certSubject: "Aceitacao informal - Ana Ferreira");
+        AddTermAcceptance(lease4, Landlord2Id, LeaseSignatoryRole.Landlord, lease4.LandlordSignedAt!.Value, "seed-terms-lease4");
+        AddTermAcceptance(lease4, TenantId, LeaseSignatoryRole.Tenant, lease4.TenantSignedAt!.Value, "seed-terms-lease4");
         lease4.History.Add(new LeaseHistory { Id = Guid.NewGuid(), LeaseId = Lease4Id, Action = "LeaseInitiated", ActorId = Landlord2Id, Message = "Termos aceites e lease pronto para pagamento inicial.", CreatedAt = lease4.CreatedAt });
         leases.Add(lease4);
 
@@ -221,6 +246,9 @@ public static class LeasingSeeder
             TenantId = Tenant2Id,
             LandlordId = Landlord2Id,
             ApplicationId = LeaseStartDateProposedApplicationId,
+            CoTenantId = TenantId,
+            GuarantorUserId = LandlordId,
+            GuarantorRecordId = ApprovedLease5GuarantorId,
             StartDate = DateTime.UtcNow.AddDays(22),
             EndDate = DateTime.UtcNow.AddDays(22).AddMonths(36),
             DurationMonths = 36,
@@ -234,9 +262,14 @@ public static class LeasingSeeder
             WaterPaidBy = "Inquilino",
             ElectricityPaidBy = "Inquilino",
             GasPaidBy = "Inquilino",
+            RequiredSignaturesCount = 4,
             Status = LeaseStatus.Pending,
             CreatedAt = DateTime.UtcNow.AddDays(-3)
         };
+        AddSignature(lease5, Landlord2Id, LeaseSignatoryRole.Landlord, 1);
+        AddSignature(lease5, Tenant2Id, LeaseSignatoryRole.Tenant, 2);
+        AddSignature(lease5, TenantId, LeaseSignatoryRole.CoTenant, 3);
+        AddSignature(lease5, LandlordId, LeaseSignatoryRole.Guarantor, 4);
         lease5.History.Add(new LeaseHistory { Id = Guid.NewGuid(), LeaseId = Lease5Id, Action = "LeaseInitiated", ActorId = Landlord2Id, Message = "Data de inicio proposta e a aguardar confirmacao.", CreatedAt = lease5.CreatedAt });
         leases.Add(lease5);
 
@@ -703,6 +736,50 @@ public static class LeasingSeeder
         {
             Console.WriteLine($"[SEED] Leasing: Erro no Seed — {ex.InnerException?.Message ?? ex.Message}");
         }
+    }
+
+    private static void AddSignature(
+        Lease lease,
+        Guid userId,
+        LeaseSignatoryRole role,
+        int sequenceOrder,
+        bool signed = false,
+        DateTime? signedAt = null,
+        string? signatureRef = null,
+        string? certSubject = null,
+        string? signedFileHash = null)
+    {
+        lease.Signatures.Add(new LeaseSignature
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = userId,
+            Role = role,
+            SequenceOrder = sequenceOrder,
+            Signed = signed,
+            SignedAt = signedAt,
+            SignatureRef = signatureRef,
+            SignatureCertSubject = certSubject,
+            SignedFileHash = signedFileHash,
+            SignatureVerified = signed,
+            CreatedAt = lease.CreatedAt,
+            UpdatedAt = signed ? signedAt : null
+        });
+    }
+
+    private static void AddTermAcceptance(Lease lease, Guid userId, LeaseSignatoryRole role, DateTime acceptedAt, string acceptedDocumentHash)
+    {
+        lease.TermAcceptances.Add(new LeaseTermAcceptance
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = userId,
+            Role = role,
+            AcceptedAt = acceptedAt,
+            AcceptedDocumentHash = acceptedDocumentHash,
+            IpAddress = "203.0.113.20",
+            UserAgent = "TrustRent seed data"
+        });
     }
 
     private static string EnsureSeedPdf(string folderPath, Guid leaseId, string title, string subtitle, IEnumerable<string> lines)

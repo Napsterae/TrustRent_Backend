@@ -19,8 +19,15 @@ public static class ApplicationEndpoints
             if (!Guid.TryParse(userIdString, out Guid tenantId))
                 return Results.Unauthorized();
 
-            var application = await service.SubmitApplicationAsync(propertyId, tenantId, dto);
-            return Results.Ok(application);
+            try
+            {
+                var application = await service.SubmitApplicationAsync(propertyId, tenantId, dto);
+                return Results.Ok(application);
+            }
+            catch (KeyNotFoundException e) { return Results.NotFound(new { error = e.Message }); }
+            catch (ArgumentException e) { return Results.BadRequest(new { error = e.Message }); }
+            catch (InvalidOperationException e) { return Results.BadRequest(new { error = e.Message }); }
+            catch (Exception e) { return Results.BadRequest(new { error = e.Message }); }
         }).RequireAuthorization();
 
         // Landlord gets applications for a property
@@ -72,8 +79,13 @@ public static class ApplicationEndpoints
             if (!Guid.TryParse(userIdString, out Guid userId))
                 return Results.Unauthorized();
 
-            var result = await service.UpdateVisitStatusAsync(id, userId, dto);
-            return Results.Ok(result);
+            try
+            {
+                var result = await service.UpdateVisitStatusAsync(id, userId, dto);
+                return Results.Ok(result);
+            }
+            catch (UnauthorizedAccessException) { return Results.Forbid(); }
+            catch (Exception e) { return Results.BadRequest(new { error = e.Message }); }
         }).RequireAuthorization();
 
         // ===== Income Validation (recibos de vencimento via IA) =====

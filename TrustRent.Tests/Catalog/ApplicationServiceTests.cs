@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Modules.Catalog.Services;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Modules.Identity.Models;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Models;
 
@@ -15,12 +17,14 @@ public class ApplicationServiceTests
     private readonly Mock<INotificationService> _notificationMock;
     private readonly Mock<ILeasingAccessService> _leasingAccessMock;
     private readonly Mock<IUserService> _userServiceMock;
+    private readonly Mock<IUserRepository> _userRepositoryMock;
 
     public ApplicationServiceTests()
     {
         _notificationMock = new Mock<INotificationService>();
         _leasingAccessMock = new Mock<ILeasingAccessService>();
         _userServiceMock = new Mock<IUserService>();
+        _userRepositoryMock = new Mock<IUserRepository>();
     }
 
     private (ApplicationService Service, CatalogDbContext Context) CreateService()
@@ -30,7 +34,7 @@ public class ApplicationServiceTests
             .Options;
         var context = new CatalogDbContext(options);
 
-        var service = new ApplicationService(context, _notificationMock.Object, _leasingAccessMock.Object, _userServiceMock.Object);
+        var service = new ApplicationService(context, _notificationMock.Object, _leasingAccessMock.Object, _userServiceMock.Object, _userRepositoryMock.Object, new ServiceCollection().BuildServiceProvider());
         return (service, context);
     }
 
@@ -250,6 +254,93 @@ public class ApplicationServiceTests
         var result = (await service.GetApplicationsForTenantAsync(tenantId)).ToList();
 
         Assert.Single(result);
+
+        context.Dispose();
+    }
+
+    [Fact]
+    public async Task GetApplicationsForTenantAsync_IncludesCoTenantApps()
+    {
+        var (service, context) = CreateService();
+        var tenantId = Guid.NewGuid();
+        var coTenantId = Guid.NewGuid();
+        var property = CreateTestProperty();
+        context.Properties.Add(property);
+
+        context.Applications.AddRange(
+            new Application { Id = Guid.NewGuid(), PropertyId = property.Id, TenantId = tenantId, CoTenantUserId = coTenantId, Message = "Joint", DurationMonths = 12, Status = ApplicationStatus.Pending },
+            new Application { Id = Guid.NewGuid(), PropertyId = property.Id, TenantId = Guid.NewGuid(), Message = "Other", DurationMonths = 12, Status = ApplicationStatus.Pending }
+        );
+        await context.SaveChangesAsync();
+
+        _leasingAccessMock.Setup(l => l.GetLeasesByApplicationIdsAsync(It.IsAny<IEnumerable<Guid>>()))
+            .ReturnsAsync(new Dictionary<Guid, TrustRent.Shared.Contracts.DTOs.LeaseDto>());
+
+        var result = (await service.GetApplicationsForTenantAsync(coTenantId)).ToList();
+
+        Assert.Single(result);
+        Assert.Equal(coTenantId, result[0].CoTenantUserId);
+
+        context.Dispose();
+    }
+
+    [Fact]
+    public async Task UpdateVisitStatus_CoTenantCannotConfirmInterest()
+    {
+        var (service, context) = CreateService();
+        var coTenantId = Guid.NewGuid();
+        var property = CreateTestProperty();
+        context.Properties.Add(property);
+        var application = new Application
+        {
+            Id = Guid.NewGuid(),
+            PropertyId = property.Id,
+            TenantId = Guid.NewGuid(),
+            CoTenantUserId = coTenantId,
+            Message = "Joint",
+            DurationMonths = 12,
+            Status = ApplicationStatus.VisitAccepted
+        };
+        context.Applications.Add(application);
+        await context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            service.UpdateVisitStatusAsync(application.Id, coTenantId, new UpdateApplicationVisitDto { Action = "TenantConfirmInterest" }));
+
+        context.Dispose();
+    }
+
+    [Fact]
+    public async Task GetApplicationByIdAsync_GuarantorAcceptedButNotApproved_Throws()
+    {
+        var (service, context) = CreateService();
+        var guarantorUserId = Guid.NewGuid();
+        var property = CreateTestProperty();
+        context.Properties.Add(property);
+        var application = new Application
+        {
+            Id = Guid.NewGuid(),
+            PropertyId = property.Id,
+            TenantId = Guid.NewGuid(),
+            Message = "Needs guarantor",
+            DurationMonths = 12,
+            Status = ApplicationStatus.GuarantorReview,
+            GuarantorRequirementStatus = GuarantorRequirementStatus.LandlordReviewing
+        };
+        application.Guarantors.Add(new Guarantor
+        {
+            Id = Guid.NewGuid(),
+            ApplicationId = application.Id,
+            UserId = guarantorUserId,
+            InvitedByUserId = application.TenantId,
+            InviteStatus = GuarantorInviteStatus.Accepted,
+            ExpiresAt = DateTime.UtcNow.AddDays(5)
+        });
+        context.Applications.Add(application);
+        await context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            service.GetApplicationByIdAsync(application.Id, guarantorUserId));
 
         context.Dispose();
     }

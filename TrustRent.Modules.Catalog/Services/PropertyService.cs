@@ -292,7 +292,7 @@ public class PropertyService : IPropertyService
         {
             await _uow.SaveChangesAsync();
         }
-        catch (DbUpdateConcurrencyException ex)
+        catch (DbUpdateConcurrencyException)
         {
             // Se chegamos aqui, o objeto foi modificado ou o ID é inválido para o EF
             throw new Exception("Erro de concorrência: Os dados do imóvel foram alterados por outro utilizador ou o registo já não existe.");

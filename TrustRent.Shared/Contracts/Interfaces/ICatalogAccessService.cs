@@ -50,6 +50,14 @@ public class ApplicationContext
     public string? EnergyCertificateNumber { get; set; }
     public string? EnergyClass { get; set; }
     public string? PropertyTitle { get; set; }
+
+    // Multi-parte (co-candidato + fiador)
+    public Guid? CoTenantUserId { get; set; }
+    public Guid? GuarantorUserId { get; set; }
+    public Guid? GuarantorRecordId { get; set; }
+    public string? GuarantorGuestEmail { get; set; }
+    public string? GuarantorGuestName { get; set; }
+    public string? GuarantorGuestAccessToken { get; set; }
 }
 
 public class PropertyContext

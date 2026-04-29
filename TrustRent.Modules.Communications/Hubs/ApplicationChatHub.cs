@@ -40,7 +40,7 @@ public class ApplicationChatHub : Hub
         var participants = await _statusValidator.GetApplicationParticipantsAsync(applicationId);
         if (participants == null)
             throw new HubException("Candidatura não encontrada.");
-        if (participants.Value.TenantId != userId && participants.Value.LandlordId != userId)
+        if (!IsApplicationChatParticipant(participants.Value, userId))
             throw new HubException("Não tem permissão para aceder a esta conversa.");
         
         await Groups.AddToGroupAsync(Context.ConnectionId, applicationId.ToString());
@@ -61,7 +61,7 @@ public class ApplicationChatHub : Hub
         var participants = await _statusValidator.GetApplicationParticipantsAsync(applicationId);
         if (participants == null)
             throw new HubException("Candidatura não encontrada.");
-        if (participants.Value.TenantId != userId && participants.Value.LandlordId != userId)
+        if (!IsApplicationChatParticipant(participants.Value, userId))
             throw new HubException("Não tem permissão para enviar mensagens nesta conversa.");
 
         bool isLocked = await _statusValidator.IsApplicationChatLockedAsync(applicationId);
@@ -87,7 +87,26 @@ public class ApplicationChatHub : Hub
         await Clients.Group(applicationId.ToString()).SendAsync("ReceiveMessage", message);
 
         // 3. Notificar o outro participante (SignalR + Persistência)
-        var recipientId = senderId == participants.Value.TenantId ? participants.Value.LandlordId : participants.Value.TenantId;
-        await _notificationService.SendNotificationAsync(recipientId, "application", "Recebeste uma nova mensagem na candidatura.", applicationId);
+        var recipientIds = GetApplicationChatRecipients(participants.Value)
+            .Where(recipientId => recipientId != senderId);
+
+        foreach (var recipientId in recipientIds)
+        {
+            await _notificationService.SendNotificationAsync(recipientId, "application", "Recebeste uma nova mensagem na candidatura.", applicationId);
+        }
+    }
+
+    private static bool IsApplicationChatParticipant((Guid TenantId, Guid LandlordId, Guid? CoTenantUserId) participants, Guid userId)
+        => participants.TenantId == userId
+           || participants.LandlordId == userId
+           || participants.CoTenantUserId == userId;
+
+    private static IEnumerable<Guid> GetApplicationChatRecipients((Guid TenantId, Guid LandlordId, Guid? CoTenantUserId) participants)
+    {
+        yield return participants.TenantId;
+        yield return participants.LandlordId;
+
+        if (participants.CoTenantUserId.HasValue)
+            yield return participants.CoTenantUserId.Value;
     }
 }

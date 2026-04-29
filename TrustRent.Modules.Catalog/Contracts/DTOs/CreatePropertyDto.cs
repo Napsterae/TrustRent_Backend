@@ -67,6 +67,10 @@ public class CreatePropertyDto
     // Contrato Oficial
     public bool HasOfficialContract { get; set; }
 
+    // Aceita fiador (apenas relevante quando HasOfficialContract = true)
+    public bool AcceptsGuarantor { get; set; }
+    public string? GuarantorPolicyNote { get; set; }
+
     // Periodicidade e Regime
     public string? LeaseRegime { get; set; }
     public string? NonPermanentReason { get; set; }

@@ -10,6 +10,12 @@ public class Lease
     public Guid LandlordId { get; set; }
     public Guid ApplicationId { get; set; }
 
+    // Co-candidato e fiador (congelados aquando da geração do contrato)
+    public Guid? CoTenantId { get; set; }
+    public Guid? GuarantorUserId { get; set; }
+    public Guid? GuarantorRecordId { get; set; } // FK lógica para catalog.Guarantors
+    public int RequiredSignaturesCount { get; set; } = 2; // 2..4
+
     // Datas e duração
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
@@ -70,4 +76,6 @@ public class Lease
 
     // Navegação
     public List<LeaseHistory> History { get; set; } = new();
+    public List<LeaseSignature> Signatures { get; set; } = new();
+    public List<LeaseTermAcceptance> TermAcceptances { get; set; } = new();
 }

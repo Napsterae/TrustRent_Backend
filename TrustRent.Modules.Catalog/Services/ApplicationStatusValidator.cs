@@ -24,7 +24,7 @@ public class ApplicationStatusValidator : IApplicationStatusValidator
                application.Status == ApplicationStatus.Accepted;
     }
 
-    public async Task<(Guid TenantId, Guid LandlordId)?> GetApplicationParticipantsAsync(Guid applicationId)
+    public async Task<(Guid TenantId, Guid LandlordId, Guid? CoTenantUserId)?> GetApplicationParticipantsAsync(Guid applicationId)
     {
         var application = await _context.Applications
             .Include(a => a.Property)
@@ -32,6 +32,6 @@ public class ApplicationStatusValidator : IApplicationStatusValidator
 
         if (application == null || application.Property == null) return null;
 
-        return (application.TenantId, application.Property.LandlordId);
+        return (application.TenantId, application.Property.LandlordId, application.CoTenantUserId);
     }
 }

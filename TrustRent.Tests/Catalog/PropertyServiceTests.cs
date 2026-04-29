@@ -6,7 +6,6 @@ using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Modules.Catalog.Services;
-using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Shared.Contracts.Interfaces;
 

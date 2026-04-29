@@ -12,7 +12,7 @@
     <PackageReference Include="Hangfire.PostgreSql" Version="1.21.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.*" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.*" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.*">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.26">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
@@ -26,6 +26,7 @@
     <ProjectReference Include="..\TrustRent.Modules.Identity\TrustRent.Modules.Identity.csproj" />
     <ProjectReference Include="..\TrustRent.Modules.Leasing\TrustRent.Modules.Leasing.csproj" />
     <ProjectReference Include="..\TrustRent.Modules.Communications\TrustRent.Modules.Communications.csproj" />
+    <ProjectReference Include="..\TrustRent.Modules.Admin\TrustRent.Modules.Admin.csproj" />
   </ItemGroup>
 
   <ItemGroup>

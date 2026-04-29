@@ -91,6 +91,12 @@ namespace TrustRent.Modules.Identity.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("AnonymizedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("AnonymizedByAdminId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("CitizenCardNumber")
                         .HasColumnType("text");
 
@@ -108,6 +114,9 @@ namespace TrustRent.Modules.Identity.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsNoDebtVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSuspended")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -137,6 +146,15 @@ namespace TrustRent.Modules.Identity.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("StripeCustomerId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("SuspendedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("SuspendedByAdminId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SuspendedReason")
                         .HasColumnType("text");
 
                     b.Property<int>("TrustScore")

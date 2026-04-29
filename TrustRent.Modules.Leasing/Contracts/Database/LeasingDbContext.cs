@@ -20,6 +20,8 @@ public class LeasingDbContext : DbContext
     public DbSet<LegalCommunicationLog> LegalCommunicationLogs { get; set; }
     public DbSet<LeaseTerminationRequest> LeaseTerminationRequests { get; set; }
     public DbSet<RentIncreaseRequest> RentIncreaseRequests { get; set; }
+    public DbSet<LeaseSignature> LeaseSignatures { get; set; }
+    public DbSet<LeaseTermAcceptance> LeaseTermAcceptances { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -165,6 +167,8 @@ public class LeasingDbContext : DbContext
 
             builder.HasIndex(l => l.ApplicationId);
             builder.HasIndex(l => l.PropertyId);
+            builder.HasIndex(l => l.CoTenantId);
+            builder.HasIndex(l => l.GuarantorUserId);
         });
 
         // LeaseHistory entity configuration
@@ -222,6 +226,52 @@ public class LeasingDbContext : DbContext
             builder.HasIndex(l => l.RecipientId);
             builder.HasIndex(l => l.CommunicationType);
             builder.HasIndex(l => l.SentAt);
+        });
+
+        // ===== LeaseSignature (assinaturas multi-parte) =====
+        modelBuilder.Entity<LeaseSignature>(builder =>
+        {
+            builder.ToTable("LeaseSignatures", "leasing");
+            builder.HasKey(s => s.Id);
+            builder.Property(s => s.Role).HasConversion<int>();
+            builder.Property(s => s.SignatureRef).HasMaxLength(200);
+            builder.Property(s => s.SignedFilePath).HasMaxLength(500);
+            builder.Property(s => s.SignedFileHash).HasMaxLength(128);
+            builder.Property(s => s.SignatureCertSubject).HasMaxLength(500);
+            builder.Property(s => s.SigningIp).HasMaxLength(45);
+            builder.Property(s => s.SigningUserAgent).HasMaxLength(500);
+            builder.Property(s => s.ChallengeId).HasMaxLength(100);
+            builder.Property(s => s.VerificationError).HasMaxLength(500);
+
+            builder.HasOne(s => s.Lease)
+                   .WithMany(l => l.Signatures)
+                   .HasForeignKey(s => s.LeaseId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasIndex(s => new { s.LeaseId, s.UserId, s.Role }).IsUnique();
+            builder.HasIndex(s => new { s.LeaseId, s.SequenceOrder }).IsUnique();
+            builder.HasIndex(s => s.SignatureRef).IsUnique().HasFilter("\"SignatureRef\" IS NOT NULL");
+            builder.HasIndex(s => new { s.LeaseId, s.SignedFileHash })
+                   .IsUnique()
+                   .HasFilter("\"SignedFileHash\" IS NOT NULL");
+        });
+
+        // ===== LeaseTermAcceptance (aceitação multi-parte) =====
+        modelBuilder.Entity<LeaseTermAcceptance>(builder =>
+        {
+            builder.ToTable("LeaseTermAcceptances", "leasing");
+            builder.HasKey(t => t.Id);
+            builder.Property(t => t.Role).HasConversion<int>();
+            builder.Property(t => t.AcceptedDocumentHash).HasMaxLength(128);
+            builder.Property(t => t.IpAddress).HasMaxLength(45);
+            builder.Property(t => t.UserAgent).HasMaxLength(500);
+
+            builder.HasOne(t => t.Lease)
+                   .WithMany(l => l.TermAcceptances)
+                   .HasForeignKey(t => t.LeaseId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasIndex(t => new { t.LeaseId, t.UserId }).IsUnique();
         });
     }
 }

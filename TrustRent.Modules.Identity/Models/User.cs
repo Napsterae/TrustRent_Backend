@@ -26,5 +26,13 @@ public class User
 
     // Stripe
     public string? StripeCustomerId { get; set; }
+
+    // Backoffice / moderação
+    public bool IsSuspended { get; set; } = false;
+    public DateTime? SuspendedAt { get; set; }
+    public string? SuspendedReason { get; set; }
+    public Guid? SuspendedByAdminId { get; set; }
+    public DateTime? AnonymizedAt { get; set; }
+    public Guid? AnonymizedByAdminId { get; set; }
 }
 

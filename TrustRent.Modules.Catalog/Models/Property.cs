@@ -45,6 +45,17 @@ public class Property
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
+    // Backoffice / moderação
+    public string ModerationStatus { get; set; } = "pending"; // pending|approved|rejected
+    public string? ModerationReason { get; set; }
+    public DateTime? ModeratedAt { get; set; }
+    public Guid? ModeratedByAdminId { get; set; }
+    public bool IsBlocked { get; set; } = false;
+    public DateTime? BlockedAt { get; set; }
+    public Guid? BlockedByAdminId { get; set; }
+    public string? BlockReason { get; set; }
+    public bool IsFeatured { get; set; } = false;
+
     // Relacionamentos (As listas de imagens)
     public List<PropertyImage> Images { get; set; } = new();
 
@@ -86,6 +97,10 @@ public class Property
 
     // Contrato Oficial
     public bool HasOfficialContract { get; set; } = false;
+
+    // Fiador (apenas em imóveis com contrato oficial)
+    public bool AcceptsGuarantor { get; set; } = false;
+    public string? GuarantorPolicyNote { get; set; }
 
     // Periodicidade e Regime Jurídico
     public LeaseRegime? LeaseRegime { get; set; }

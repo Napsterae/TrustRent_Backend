@@ -1,5 +1,6 @@
 using Hangfire;
 using Hangfire.PostgreSql;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +29,10 @@ using TrustRent.Modules.Leasing.Seeds;
 using TrustRent.Modules.Communications.Seeds;
 using TrustRent.Shared.Security;
 using System.Threading.RateLimiting;
+using TrustRent.Modules.Admin;
+using TrustRent.Modules.Admin.Endpoints;
+using TrustRent.Modules.Admin.Contracts.Database;
+using TrustRent.Modules.Admin.Seeds;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -121,6 +126,9 @@ builder.Services.AddScoped<IDocumentExtractionService, DocumentExtractionService
 builder.Services.AddScoped<IPropertyRepository, PropertyRepository>();
 builder.Services.AddScoped<ICatalogUnitOfWork, CatalogUnitOfWork>();
 builder.Services.AddScoped<IApplicationService, ApplicationService>();
+builder.Services.AddScoped<ICoTenantInviteService, CoTenantInviteService>();
+builder.Services.AddScoped<IGuarantorService, GuarantorService>();
+builder.Services.AddScoped<IApplicationParticipantService, ApplicationParticipantService>();
 builder.Services.AddScoped<IApplicationStatusValidator, ApplicationStatusValidator>();
 builder.Services.AddScoped<IIncomeValidationService, IncomeValidationService>();
 
@@ -192,6 +200,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
+// === ADMIN MODULE (backoffice) ===
+// Adds AdminDbContext, services, second JWT scheme `AdminJwtBearer` reading cookie `trustrent_admin_auth`,
+// and a custom IAuthorizationPolicyProvider that emits per-permission policies on demand.
+builder.Services.AddAdminModule(builder.Configuration);
+
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -218,6 +231,17 @@ builder.Services.AddCors(options =>{
               .AllowAnyMethod()
               .AllowCredentials();
     });
+
+    // Backoffice admin SPA (separate origin, separate cookie domain).
+    var adminOrigins = builder.Configuration.GetSection("AdminCors:AllowedOrigins").Get<string[]>()
+        ?? new[] { "http://localhost:5174" };
+    options.AddPolicy("AllowBackoffice", policy =>
+    {
+        policy.WithOrigins(adminOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
 });
 
 // Compressão (gzip + brotli) — reduz JSON de reference data ~70-80%
@@ -234,6 +258,27 @@ builder.Services.AddResponseCompression(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+    {
+        var path = httpContext.Request.Path;
+        if (!path.StartsWithSegments("/api/admin") || path.StartsWithSegments("/api/admin/auth"))
+        {
+            return RateLimitPartition.GetNoLimiter("non-admin-api");
+        }
+
+        var key = httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "anon";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: key,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
+    });
+
     options.AddPolicy("auth", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -256,6 +301,63 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = 5,
                 Window = TimeSpan.FromHours(1),
+                QueueLimit = 0
+            });
+    });
+
+    options.AddPolicy("cotenantInvites", httpContext =>
+    {
+        var userKey = httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "anon";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: userKey,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromDays(1),
+                QueueLimit = 0
+            });
+    });
+
+    options.AddPolicy("guarantorInvites", httpContext =>
+    {
+        var userKey = httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "anon";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: userKey,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromDays(1),
+                QueueLimit = 0
+            });
+    });
+
+    // Admin auth: brute-force defence on /api/admin/auth/* (5 req/min por IP)
+    options.AddPolicy("admin-auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+
+    // Admin API geral (60 req/min por admin autenticado). Also applied by GlobalLimiter above.
+    options.AddPolicy("admin-api", httpContext =>
+    {
+        var key = httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "anon";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: key,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             });
     });
@@ -334,16 +436,82 @@ app.Use(async (context, next) =>
 
 app.UseStaticFiles();
 app.UseCors("AllowViteFrontend");
+// Admin SPA origin gets its own CORS policy on /api/admin/* paths.
+app.UseWhen(ctx => ctx.Request.Path.StartsWithSegments("/api/admin"),
+    branch => branch.UseCors("AllowBackoffice"));
 app.UseResponseCompression();
 app.UseRequestBodySizeLimiter();
 app.UseRateLimiter();
 
 app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    var method = context.Request.Method;
+    var isMutatingAdminRequest = context.Request.Path.StartsWithSegments("/api/admin")
+        && !context.Request.Path.StartsWithSegments("/api/admin/auth/login")
+        && (HttpMethods.IsPost(method) || HttpMethods.IsPut(method) || HttpMethods.IsPatch(method) || HttpMethods.IsDelete(method));
+
+    if (isMutatingAdminRequest)
+    {
+        var adminAuth = await context.AuthenticateAsync(AdminModuleExtensions.AuthScheme);
+        if (adminAuth.Succeeded && adminAuth.Principal is not null)
+        {
+            context.User = adminAuth.Principal;
+        }
+
+        var expected = context.User?.FindFirst("csrf")?.Value;
+        var provided = context.Request.Headers["X-CSRF-Token"].ToString();
+        if (string.IsNullOrWhiteSpace(expected) || !string.Equals(expected, provided, StringComparison.Ordinal))
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response.WriteAsJsonAsync(new { error = "Token CSRF inválido." });
+            return;
+        }
+    }
+
+    await next();
+});
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path;
+    var isAdminRequest = path.StartsWithSegments("/api/admin");
+    var isMfaExempt = path.StartsWithSegments("/api/admin/auth/login")
+        || path.StartsWithSegments("/api/admin/auth/logout")
+        || path.StartsWithSegments("/api/admin/auth/me")
+        || path.StartsWithSegments("/api/admin/auth/change-password")
+        || path.StartsWithSegments("/api/admin/auth/sessions")
+        || path.StartsWithSegments("/api/admin/auth/mfa");
+
+    if (isAdminRequest && !isMfaExempt)
+    {
+        var adminAuth = await context.AuthenticateAsync(AdminModuleExtensions.AuthScheme);
+        if (adminAuth.Succeeded && adminAuth.Principal is not null)
+        {
+            var sub = adminAuth.Principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? adminAuth.Principal.FindFirst("sub")?.Value;
+            if (Guid.TryParse(sub, out var adminId))
+            {
+                var adminDb = context.RequestServices.GetRequiredService<AdminDbContext>();
+                var admin = await adminDb.AdminUsers.AsNoTracking().FirstOrDefaultAsync(x => x.Id == adminId && x.DeletedAt == null);
+                if (admin?.IsSuperAdmin == true && !admin.MfaEnabled)
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await context.Response.WriteAsJsonAsync(new { error = "MFA obrigatório para super-admin.", mfaSetupRequired = true });
+                    return;
+                }
+            }
+        }
+    }
+
+    await next();
+});
 app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapAuthUserEndpoints();
 app.MapPropertyEndpoints();
 app.MapApplicationEndpoints();
+app.MapCoTenantInviteEndpoints();
+app.MapGuarantorEndpoints();
 app.MapLeaseEndpoints();
 app.MapTicketEndpoints();
 app.MapStripeEndpoints();
@@ -351,6 +519,20 @@ app.MapReviewEndpoints();
 app.MapCommunicationsEndpoints();
 
 app.MapReferenceDataEndpoints();
+
+// Backoffice admin endpoints
+app.MapAdminAuthEndpoints();
+app.MapAdminUsersEndpoints();
+app.MapAdminReferenceDataEndpoints();
+app.MapAdminSettingsEndpoints();
+app.MapAdminAuditEndpoints();
+app.MapAdminUsersPublicEndpoints();
+app.MapAdminPropertiesEndpoints();
+app.MapAdminLeasingEndpoints();
+app.MapAdminTicketsReviewsEndpoints();
+app.MapSupportTicketsEndpoints();
+app.MapAdminCommunicationsEndpoints();
+app.MapAdminJobsEndpoints();
 
 app.MapHub<ApplicationChatHub>("/api/chathub");
 app.MapHub<NotificationHub>("/api/notificationhub");
@@ -363,6 +545,16 @@ using (var refScope = app.Services.CreateScope())
     var identityDbForRef = refScope.ServiceProvider.GetRequiredService<IdentityDbContext>();
     await TrustRent.Modules.Catalog.Seeds.ReferenceDataSeeder.SeedAsync(catalogDbForRef);
     await TrustRent.Modules.Identity.Seeds.IdentityReferenceDataSeeder.SeedAsync(identityDbForRef);
+}
+
+// Admin module — apply migrations + seed permissions catalog + bootstrap super-admin (if absent).
+using (var adminScope = app.Services.CreateScope())
+{
+    var adminDb = adminScope.ServiceProvider.GetRequiredService<AdminDbContext>();
+    await adminDb.Database.MigrateAsync();
+    await AdminPermissionsSeeder.SeedAsync(adminDb);
+    var adminLogger = adminScope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>().CreateLogger("AdminBootstrap");
+    await AdminBootstrapSeeder.SeedAsync(adminDb, app.Configuration, app.Environment, adminLogger);
 }
 
 if (app.Environment.IsDevelopment())

@@ -13,6 +13,7 @@ public class ConfirmLeaseStartDateDto
 public class RequestLeaseSignatureDto
 {
     public string PhoneNumber { get; set; } = string.Empty;
+    public string? ChallengeToken { get; set; }
 }
 
 public class ConfirmLeaseSignatureDto
@@ -24,6 +25,7 @@ public class ConfirmLeaseSignatureDto
 public class AcceptLeaseTermsDto
 {
     public bool AcceptTerms { get; set; }
+    public string? AcceptedDocumentHash { get; set; }
 }
 
 public class CancelLeaseDto
@@ -51,4 +53,23 @@ public class LeaseSignatureStatusDto
     public string ContractType { get; set; } = string.Empty;
     public string LeaseStatus { get; set; } = string.Empty;
     public string DocumentStatus { get; set; } = string.Empty;
+
+    // ===== Multi-parte =====
+    public int RequiredSignaturesCount { get; set; }
+    public int SignedCount { get; set; }
+    public List<LeaseSignatoryDto> Signatories { get; set; } = new();
+}
+
+public class LeaseSignatoryDto
+{
+    public Guid UserId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? AvatarUrl { get; set; }
+    public string Role { get; set; } = string.Empty; // Landlord | Tenant | CoTenant | Guarantor
+    public int SequenceOrder { get; set; }
+    public bool Signed { get; set; }
+    public DateTime? SignedAt { get; set; }
+    public bool SignatureVerified { get; set; }
+    public string? SignatureCertSubject { get; set; }
+    public DateTime? AcceptedTermsAt { get; set; }
 }

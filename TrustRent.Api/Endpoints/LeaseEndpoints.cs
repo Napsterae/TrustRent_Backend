@@ -9,6 +9,7 @@ using TrustRent.Modules.Leasing.Contracts.DTOs;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Models;
 using TrustRent.Modules.Leasing.Services;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Shared.Contracts.Interfaces;
@@ -23,6 +24,114 @@ public static class LeaseEndpoints
     public static void MapLeaseEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/leases");
+
+        var guest = app.MapGroup("/api/guarantor-guest/{token}/lease");
+
+        guest.MapGet("", async (string token, IGuarantorService guarantorService, ILeaseService leaseService) =>
+        {
+            try
+            {
+                var guarantor = await guarantorService.GetByGuestTokenAsync(token);
+                var lease = await leaseService.GetLeaseByApplicationIdAsync(guarantor.ApplicationId, guarantor.Id);
+                return lease is null ? Results.NotFound() : Results.Ok(lease);
+            }
+            catch (UnauthorizedAccessException) { return Results.Unauthorized(); }
+        });
+
+        guest.MapGet("/signature-status", async (string token, IGuarantorService guarantorService, ILeaseService leaseService) =>
+        {
+            try
+            {
+                var guarantor = await guarantorService.GetByGuestTokenAsync(token);
+                var lease = await leaseService.GetLeaseByApplicationIdAsync(guarantor.ApplicationId, guarantor.Id);
+                if (lease is null) return Results.NotFound();
+                var status = await leaseService.GetSignatureStatusAsync(lease.Id, guarantor.Id);
+                return status is null ? Results.NotFound() : Results.Ok(status);
+            }
+            catch (UnauthorizedAccessException) { return Results.Unauthorized(); }
+        });
+
+        guest.MapGet("/contract", async (string token, IGuarantorService guarantorService, ILeaseService leaseService) =>
+        {
+            try
+            {
+                var guarantor = await guarantorService.GetByGuestTokenAsync(token);
+                var lease = await leaseService.GetLeaseByApplicationIdAsync(guarantor.ApplicationId, guarantor.Id);
+                if (lease is null) return Results.NotFound();
+                var bytes = await leaseService.GenerateContractAsync(lease.Id, guarantor.Id);
+                return Results.File(bytes, "application/pdf", $"contrato_{lease.Id}.pdf");
+            }
+            catch (KeyNotFoundException e) { return Results.NotFound(e.Message); }
+            catch (UnauthorizedAccessException) { return Results.Unauthorized(); }
+            catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
+            catch (FileNotFoundException e) { return Results.NotFound(e.Message); }
+        });
+
+        guest.MapPost("/request-signature", async (string token, [FromBody] RequestLeaseSignatureDto dto, IGuarantorService guarantorService, ILeaseService leaseService) =>
+        {
+            try
+            {
+                var guarantor = await guarantorService.GetByGuestTokenAsync(token);
+                var lease = await leaseService.GetLeaseByApplicationIdAsync(guarantor.ApplicationId, guarantor.Id);
+                if (lease is null) return Results.NotFound();
+                return Results.Ok(await leaseService.RequestSignatureAsync(lease.Id, guarantor.Id, dto));
+            }
+            catch (KeyNotFoundException e) { return Results.NotFound(e.Message); }
+            catch (UnauthorizedAccessException) { return Results.Unauthorized(); }
+            catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
+            catch (ArgumentException e) { return Results.BadRequest(e.Message); }
+        });
+
+        guest.MapPost("/confirm-signature", async (string token, [FromBody] ConfirmLeaseSignatureDto dto, IGuarantorService guarantorService, ILeaseService leaseService) =>
+        {
+            try
+            {
+                var guarantor = await guarantorService.GetByGuestTokenAsync(token);
+                var lease = await leaseService.GetLeaseByApplicationIdAsync(guarantor.ApplicationId, guarantor.Id);
+                if (lease is null) return Results.NotFound();
+                return Results.Ok(await leaseService.ConfirmSignatureAsync(lease.Id, guarantor.Id, dto));
+            }
+            catch (KeyNotFoundException e) { return Results.NotFound(e.Message); }
+            catch (UnauthorizedAccessException) { return Results.Unauthorized(); }
+            catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
+        });
+
+        guest.MapPost("/accept-terms", async (string token, [FromBody] AcceptLeaseTermsDto dto, IGuarantorService guarantorService, ILeaseService leaseService) =>
+        {
+            try
+            {
+                var guarantor = await guarantorService.GetByGuestTokenAsync(token);
+                var lease = await leaseService.GetLeaseByApplicationIdAsync(guarantor.ApplicationId, guarantor.Id);
+                if (lease is null) return Results.NotFound();
+                return Results.Ok(await leaseService.AcceptLeaseTermsAsync(lease.Id, guarantor.Id, dto));
+            }
+            catch (KeyNotFoundException e) { return Results.NotFound(e.Message); }
+            catch (UnauthorizedAccessException) { return Results.Unauthorized(); }
+            catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
+            catch (ArgumentException e) { return Results.BadRequest(e.Message); }
+        });
+
+        guest.MapPost("/upload-signed-contract", async (string token, HttpRequest request, IGuarantorService guarantorService, ILeaseService leaseService) =>
+        {
+            if (!request.HasFormContentType) return Results.BadRequest("Enviar ficheiro como multipart/form-data.");
+            var form = await request.ReadFormAsync();
+            var file = form.Files.GetFile("file");
+            if (file is null || file.Length == 0) return Results.BadRequest("Ficheiro PDF não recebido.");
+            if (!file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return Results.BadRequest("Apenas ficheiros PDF são aceites.");
+            if (file.Length > 50 * 1024 * 1024) return Results.BadRequest("O ficheiro excede o tamanho máximo permitido (50 MB).");
+            try
+            {
+                var guarantor = await guarantorService.GetByGuestTokenAsync(token);
+                var lease = await leaseService.GetLeaseByApplicationIdAsync(guarantor.ApplicationId, guarantor.Id);
+                if (lease is null) return Results.NotFound();
+                using var ms = new MemoryStream();
+                await file.CopyToAsync(ms);
+                return Results.Ok(await leaseService.UploadSignedContractAsync(lease.Id, guarantor.Id, ms.ToArray(), file.FileName));
+            }
+            catch (KeyNotFoundException e) { return Results.NotFound(e.Message); }
+            catch (UnauthorizedAccessException) { return Results.Unauthorized(); }
+            catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
+        }).DisableAntiforgery();
 
         // POST /api/leases/applications/{applicationId}/initiate
         group.MapPost("/applications/{applicationId:guid}/initiate",

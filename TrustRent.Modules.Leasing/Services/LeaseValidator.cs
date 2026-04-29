@@ -55,6 +55,8 @@ public static class LeaseValidator
         if (string.IsNullOrWhiteSpace(phoneNumber) || !IsValidPortuguesePhone(phoneNumber))
             throw new ArgumentException("Número de telefone português inválido. Formato esperado: +351XXXXXXXXX.");
 
+        EnsureNextSigner(lease, userId);
+
         if (userId == lease.LandlordId && lease.LandlordSigned)
             throw new InvalidOperationException("O proprietário já assinou este contrato.");
 
@@ -68,6 +70,13 @@ public static class LeaseValidator
 
         if (lease.Status != LeaseStatus.AwaitingSignatures)
             throw new InvalidOperationException("O contrato não está em fase de assinatura.");
+
+        // Multi-parte: se já existe assinatura registada para este utilizador
+        var sig = lease.Signatures.FirstOrDefault(s => s.UserId == userId);
+        if (sig != null && sig.Signed)
+            throw new InvalidOperationException("Já assinaste este contrato.");
+
+        EnsureNextSigner(lease, userId);
     }
 
     public static void ValidateAcceptTerms(Lease lease, Guid userId)
@@ -80,11 +89,10 @@ public static class LeaseValidator
         if (lease.ContractType != "Informal")
             throw new InvalidOperationException("Aceitação de termos apenas disponível para contratos informais.");
 
-        if (userId == lease.LandlordId && lease.LandlordSigned)
-            throw new InvalidOperationException("O proprietário já aceitou os termos.");
+        if (lease.TermAcceptances.Any(t => t.UserId == userId))
+            throw new InvalidOperationException("Já aceitaste os termos deste contrato.");
 
-        if (userId == lease.TenantId && lease.TenantSigned)
-            throw new InvalidOperationException("O inquilino já aceitou os termos.");
+        EnsureNextSigner(lease, userId);
     }
 
     public static void ValidateCancel(Lease lease, Guid userId)
@@ -121,8 +129,13 @@ public static class LeaseValidator
 
     private static void EnsureParticipant(Lease lease, Guid userId)
     {
-        if (userId != lease.TenantId && userId != lease.LandlordId)
-            throw new UnauthorizedAccessException("Apenas o proprietário ou o inquilino deste arrendamento podem realizar esta ação.");
+        var isParty = userId == lease.TenantId
+            || userId == lease.LandlordId
+            || (lease.CoTenantId.HasValue && lease.CoTenantId.Value == userId)
+            || (lease.GuarantorUserId.HasValue && lease.GuarantorUserId.Value == userId)
+            || (lease.GuarantorRecordId.HasValue && lease.GuarantorRecordId.Value == userId);
+        if (!isParty)
+            throw new UnauthorizedAccessException("Apenas as partes deste arrendamento podem realizar esta ação.");
     }
 
     private static bool IsValidPortuguesePhone(string phone)
@@ -131,5 +144,18 @@ public static class LeaseValidator
         if (normalized.StartsWith("+351"))
             normalized = normalized[4..];
         return normalized.Length == 9 && normalized.All(char.IsDigit);
+    }
+
+    private static void EnsureNextSigner(Lease lease, Guid userId)
+    {
+        if (lease.Signatures.Count == 0) return;
+
+        var nextSignature = lease.Signatures
+            .Where(s => !s.Signed)
+            .OrderBy(s => s.SequenceOrder)
+            .FirstOrDefault();
+
+        if (nextSignature != null && nextSignature.UserId != userId)
+            throw new InvalidOperationException("As assinaturas têm de seguir a ordem definida para o contrato.");
     }
 }

@@ -13,6 +13,8 @@ public class CatalogDbContext : DbContext
     public DbSet<PropertyImage> PropertyImages { get; set; }
     public DbSet<Application> Applications { get; set; }
     public DbSet<ApplicationHistory> ApplicationHistories { get; set; }
+    public DbSet<ApplicationCoTenantInvite> ApplicationCoTenantInvites { get; set; }
+    public DbSet<Guarantor> Guarantors { get; set; }
     public DbSet<Amenity> Amenities { get; set; }
     public DbSet<PropertyAmenity> PropertyAmenities { get; set; }
     public DbSet<PropertyPeriodicity> PropertyPeriodicities { get; set; }
@@ -44,6 +46,7 @@ public class CatalogDbContext : DbContext
             builder.Property(p => p.EnergyCertificateNumber).HasMaxLength(100);
             builder.Property(p => p.AtRegistrationNumber).HasMaxLength(100);
             builder.Property(p => p.AdvanceRentMonths).HasDefaultValue(0);
+            builder.Property(p => p.GuarantorPolicyNote).HasMaxLength(500);
         });
 
         modelBuilder.Entity<PropertyImage>(builder =>
@@ -63,10 +66,92 @@ public class CatalogDbContext : DbContext
                    .HasForeignKey(a => a.IncomeRangeId)
                    .OnDelete(DeleteBehavior.SetNull);
 
+            builder.HasOne(a => a.CoTenantIncomeRange)
+                   .WithMany()
+                   .HasForeignKey(a => a.CoTenantIncomeRangeId)
+                   .OnDelete(DeleteBehavior.SetNull);
+
             builder.Property(a => a.EmploymentType).HasConversion<int>();
             builder.Property(a => a.IncomeValidationMethod).HasConversion<int>();
             builder.Property(a => a.EmployerName).HasMaxLength(200);
             builder.Property(a => a.EmployerNif).HasMaxLength(9);
+
+            builder.Property(a => a.CoTenantEmploymentType).HasConversion<int>();
+            builder.Property(a => a.CoTenantIncomeValidationMethod).HasConversion<int>();
+            builder.Property(a => a.CoTenantEmployerName).HasMaxLength(200);
+            builder.Property(a => a.CoTenantEmployerNif).HasMaxLength(9);
+
+            builder.Property(a => a.GuarantorRequirementStatus).HasConversion<int>();
+            builder.Property(a => a.GuarantorRequestNote).HasMaxLength(500);
+
+            builder.HasMany(a => a.CoTenantInvites)
+                   .WithOne(i => i.Application)
+                   .HasForeignKey(i => i.ApplicationId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasMany(a => a.Guarantors)
+                   .WithOne(g => g.Application)
+                   .HasForeignKey(g => g.ApplicationId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasIndex(a => a.CoTenantUserId);
+            builder.HasIndex(a => a.GuarantorId);
+        });
+
+        // ===== ApplicationCoTenantInvite =====
+        modelBuilder.Entity<ApplicationCoTenantInvite>(builder =>
+        {
+            builder.ToTable("ApplicationCoTenantInvites", "catalog");
+            builder.HasKey(i => i.Id);
+            builder.Property(i => i.InviteeEmail).IsRequired().HasMaxLength(320);
+            builder.Property(i => i.Status).HasConversion<int>();
+            builder.Property(i => i.DeclineReason).HasMaxLength(500);
+            builder.Property(i => i.CreatedFromIp).HasMaxLength(45);
+
+            builder.HasIndex(i => new { i.InviteeUserId, i.Status, i.ExpiresAt });
+            // Apenas 1 convite Pending por (Application, Email)
+            builder.HasIndex(i => new { i.ApplicationId, i.InviteeEmail })
+                   .IsUnique()
+                   .HasFilter("\"Status\" = 0");
+            // Apenas 1 convite Pending/Accepted por candidatura
+            builder.HasIndex(i => i.ApplicationId)
+                   .IsUnique()
+                   .HasFilter("\"Status\" IN (0,1)");
+        });
+
+        // ===== Guarantor =====
+        modelBuilder.Entity<Guarantor>(builder =>
+        {
+            builder.ToTable("Guarantors", "catalog");
+            builder.HasKey(g => g.Id);
+            builder.Property(g => g.InviteStatus).HasConversion<int>();
+            builder.Property(g => g.UserId).IsRequired(false);
+            builder.Property(g => g.GuestEmail).IsRequired().HasMaxLength(320);
+            builder.Property(g => g.GuestName).HasMaxLength(200);
+            builder.Property(g => g.GuestPhoneNumber).HasMaxLength(30);
+            builder.Property(g => g.GuestAccessToken).IsRequired().HasMaxLength(128);
+            builder.Property(g => g.CreatedFromIp).HasMaxLength(45);
+            builder.Property(g => g.EmploymentType).HasConversion<int>();
+            builder.Property(g => g.IncomeValidationMethod).HasConversion<int>();
+            builder.Property(g => g.LandlordRequestNote).HasMaxLength(500);
+            builder.Property(g => g.RejectionReason).HasMaxLength(500);
+            builder.Property(g => g.DeclineReason).HasMaxLength(500);
+            builder.Property(g => g.IdentityMatchEvidenceHash).HasMaxLength(128);
+            builder.Property(g => g.EmployerName).HasMaxLength(200);
+            builder.Property(g => g.EmployerNif).HasMaxLength(9);
+
+            builder.HasOne(g => g.IncomeRange)
+                   .WithMany()
+                   .HasForeignKey(g => g.IncomeRangeId)
+                   .OnDelete(DeleteBehavior.SetNull);
+
+            builder.HasIndex(g => new { g.UserId, g.InviteStatus });
+            builder.HasIndex(g => g.GuestAccessToken).IsUnique();
+            builder.HasIndex(g => new { g.GuestEmail, g.InviteStatus });
+            // Apenas 1 fiador "ativo" por candidatura (Pending/Accepted)
+            builder.HasIndex(g => g.ApplicationId)
+                   .IsUnique()
+                   .HasFilter("\"InviteStatus\" IN (0,1)");
         });
 
         modelBuilder.Entity<ApplicationHistory>(builder =>

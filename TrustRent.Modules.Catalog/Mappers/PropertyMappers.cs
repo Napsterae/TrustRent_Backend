@@ -71,6 +71,8 @@ public static class PropertyMappers
             ElectricityPaidBy = dto.ElectricityPaidBy,
             GasPaidBy = dto.GasPaidBy,
             HasOfficialContract = dto.HasOfficialContract,
+            AcceptsGuarantor = dto.HasOfficialContract && dto.AcceptsGuarantor,
+            GuarantorPolicyNote = (dto.HasOfficialContract && dto.AcceptsGuarantor) ? dto.GuarantorPolicyNote : null,
             LeaseRegime = Enum.TryParse<LeaseRegime>(dto.LeaseRegime, out var regime) ? regime : null,
             AllowsRenewal = true,
             NonPermanentReason = dto.NonPermanentReason,
@@ -117,6 +119,8 @@ public static class PropertyMappers
         property.ElectricityPaidBy = dto.ElectricityPaidBy;
         property.GasPaidBy = dto.GasPaidBy;
         property.HasOfficialContract = dto.HasOfficialContract;
+        property.AcceptsGuarantor = dto.HasOfficialContract && dto.AcceptsGuarantor;
+        property.GuarantorPolicyNote = (dto.HasOfficialContract && dto.AcceptsGuarantor) ? dto.GuarantorPolicyNote : null;
         property.LeaseRegime = Enum.TryParse<LeaseRegime>(dto.LeaseRegime, out var regime2) ? regime2 : null;
         property.AllowsRenewal = true;
         property.NonPermanentReason = dto.NonPermanentReason;

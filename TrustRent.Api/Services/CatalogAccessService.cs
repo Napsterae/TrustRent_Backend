@@ -56,7 +56,25 @@ public class CatalogAccessService : ICatalogAccessService
                 UsageLicenseIssuer = a.Property.UsageLicenseIssuer,
                 EnergyCertificateNumber = a.Property.EnergyCertificateNumber,
                 EnergyClass = a.Property.EnergyClass,
-                PropertyTitle = a.Property.Title
+                PropertyTitle = a.Property.Title,
+                CoTenantUserId = a.CoTenantUserId,
+                GuarantorRecordId = a.GuarantorId,
+                GuarantorUserId = a.Guarantors
+                    .Where(g => g.Id == a.GuarantorId && g.InviteStatus == TrustRent.Shared.Models.GuarantorInviteStatus.Accepted)
+                    .Select(g => (Guid?)g.UserId)
+                    .FirstOrDefault(),
+                GuarantorGuestEmail = a.Guarantors
+                    .Where(g => g.Id == a.GuarantorId && g.InviteStatus == TrustRent.Shared.Models.GuarantorInviteStatus.Accepted)
+                    .Select(g => g.GuestEmail)
+                    .FirstOrDefault(),
+                GuarantorGuestName = a.Guarantors
+                    .Where(g => g.Id == a.GuarantorId && g.InviteStatus == TrustRent.Shared.Models.GuarantorInviteStatus.Accepted)
+                    .Select(g => g.GuestName)
+                    .FirstOrDefault(),
+                GuarantorGuestAccessToken = a.Guarantors
+                    .Where(g => g.Id == a.GuarantorId && g.InviteStatus == TrustRent.Shared.Models.GuarantorInviteStatus.Accepted)
+                    .Select(g => g.GuestAccessToken)
+                    .FirstOrDefault()
             })
             .FirstOrDefaultAsync();
     }

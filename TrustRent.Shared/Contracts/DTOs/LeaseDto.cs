@@ -7,6 +7,10 @@ public class LeaseDto
     public Guid TenantId { get; set; }
     public Guid LandlordId { get; set; }
     public Guid ApplicationId { get; set; }
+    public Guid? CoTenantId { get; set; }
+    public Guid? GuarantorUserId { get; set; }
+    public Guid? GuarantorRecordId { get; set; }
+    public int RequiredSignaturesCount { get; set; }
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public int DurationMonths { get; set; }

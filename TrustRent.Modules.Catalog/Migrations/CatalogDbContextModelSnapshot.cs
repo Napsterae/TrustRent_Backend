@@ -183,6 +183,41 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CoTenantEmployerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("CoTenantEmployerNif")
+                        .HasMaxLength(9)
+                        .HasColumnType("character varying(9)");
+
+                    b.Property<DateTime?>("CoTenantEmploymentStartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CoTenantEmploymentType")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("CoTenantIncomeRangeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CoTenantIncomeValidatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CoTenantIncomeValidationMethod")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("CoTenantIncomeValidationRequestedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("CoTenantJoinedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CoTenantPayslipsProvidedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("CoTenantUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -206,6 +241,19 @@ namespace TrustRent.Modules.Catalog.Migrations
                     b.Property<DateTime?>("FinalVisitDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("GuarantorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("GuarantorRequestNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("GuarantorRequestedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("GuarantorRequirementStatus")
+                        .HasColumnType("integer");
+
                     b.Property<Guid?>("IncomeRangeId")
                         .HasColumnType("uuid");
 
@@ -217,6 +265,12 @@ namespace TrustRent.Modules.Catalog.Migrations
 
                     b.Property<DateTime?>("IncomeValidationRequestedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsCoTenantIncomeValidationRequested")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsGuarantorRequired")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsIncomeValidationRequested")
                         .HasColumnType("boolean");
@@ -258,11 +312,72 @@ namespace TrustRent.Modules.Catalog.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CoTenantIncomeRangeId");
+
+                    b.HasIndex("CoTenantUserId");
+
+                    b.HasIndex("GuarantorId");
+
                     b.HasIndex("IncomeRangeId");
 
                     b.HasIndex("PropertyId");
 
                     b.ToTable("Applications", "catalog");
+                });
+
+            modelBuilder.Entity("TrustRent.Modules.Catalog.Models.ApplicationCoTenantInvite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApplicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedFromIp")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<string>("DeclineReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("InviteeEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<Guid?>("InviteeUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("InviterUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RespondedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" IN (0,1)");
+
+                    b.HasIndex("ApplicationId", "InviteeEmail")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 0");
+
+                    b.HasIndex("InviteeUserId", "Status", "ExpiresAt");
+
+                    b.ToTable("ApplicationCoTenantInvites", "catalog");
                 });
 
             modelBuilder.Entity("TrustRent.Modules.Catalog.Models.ApplicationHistory", b =>
@@ -298,11 +413,135 @@ namespace TrustRent.Modules.Catalog.Migrations
                     b.ToTable("ApplicationHistories", "catalog");
                 });
 
+            modelBuilder.Entity("TrustRent.Modules.Catalog.Models.Guarantor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApplicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedFromIp")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<string>("DeclineReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("EmployerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("EmployerNif")
+                        .HasMaxLength(9)
+                        .HasColumnType("character varying(9)");
+
+                    b.Property<DateTime?>("EmploymentStartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("EmploymentType")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("GuestAccessToken")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("GuestEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<string>("GuestName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("GuestPhoneNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("GuestTokenIssuedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("GuestTokenLastUsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("IdentityMatchEvidenceHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTime?>("IdentityVerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("IncomeRangeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("IncomeValidatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("IncomeValidationMethod")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("InviteStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("InvitedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsIdentityVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LandlordRequestNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("PayslipsProvidedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("RespondedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationId")
+                        .IsUnique()
+                        .HasFilter("\"InviteStatus\" IN (0,1)");
+
+                    b.HasIndex("GuestAccessToken")
+                        .IsUnique();
+
+                    b.HasIndex("IncomeRangeId");
+
+                    b.HasIndex("GuestEmail", "InviteStatus");
+
+                    b.HasIndex("UserId", "InviteStatus");
+
+                    b.ToTable("Guarantors", "catalog");
+                });
+
             modelBuilder.Entity("TrustRent.Modules.Catalog.Models.Property", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("AcceptsGuarantor")
+                        .HasColumnType("boolean");
 
                     b.Property<int>("AdvanceRentMonths")
                         .ValueGeneratedOnAdd()
@@ -324,6 +563,15 @@ namespace TrustRent.Modules.Catalog.Migrations
 
                     b.Property<int>("Bathrooms")
                         .HasColumnType("integer");
+
+                    b.Property<string>("BlockReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("BlockedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("BlockedByAdminId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("CondominiumFeesPaidBy")
                         .IsRequired()
@@ -373,6 +621,10 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("GuarantorPolicyNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<bool>("HasAirConditioning")
                         .HasColumnType("boolean");
 
@@ -383,6 +635,12 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<bool>("HasOfficialContract")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsBlocked")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsFeatured")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsFurnished")
@@ -409,6 +667,19 @@ namespace TrustRent.Modules.Catalog.Migrations
                     b.Property<string>("MatrixArticle")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("ModeratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ModeratedByAdminId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ModerationReason")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ModerationStatus")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("Municipality")
                         .IsRequired()
@@ -778,6 +1049,11 @@ namespace TrustRent.Modules.Catalog.Migrations
 
             modelBuilder.Entity("TrustRent.Modules.Catalog.Models.Application", b =>
                 {
+                    b.HasOne("TrustRent.Modules.Catalog.Models.ReferenceData.SalaryRange", "CoTenantIncomeRange")
+                        .WithMany()
+                        .HasForeignKey("CoTenantIncomeRangeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("TrustRent.Modules.Catalog.Models.ReferenceData.SalaryRange", "IncomeRange")
                         .WithMany()
                         .HasForeignKey("IncomeRangeId")
@@ -789,9 +1065,22 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("CoTenantIncomeRange");
+
                     b.Navigation("IncomeRange");
 
                     b.Navigation("Property");
+                });
+
+            modelBuilder.Entity("TrustRent.Modules.Catalog.Models.ApplicationCoTenantInvite", b =>
+                {
+                    b.HasOne("TrustRent.Modules.Catalog.Models.Application", "Application")
+                        .WithMany("CoTenantInvites")
+                        .HasForeignKey("ApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Application");
                 });
 
             modelBuilder.Entity("TrustRent.Modules.Catalog.Models.ApplicationHistory", b =>
@@ -801,6 +1090,24 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasForeignKey("ApplicationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("TrustRent.Modules.Catalog.Models.Guarantor", b =>
+                {
+                    b.HasOne("TrustRent.Modules.Catalog.Models.Application", "Application")
+                        .WithMany("Guarantors")
+                        .HasForeignKey("ApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TrustRent.Modules.Catalog.Models.ReferenceData.SalaryRange", "IncomeRange")
+                        .WithMany()
+                        .HasForeignKey("IncomeRangeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Application");
+
+                    b.Navigation("IncomeRange");
                 });
 
             modelBuilder.Entity("TrustRent.Modules.Catalog.Models.PropertyAmenity", b =>
@@ -864,6 +1171,10 @@ namespace TrustRent.Modules.Catalog.Migrations
 
             modelBuilder.Entity("TrustRent.Modules.Catalog.Models.Application", b =>
                 {
+                    b.Navigation("CoTenantInvites");
+
+                    b.Navigation("Guarantors");
+
                     b.Navigation("History");
                 });
 

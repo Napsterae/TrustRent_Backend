@@ -24,7 +24,7 @@ public static class CommunicationsEndpoints
             // Verify the user is a participant of this application
             var participants = await statusValidator.GetApplicationParticipantsAsync(applicationId);
             if (participants == null) return Results.NotFound();
-            if (participants.Value.TenantId != userId && participants.Value.LandlordId != userId)
+            if (!IsApplicationChatParticipant(participants.Value, userId))
                 return Results.Forbid();
 
             var messages = await db.Messages
@@ -106,4 +106,9 @@ public static class CommunicationsEndpoints
         })
         .RequireAuthorization();
     }
+
+    private static bool IsApplicationChatParticipant((Guid TenantId, Guid LandlordId, Guid? CoTenantUserId) participants, Guid userId)
+        => participants.TenantId == userId
+           || participants.LandlordId == userId
+           || participants.CoTenantUserId == userId;
 }

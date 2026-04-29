@@ -40,6 +40,9 @@ namespace TrustRent.Modules.Leasing.Migrations
                     b.Property<Guid>("ApplicationId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("CoTenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("CondominiumFeesPaidBy")
                         .IsRequired()
                         .HasColumnType("text");
@@ -82,6 +85,12 @@ namespace TrustRent.Modules.Leasing.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("GuarantorRecordId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("GuarantorUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("IsRegisteredWithTaxAuthority")
                         .HasColumnType("boolean");
 
@@ -122,6 +131,9 @@ namespace TrustRent.Modules.Leasing.Migrations
 
                     b.Property<DateTime?>("RenewalDate")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RequiredSignaturesCount")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("timestamp with time zone");
@@ -169,6 +181,10 @@ namespace TrustRent.Modules.Leasing.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ApplicationId");
+
+                    b.HasIndex("CoTenantId");
+
+                    b.HasIndex("GuarantorUserId");
 
                     b.HasIndex("PropertyId");
 
@@ -259,6 +275,128 @@ namespace TrustRent.Modules.Leasing.Migrations
                     b.HasIndex("Processed");
 
                     b.ToTable("LeaseRenewalNotifications", "leasing");
+                });
+
+            modelBuilder.Entity("TrustRent.Modules.Leasing.Models.LeaseSignature", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ChallengeId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("LeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SequenceOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SignatureCertSubject")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("SignatureRef")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("SignatureVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("Signed")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("SignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SignedFileHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("SignedFilePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("SigningIp")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<string>("SigningUserAgent")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("VerificationError")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SignatureRef")
+                        .IsUnique()
+                        .HasFilter("\"SignatureRef\" IS NOT NULL");
+
+                    b.HasIndex("LeaseId", "SequenceOrder")
+                        .IsUnique();
+
+                    b.HasIndex("LeaseId", "SignedFileHash")
+                        .IsUnique()
+                        .HasFilter("\"SignedFileHash\" IS NOT NULL");
+
+                    b.HasIndex("LeaseId", "UserId", "Role")
+                        .IsUnique();
+
+                    b.ToTable("LeaseSignatures", "leasing");
+                });
+
+            modelBuilder.Entity("TrustRent.Modules.Leasing.Models.LeaseTermAcceptance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("AcceptedDocumentHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<Guid>("LeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeaseId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("LeaseTermAcceptances", "leasing");
                 });
 
             modelBuilder.Entity("TrustRent.Modules.Leasing.Models.LeaseTerminationRequest", b =>
@@ -886,6 +1024,28 @@ namespace TrustRent.Modules.Leasing.Migrations
                     b.Navigation("Lease");
                 });
 
+            modelBuilder.Entity("TrustRent.Modules.Leasing.Models.LeaseSignature", b =>
+                {
+                    b.HasOne("TrustRent.Modules.Leasing.Models.Lease", "Lease")
+                        .WithMany("Signatures")
+                        .HasForeignKey("LeaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Lease");
+                });
+
+            modelBuilder.Entity("TrustRent.Modules.Leasing.Models.LeaseTermAcceptance", b =>
+                {
+                    b.HasOne("TrustRent.Modules.Leasing.Models.Lease", "Lease")
+                        .WithMany("TermAcceptances")
+                        .HasForeignKey("LeaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Lease");
+                });
+
             modelBuilder.Entity("TrustRent.Modules.Leasing.Models.TicketAttachment", b =>
                 {
                     b.HasOne("TrustRent.Modules.Leasing.Models.Ticket", "Ticket")
@@ -911,6 +1071,10 @@ namespace TrustRent.Modules.Leasing.Migrations
             modelBuilder.Entity("TrustRent.Modules.Leasing.Models.Lease", b =>
                 {
                     b.Navigation("History");
+
+                    b.Navigation("Signatures");
+
+                    b.Navigation("TermAcceptances");
                 });
 
             modelBuilder.Entity("TrustRent.Modules.Leasing.Models.Ticket", b =>

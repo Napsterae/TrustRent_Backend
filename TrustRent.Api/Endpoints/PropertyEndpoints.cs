@@ -63,6 +63,8 @@ public static class PropertyEndpoints
 
                     IsPublic = form["isPublic"] == "true",
                     HasOfficialContract = form["hasOfficialContract"] == "true",
+                    AcceptsGuarantor = form["acceptsGuarantor"] == "true",
+                    GuarantorPolicyNote = form["guarantorPolicyNote"].ToString(),
                     //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
 
                     // Documentos extraídos via IA
@@ -313,6 +315,8 @@ public static class PropertyEndpoints
                     IsFurnished = form["isFurnished"] == "true",
                     IsPublic = form["isPublic"] == "true",
                     HasOfficialContract = form["hasOfficialContract"] == "true",
+                    AcceptsGuarantor = form["acceptsGuarantor"] == "true",
+                    GuarantorPolicyNote = form["guarantorPolicyNote"].ToString(),
                     //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
 
                     // Documentos extraídos via IA
@@ -586,6 +590,8 @@ public static class PropertyEndpoints
                 property.ElectricityPaidBy,
                 property.GasPaidBy,
                 property.HasOfficialContract,
+                property.AcceptsGuarantor,
+                property.GuarantorPolicyNote,
                 property.LeaseRegime,
                 property.NonPermanentReason,
                 AcceptedPeriodicities = property.AcceptedPeriodicities.Select(pp => pp.DurationMonths),

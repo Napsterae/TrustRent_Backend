@@ -17,13 +17,17 @@ public class ApplicationService : IApplicationService
     private readonly INotificationService _notificationService;
     private readonly ILeasingAccessService _leasingAccess;
     private readonly IUserService _userService;
+    private readonly IUserRepository _userRepository;
+    private readonly IServiceProvider _serviceProvider;
 
-    public ApplicationService(CatalogDbContext context, INotificationService notificationService, ILeasingAccessService leasingAccess, IUserService userService)
+    public ApplicationService(CatalogDbContext context, INotificationService notificationService, ILeasingAccessService leasingAccess, IUserService userService, IUserRepository userRepository, IServiceProvider serviceProvider)
     {
         _context = context;
         _notificationService = notificationService;
         _leasingAccess = leasingAccess;
         _userService = userService;
+        _userRepository = userRepository;
+        _serviceProvider = serviceProvider;
     }
 
     public async Task<ApplicationDto> SubmitApplicationAsync(Guid propertyId, Guid tenantId, SubmitApplicationDto dto)
@@ -44,6 +48,8 @@ public class ApplicationService : IApplicationService
         // Lei do Arrendamento 2026: Habitação Permanente requer duração mínima de 3 anos (36 meses)
         if (property.LeaseRegime == LeaseRegime.PermanentHousing && dto.DurationMonths < 36)
             throw new Exception("Nos termos da Lei do Arrendamento, contratos de Habitação Permanente têm uma duração mínima obrigatória de 3 anos (36 meses).");
+
+        await ValidateInitialCoTenantInviteAsync(property, tenantId, dto.CoTenantEmail);
 
         var application = new Application
         {
@@ -73,6 +79,19 @@ public class ApplicationService : IApplicationService
         _context.Applications.Add(application);
         await _context.SaveChangesAsync();
 
+        // Convite inicial de co-candidato (opcional)
+        if (!string.IsNullOrWhiteSpace(dto.CoTenantEmail))
+        {
+            var coTenantInviteService = _serviceProvider.GetService(typeof(ICoTenantInviteService)) as ICoTenantInviteService
+                ?? throw new InvalidOperationException("Serviço de convite de co-candidato indisponível.");
+
+            await coTenantInviteService.CreateInviteAsync(
+                application.Id,
+                tenantId,
+                new CreateCoTenantInviteDto(dto.CoTenantEmail.Trim()),
+                sourceIp: null);
+        }
+
         // NOTIFICAR SENHORIO
         await _notificationService.SendNotificationAsync(
             property.LandlordId, 
@@ -93,6 +112,9 @@ public class ApplicationService : IApplicationService
         var apps = await _context.Applications
             .Include(a => a.History)
             .Include(a => a.IncomeRange)
+            .Include(a => a.CoTenantIncomeRange)
+            .Include(a => a.CoTenantInvites)
+            .Include(a => a.Guarantors).ThenInclude(g => g.IncomeRange)
             .Where(a => a.PropertyId == propertyId)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
@@ -126,8 +148,12 @@ public class ApplicationService : IApplicationService
                 dto.TenantReviewScore = tenantInfo.ReviewScore;
             }
 
+            ApplyCurrentUserRole(dto, landlordId);
+
             return dto;
-        });
+        }).ToList();
+
+        await HydrateParticipantProfilesAsync(dtos, landlordId);
 
         return dtos;
     }
@@ -137,7 +163,12 @@ public class ApplicationService : IApplicationService
         var apps = await _context.Applications
             .Include(a => a.History)
             .Include(a => a.IncomeRange)
-            .Where(a => a.TenantId == tenantId)
+            .Include(a => a.CoTenantIncomeRange)
+            .Include(a => a.CoTenantInvites)
+            .Include(a => a.Guarantors).ThenInclude(g => g.IncomeRange)
+            .Where(a => a.TenantId == tenantId
+                        || a.CoTenantUserId == tenantId
+                        || a.Guarantors.Any(g => g.UserId == tenantId && g.InviteStatus == GuarantorInviteStatus.Accepted))
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
 
@@ -172,6 +203,7 @@ public class ApplicationService : IApplicationService
         var applicationDtos = apps.Select(a =>
         {
             var dto = a.ToDto(properties.GetValueOrDefault(a.PropertyId)?.LandlordId ?? Guid.Empty, leases.GetValueOrDefault(a.Id));
+            ApplyCurrentUserRole(dto, tenantId);
 
             if (properties.TryGetValue(a.PropertyId, out var propertyInfo))
             {
@@ -181,7 +213,9 @@ public class ApplicationService : IApplicationService
             }
 
             return dto;
-        });
+        }).ToList();
+
+        await HydrateParticipantProfilesAsync(applicationDtos, tenantId);
 
         return applicationDtos;
     }
@@ -191,15 +225,22 @@ public class ApplicationService : IApplicationService
         var application = await _context.Applications
             .Include(a => a.History)
             .Include(a => a.IncomeRange)
+            .Include(a => a.CoTenantIncomeRange)
+            .Include(a => a.CoTenantInvites)
+            .Include(a => a.Guarantors).ThenInclude(g => g.IncomeRange)
             .FirstOrDefaultAsync(a => a.Id == applicationId);
 
         if (application == null) return null;
 
-        // Verify the user is either the tenant or the landlord of this property
         var property = await _context.Properties.FindAsync(application.PropertyId);
         var landlordId = property?.LandlordId ?? Guid.Empty;
-        
-        if (application.TenantId != userId && landlordId != userId)
+
+        // Autorização alargada: candidato principal, co-candidato, fiador aceite ou senhorio
+        var isParticipant = application.TenantId == userId
+                            || (application.CoTenantUserId.HasValue && application.CoTenantUserId.Value == userId)
+                            || landlordId == userId
+                            || application.Guarantors.Any(g => g.UserId.HasValue && g.UserId.Value == userId && g.InviteStatus == GuarantorInviteStatus.Accepted);
+        if (!isParticipant)
             throw new UnauthorizedAccessException("Não tem permissão para ver esta candidatura.");
 
         // Load lease data from Leasing module
@@ -215,7 +256,10 @@ public class ApplicationService : IApplicationService
             await _context.SaveChangesAsync();
         }
 
-        return application.ToDto(landlordId, leaseDto);
+        var dto = application.ToDto(landlordId, leaseDto);
+        ApplyCurrentUserRole(dto, userId);
+        await HydrateParticipantProfilesAsync(new[] { dto }, userId);
+        return dto;
     }
 
     public async Task<ApplicationDto> UpdateVisitStatusAsync(Guid applicationId, Guid userId, UpdateApplicationVisitDto dto)
@@ -229,6 +273,9 @@ public class ApplicationService : IApplicationService
         var property = application.Property;
         if (property == null) throw new Exception("Property associated with application not found");
 
+        var isLandlord = property.LandlordId == userId;
+        var isPrincipalTenant = application.TenantId == userId;
+
         var history = new ApplicationHistory
         {
             ApplicationId = application.Id,
@@ -241,6 +288,7 @@ public class ApplicationService : IApplicationService
         switch (dto.Action)
         {
             case "CounterPropose":
+                if (!isLandlord) throw new UnauthorizedAccessException("Só o senhorio pode propor nova data de visita.");
                 application.LandlordProposedDate = dto.LandlordProposedDate?.ToUniversalTime();
                 application.Status = ApplicationStatus.VisitCounterProposed;
                 history.Action = "Senhorio Contra-Propôs";
@@ -249,6 +297,7 @@ public class ApplicationService : IApplicationService
                 notificationMsg = "O senhorio propôs uma nova data de visita.";
                 break;
             case "AcceptTenantDate":
+                if (!isLandlord) throw new UnauthorizedAccessException("Só o senhorio pode aceitar uma data proposta.");
                 if (dto.SelectedTenantDate != null && DateTime.TryParse(dto.SelectedTenantDate, out var dt))
                 {
                     application.FinalVisitDate = dt.ToUniversalTime();
@@ -264,6 +313,7 @@ public class ApplicationService : IApplicationService
                 }
                 break;
             case "AcceptCounterProposal":
+                if (!isPrincipalTenant) throw new UnauthorizedAccessException("Só o candidato principal pode aceitar contrapropostas de visita.");
                 application.FinalVisitDate = application.LandlordProposedDate?.ToUniversalTime();
                 application.Status = ApplicationStatus.VisitAccepted;
                 history.Action = "Inquilino Aceitou Contra-Proposta";
@@ -272,6 +322,7 @@ public class ApplicationService : IApplicationService
                 notificationMsg = "O inquilino aceitou a contra-proposta de visita.";
                 break;
             case "TenantCounterPropose":
+                if (!isPrincipalTenant) throw new UnauthorizedAccessException("Só o candidato principal pode sugerir novas datas.");
                 application.LandlordProposedDate = null;
                 application.TenantProposedDates = JsonSerializer.Serialize(dto.TenantProposedDates);
                 application.Status = ApplicationStatus.Pending;
@@ -281,12 +332,14 @@ public class ApplicationService : IApplicationService
                 notificationMsg = "O inquilino sugeriu novas datas de visita.";
                 break;
             case "Reject":
+                if (!isLandlord) throw new UnauthorizedAccessException("Só o senhorio pode rejeitar a candidatura.");
                 application.Status = ApplicationStatus.Rejected;
                 history.Action = "Candidatura Rejeitada";
                 recipientId = application.TenantId;
                 notificationMsg = "A tua candidatura foi rejeitada.";
                 break;
             case "TenantConfirmInterest":
+                if (!isPrincipalTenant) throw new UnauthorizedAccessException("Só o candidato principal pode confirmar interesse.");
                 if (application.Status != ApplicationStatus.VisitAccepted)
                     throw new Exception("Tenant can only confirm interest after visit is accepted.");
                 application.Status = ApplicationStatus.InterestConfirmed;
@@ -296,6 +349,7 @@ public class ApplicationService : IApplicationService
                 notificationMsg = "O inquilino confirmou interesse após a visita!";
                 break;
             case "Accepted":
+                if (!isLandlord) throw new UnauthorizedAccessException("Só o senhorio pode aprovar a candidatura.");
                 if (application.Status != ApplicationStatus.InterestConfirmed
                     && application.Status != ApplicationStatus.Pending
                     && application.Status != ApplicationStatus.IncomeValidationRequested)
@@ -372,5 +426,72 @@ public class ApplicationService : IApplicationService
         {
             await _context.SaveChangesAsync();
         }
+    }
+
+    private async Task ValidateInitialCoTenantInviteAsync(Property property, Guid tenantId, string? coTenantEmail)
+    {
+        if (string.IsNullOrWhiteSpace(coTenantEmail)) return;
+
+        var email = coTenantEmail.Trim().ToLowerInvariant();
+        if (!email.Contains('@'))
+            throw new ArgumentException("Email do co-candidato inválido.");
+
+        var tenant = await _userRepository.GetByIdAsync(tenantId)
+            ?? throw new InvalidOperationException("Utilizador não encontrado.");
+        if (string.Equals(tenant.Email, email, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Não te podes convidar a ti próprio como co-candidato.");
+
+        var landlord = await _userRepository.GetByIdAsync(property.LandlordId);
+        if (landlord != null && string.Equals(landlord.Email, email, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Não podes convidar o proprietário do imóvel.");
+
+        var invitee = await _userRepository.GetByEmailAsync(email);
+        if (invitee == null)
+            throw new KeyNotFoundException("user_not_registered");
+    }
+
+    private async Task HydrateParticipantProfilesAsync(IEnumerable<ApplicationDto> applications, Guid viewerUserId)
+    {
+        foreach (var application in applications)
+        {
+            if (application.CoTenantUserId.HasValue)
+            {
+                var profile = await _userService.GetPublicProfileAsync(application.CoTenantUserId.Value, viewerUserId);
+                application.CoTenantName = profile?.Name;
+                application.CoTenantAvatarUrl = profile?.ProfilePictureUrl;
+            }
+
+            foreach (var invite in application.CoTenantInvites.Where(i => i.InviteeUserId.HasValue))
+            {
+                var profile = await _userService.GetPublicProfileAsync(invite.InviteeUserId!.Value, viewerUserId);
+                invite.InviteeName = profile?.Name;
+                invite.InviteeAvatarUrl = profile?.ProfilePictureUrl;
+            }
+
+            foreach (var guarantor in application.Guarantors)
+            {
+                if (!guarantor.UserId.HasValue)
+                {
+                    guarantor.UserName = guarantor.GuestName ?? "Fiador";
+                    continue;
+                }
+
+                var profile = await _userService.GetPublicProfileAsync(guarantor.UserId.Value, viewerUserId);
+                guarantor.UserName = profile?.Name ?? guarantor.GuestName ?? "Fiador";
+                guarantor.UserAvatarUrl = profile?.ProfilePictureUrl;
+            }
+        }
+    }
+
+    private static void ApplyCurrentUserRole(ApplicationDto application, Guid viewerUserId)
+    {
+        application.IsCurrentUserCoTenant = application.CoTenantUserId.HasValue && application.CoTenantUserId.Value == viewerUserId;
+        application.IsCurrentUserGuarantor = application.Guarantors.Any(g => g.UserId.HasValue && g.UserId.Value == viewerUserId && g.InviteStatus == GuarantorInviteStatus.Accepted.ToString());
+
+        application.CurrentUserRole = application.LandlordId == viewerUserId ? "Landlord"
+            : application.TenantId == viewerUserId ? "Tenant"
+            : application.IsCurrentUserCoTenant ? "CoTenant"
+            : application.IsCurrentUserGuarantor ? "Guarantor"
+            : string.Empty;
     }
 }

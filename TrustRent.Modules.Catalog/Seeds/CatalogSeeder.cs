@@ -29,6 +29,15 @@ public static class CatalogSeeder
     public static readonly Guid ContractPendingApplicationId = Guid.Parse("cccc7777-cccc-cccc-cccc-cccccccccccc");
     public static readonly Guid AwaitingPaymentApplicationId = Guid.Parse("cccc8888-cccc-cccc-cccc-cccccccccccc");
     public static readonly Guid LeaseStartDateProposedApplicationId = Guid.Parse("cccc9999-cccc-cccc-cccc-cccccccccccc");
+    public static readonly Guid CoTenantPendingApplicationId = Guid.Parse("ccccaaaa-cccc-cccc-cccc-cccccccccccc");
+    public static readonly Guid GuarantorPendingApplicationId = Guid.Parse("ccccbbbb-cccc-cccc-cccc-cccccccccccc");
+    public static readonly Guid GuarantorReviewApplicationId = Guid.Parse("ccccdddd-cccc-cccc-cccc-cccccccccccc");
+
+    private static readonly Guid PendingCoTenantInviteId = Guid.Parse("ca000001-0000-0000-0000-000000000001");
+    private static readonly Guid AcceptedCoTenantInviteId = Guid.Parse("ca000002-0000-0000-0000-000000000002");
+    private static readonly Guid PendingGuarantorId = Guid.Parse("fa000001-0000-0000-0000-000000000001");
+    private static readonly Guid ReviewGuarantorId = Guid.Parse("fa000002-0000-0000-0000-000000000002");
+    private static readonly Guid ApprovedLease5GuarantorId = Guid.Parse("fa000003-0000-0000-0000-000000000003");
 
     private static readonly Guid Lease1Id = Guid.Parse("bbbb1111-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid Lease2Id = Guid.Parse("bbbb2222-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
@@ -664,6 +673,132 @@ public static class CatalogSeeder
                 NewHistory(app.Id, IdentitySeeder.Landlord2Id, "Procedimento de Arrendamento Iniciado", "Foi proposta uma data de inicio para o lease.", null, app.CreatedAt.AddDays(2))
             }));
 
+        var coTenantPendingApp = CreateApplication(
+            CoTenantPendingApplicationId,
+            Property2Id,
+            IdentitySeeder.Tenant2Id,
+            "Quero candidatar-me em conjunto com a Ana e aguardo a resposta dela ao convite.",
+            ApplicationStatus.Pending,
+            createdAt: DateTime.UtcNow.AddDays(-4),
+            durationMonths: 36,
+            wantsVisit: true,
+            proposedDates: new[] { DateTime.UtcNow.AddDays(3).Date.AddHours(18), DateTime.UtcNow.AddDays(5).Date.AddHours(11) },
+            finalVisitDate: null,
+            landlordProposedDate: null,
+            leaseId: null,
+            historyFactory: app => new[]
+            {
+                NewHistory(app.Id, app.TenantId, "Criada", app.Message, app.TenantProposedDates, app.CreatedAt),
+                NewHistory(app.Id, app.TenantId, "CoTenantInvited", "Convite enviado para an***********@email.pt.", null, app.CreatedAt.AddHours(2))
+            });
+        coTenantPendingApp.CoTenantInvites.Add(new ApplicationCoTenantInvite
+        {
+            Id = PendingCoTenantInviteId,
+            ApplicationId = coTenantPendingApp.Id,
+            InviterUserId = IdentitySeeder.Tenant2Id,
+            InviteeUserId = IdentitySeeder.TenantId,
+            InviteeEmail = "ana.ferreira@email.pt",
+            Status = CoTenantInviteStatus.Pending,
+            CreatedAt = coTenantPendingApp.CreatedAt.AddHours(2),
+            ExpiresAt = DateTime.UtcNow.AddDays(6),
+            CreatedFromIp = "203.0.113.10"
+        });
+        applications.Add(coTenantPendingApp);
+
+        var guarantorPendingApp = CreateApplication(
+            GuarantorPendingApplicationId,
+            Property2Id,
+            IdentitySeeder.Tenant2Id,
+            "O senhorio pediu fiador e já convidei a Ana para responder.",
+            ApplicationStatus.GuarantorRequested,
+            createdAt: DateTime.UtcNow.AddDays(-6),
+            durationMonths: 36,
+            wantsVisit: false,
+            proposedDates: Array.Empty<DateTime>(),
+            finalVisitDate: DateTime.UtcNow.AddDays(-3).Date.AddHours(17),
+            landlordProposedDate: null,
+            leaseId: null,
+            historyFactory: app => new[]
+            {
+                NewHistory(app.Id, app.TenantId, "Criada", app.Message, app.TenantProposedDates, app.CreatedAt),
+                NewHistory(app.Id, IdentitySeeder.LandlordId, "GuarantorRequested", "Senhorio solicitou fiador para reforco de garantia.", null, app.CreatedAt.AddDays(1)),
+                NewHistory(app.Id, app.TenantId, "GuarantorInvited", "Fiador convidado: an***********@email.pt", null, app.CreatedAt.AddDays(1).AddHours(3))
+            });
+        guarantorPendingApp.IsGuarantorRequired = true;
+        guarantorPendingApp.GuarantorRequestedAt = guarantorPendingApp.CreatedAt.AddDays(1);
+        guarantorPendingApp.GuarantorRequestNote = "Senhorio solicitou fiador para reforco de garantia.";
+        guarantorPendingApp.GuarantorRequirementStatus = GuarantorRequirementStatus.Requested;
+        guarantorPendingApp.Guarantors.Add(new Guarantor
+        {
+            Id = PendingGuarantorId,
+            ApplicationId = guarantorPendingApp.Id,
+            UserId = IdentitySeeder.TenantId,
+            InvitedByUserId = IdentitySeeder.Tenant2Id,
+            GuestEmail = "ana.ferreira@email.pt",
+            GuestName = "Ana Ferreira",
+            GuestAccessToken = "seed-pending-guarantor-ana",
+            GuestTokenIssuedAt = guarantorPendingApp.CreatedAt.AddDays(1).AddHours(3),
+            InviteStatus = GuarantorInviteStatus.Pending,
+            CreatedAt = guarantorPendingApp.CreatedAt.AddDays(1).AddHours(3),
+            ExpiresAt = DateTime.UtcNow.AddDays(6),
+            LandlordRequestNote = guarantorPendingApp.GuarantorRequestNote
+        });
+        applications.Add(guarantorPendingApp);
+
+        var guarantorReviewApp = CreateApplication(
+            GuarantorReviewApplicationId,
+            Property1Id,
+            IdentitySeeder.TenantId,
+            "O fiador Miguel já submeteu os dados e aguarda revisão do senhorio.",
+            ApplicationStatus.GuarantorReview,
+            createdAt: DateTime.UtcNow.AddDays(-8),
+            durationMonths: 36,
+            wantsVisit: false,
+            proposedDates: Array.Empty<DateTime>(),
+            finalVisitDate: DateTime.UtcNow.AddDays(-5).Date.AddHours(15),
+            landlordProposedDate: null,
+            leaseId: null,
+            historyFactory: app => new[]
+            {
+                NewHistory(app.Id, app.TenantId, "Criada", app.Message, app.TenantProposedDates, app.CreatedAt),
+                NewHistory(app.Id, IdentitySeeder.LandlordId, "GuarantorRequested", "Senhorio solicitou fiador para aprovacao final.", null, app.CreatedAt.AddDays(1)),
+                NewHistory(app.Id, IdentitySeeder.TenantId, "GuarantorInvited", "Fiador convidado: mi***********@email.pt", null, app.CreatedAt.AddDays(1).AddHours(2)),
+                NewHistory(app.Id, IdentitySeeder.Tenant2Id, "GuarantorAccepted", "Fiador aceitou o convite.", null, app.CreatedAt.AddDays(2)),
+                NewHistory(app.Id, IdentitySeeder.Tenant2Id, "GuarantorSubmitted", "Fiador submeteu KYC + dados de rendimento.", null, app.CreatedAt.AddDays(3))
+            });
+        guarantorReviewApp.IsGuarantorRequired = true;
+        guarantorReviewApp.GuarantorRequestedAt = guarantorReviewApp.CreatedAt.AddDays(1);
+        guarantorReviewApp.GuarantorRequestNote = "Senhorio solicitou fiador para aprovacao final.";
+        guarantorReviewApp.GuarantorRequirementStatus = GuarantorRequirementStatus.LandlordReviewing;
+        guarantorReviewApp.GuarantorId = ReviewGuarantorId;
+        guarantorReviewApp.Guarantors.Add(new Guarantor
+        {
+            Id = ReviewGuarantorId,
+            ApplicationId = guarantorReviewApp.Id,
+            UserId = IdentitySeeder.Tenant2Id,
+            InvitedByUserId = IdentitySeeder.TenantId,
+            GuestEmail = "miguel.costa@email.pt",
+            GuestName = "Miguel Costa",
+            GuestAccessToken = "seed-review-guarantor-miguel",
+            GuestTokenIssuedAt = guarantorReviewApp.CreatedAt.AddDays(1).AddHours(2),
+            GuestTokenLastUsedAt = guarantorReviewApp.CreatedAt.AddDays(3),
+            InviteStatus = GuarantorInviteStatus.Accepted,
+            CreatedAt = guarantorReviewApp.CreatedAt.AddDays(1).AddHours(2),
+            RespondedAt = guarantorReviewApp.CreatedAt.AddDays(2),
+            ExpiresAt = guarantorReviewApp.CreatedAt.AddDays(8),
+            LandlordRequestNote = guarantorReviewApp.GuarantorRequestNote,
+            IsIdentityVerified = true,
+            IdentityVerifiedAt = guarantorReviewApp.CreatedAt.AddDays(3),
+            EmploymentType = EmploymentType.Employee,
+            IncomeValidationMethod = IncomeValidationMethod.Payslips,
+            PayslipsProvidedCount = 3,
+            EmployerName = "Blue Atlantic Lda.",
+            EmployerNif = "509876543",
+            EmploymentStartDate = DateTime.UtcNow.AddYears(-4),
+            IncomeValidatedAt = guarantorReviewApp.CreatedAt.AddDays(3)
+        });
+        applications.Add(guarantorReviewApp);
+
         var availableProperties = properties.Where(p => p.IsPublic && !p.TenantId.HasValue).ToList();
         var additionalApplications = 0;
         var attempts = 0;
@@ -728,6 +863,60 @@ public static class CatalogSeeder
             additionalApplications++;
         }
 
+        // ===== Seeds de candidatura conjunta (co-tenant) e fiador aprovado =====
+        var jointApp = applications.FirstOrDefault(a => a.Id == LeaseStartDateProposedApplicationId);
+        if (jointApp != null)
+        {
+            jointApp.CoTenantUserId = IdentitySeeder.TenantId;
+            jointApp.CoTenantJoinedAt = jointApp.CreatedAt.AddDays(1);
+            jointApp.CoTenantInvites.Add(new ApplicationCoTenantInvite
+            {
+                Id = AcceptedCoTenantInviteId,
+                ApplicationId = jointApp.Id,
+                InviterUserId = jointApp.TenantId,
+                InviteeUserId = IdentitySeeder.TenantId,
+                InviteeEmail = "ana.ferreira@email.pt",
+                Status = CoTenantInviteStatus.Accepted,
+                CreatedAt = jointApp.CreatedAt,
+                ExpiresAt = jointApp.CreatedAt.AddDays(7),
+                RespondedAt = jointApp.CreatedAt.AddDays(1)
+            });
+            jointApp.History.Add(NewHistory(jointApp.Id, IdentitySeeder.TenantId, "CoTenantAccepted", "Convite de co-candidato aceite pela Ana.", null, jointApp.CreatedAt.AddDays(1)));
+
+            jointApp.IsGuarantorRequired = true;
+            jointApp.GuarantorRequestedAt = jointApp.CreatedAt.AddDays(1);
+            jointApp.GuarantorRequestNote = "Fiador aprovado para contrato conjunto com quatro signatarios.";
+            jointApp.GuarantorRequirementStatus = GuarantorRequirementStatus.Approved;
+            jointApp.GuarantorId = ApprovedLease5GuarantorId;
+            jointApp.Guarantors.Add(new Guarantor
+            {
+                Id = ApprovedLease5GuarantorId,
+                ApplicationId = jointApp.Id,
+                UserId = IdentitySeeder.LandlordId,
+                InvitedByUserId = jointApp.TenantId,
+                GuestEmail = "carlos.mendes@email.pt",
+                GuestName = "Carlos Mendes",
+                GuestAccessToken = "seed-approved-guarantor-carlos",
+                GuestTokenIssuedAt = jointApp.CreatedAt.AddDays(1).AddHours(4),
+                GuestTokenLastUsedAt = jointApp.CreatedAt.AddDays(2),
+                InviteStatus = GuarantorInviteStatus.Accepted,
+                CreatedAt = jointApp.CreatedAt.AddDays(1).AddHours(4),
+                RespondedAt = jointApp.CreatedAt.AddDays(2),
+                ExpiresAt = jointApp.CreatedAt.AddDays(8),
+                LandlordRequestNote = jointApp.GuarantorRequestNote,
+                IsIdentityVerified = true,
+                IdentityVerifiedAt = jointApp.CreatedAt.AddDays(2),
+                EmploymentType = EmploymentType.Employee,
+                IncomeValidationMethod = IncomeValidationMethod.Payslips,
+                PayslipsProvidedCount = 3,
+                EmployerName = "TechCorp Lda.",
+                EmployerNif = "501234567",
+                EmploymentStartDate = DateTime.UtcNow.AddYears(-3),
+                IncomeValidatedAt = jointApp.CreatedAt.AddDays(3)
+            });
+            jointApp.History.Add(NewHistory(jointApp.Id, IdentitySeeder.Landlord2Id, "GuarantorApproved", "Fiador Carlos aprovado pelo senhorio.", null, jointApp.CreatedAt.AddDays(3)));
+        }
+
         try
         {
             context.Properties.AddRange(properties);
@@ -741,6 +930,7 @@ public static class CatalogSeeder
         catch (Exception ex)
         {
             Console.WriteLine($"[SEED] Catalog: Erro no Seed — {ex.InnerException?.Message ?? ex.Message}");
+            throw;
         }
     }
 
@@ -842,6 +1032,10 @@ public static class CatalogSeeder
             ElectricityPaidBy = electricityPaidBy,
             GasPaidBy = gasPaidBy,
             HasOfficialContract = hasOfficialContract,
+            AcceptsGuarantor = hasOfficialContract,
+            GuarantorPolicyNote = hasOfficialContract
+                ? "Aceita-se fiador com rendimento líquido mensal igual ou superior a 3x o valor da renda."
+                : null,
             LeaseRegime = leaseRegime,
             AllowsRenewal = true,
             NonPermanentReason = leaseRegime == LeaseRegime.NonPermanentHousing ? nonPermanentReason : null
