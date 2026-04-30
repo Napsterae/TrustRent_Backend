@@ -129,6 +129,7 @@ public class CatalogDbContext : DbContext
             builder.Property(g => g.GuestEmail).IsRequired().HasMaxLength(320);
             builder.Property(g => g.GuestName).HasMaxLength(200);
             builder.Property(g => g.GuestPhoneNumber).HasMaxLength(30);
+            builder.Property(g => g.GuestPostalCode).HasMaxLength(20);
             builder.Property(g => g.GuestAccessToken).IsRequired().HasMaxLength(128);
             builder.Property(g => g.CreatedFromIp).HasMaxLength(45);
             builder.Property(g => g.EmploymentType).HasConversion<int>();

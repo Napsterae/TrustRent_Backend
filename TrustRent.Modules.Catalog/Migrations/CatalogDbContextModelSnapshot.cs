@@ -455,6 +455,9 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<string>("GuestAddress")
+                        .HasColumnType("text");
+
                     b.Property<string>("GuestEmail")
                         .IsRequired()
                         .HasMaxLength(320)
@@ -468,6 +471,10 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<string>("GuestPostalCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<DateTime?>("GuestTokenIssuedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -477,6 +484,9 @@ namespace TrustRent.Modules.Catalog.Migrations
                     b.Property<string>("IdentityMatchEvidenceHash")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
+
+                    b.Property<DateTime?>("AddressVerifiedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("IdentityVerifiedAt")
                         .HasColumnType("timestamp with time zone");
@@ -497,6 +507,9 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<bool>("IsIdentityVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsAddressVerified")
                         .HasColumnType("boolean");
 
                     b.Property<string>("LandlordRequestNote")

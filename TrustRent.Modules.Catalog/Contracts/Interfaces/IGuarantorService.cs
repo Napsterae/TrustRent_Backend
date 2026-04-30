@@ -80,6 +80,7 @@ public class SubmitGuarantorDataDto
     public string? TaxNumber { get; set; }
     public string? IdDocumentNumber { get; set; }
     public string? Address { get; set; }
+    public string? PostalCode { get; set; }
     public string EmploymentType { get; set; } = "Employee"; // Employee | SelfEmployed
     public string IncomeValidationMethod { get; set; } = "Payslips"; // Payslips | PayslipsWithEmployerDeclaration | ActivityWithGreenReceipts
     public int? PayslipsProvidedCount { get; set; }
@@ -87,4 +88,5 @@ public class SubmitGuarantorDataDto
     public string? EmployerNif { get; set; }
     public DateTime? EmploymentStartDate { get; set; }
     public bool SimulateIdentityMatch { get; set; } = true;
+    public bool SimulateAddressMatch { get; set; } = true;
 }

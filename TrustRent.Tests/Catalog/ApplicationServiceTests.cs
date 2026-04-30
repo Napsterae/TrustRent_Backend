@@ -311,7 +311,7 @@ public class ApplicationServiceTests
     }
 
     [Fact]
-    public async Task GetApplicationByIdAsync_GuarantorAcceptedButNotApproved_Throws()
+    public async Task GetApplicationByIdAsync_GuarantorAcceptedButNotApproved_ReturnsObserverApplication()
     {
         var (service, context) = CreateService();
         var guarantorUserId = Guid.NewGuid();
@@ -339,8 +339,11 @@ public class ApplicationServiceTests
         context.Applications.Add(application);
         await context.SaveChangesAsync();
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            service.GetApplicationByIdAsync(application.Id, guarantorUserId));
+        var result = await service.GetApplicationByIdAsync(application.Id, guarantorUserId);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsCurrentUserGuarantor);
+        Assert.Equal("Guarantor", result.CurrentUserRole);
 
         context.Dispose();
     }

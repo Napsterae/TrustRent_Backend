@@ -91,6 +91,9 @@ namespace TrustRent.Modules.Identity.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("AddressVerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime?>("AnonymizedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -114,6 +117,9 @@ namespace TrustRent.Modules.Identity.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsNoDebtVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsAddressVerified")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsSuspended")

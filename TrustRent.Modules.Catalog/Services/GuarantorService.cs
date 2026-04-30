@@ -299,6 +299,8 @@ public class GuarantorService : IGuarantorService
 
         if (!string.IsNullOrWhiteSpace(dto.FullName)) guarantor.GuestName = dto.FullName.Trim();
         if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) guarantor.GuestPhoneNumber = dto.PhoneNumber.Trim();
+        if (!string.IsNullOrWhiteSpace(dto.Address)) guarantor.GuestAddress = dto.Address.Trim();
+        if (!string.IsNullOrWhiteSpace(dto.PostalCode)) guarantor.GuestPostalCode = dto.PostalCode.Trim();
 
         // KYC simulado (em produção: comparar CC + selfie)
         if (dto.SimulateIdentityMatch)
@@ -306,6 +308,12 @@ public class GuarantorService : IGuarantorService
             guarantor.IsIdentityVerified = true;
             guarantor.IdentityVerifiedAt = DateTime.UtcNow;
             guarantor.IdentityMatchEvidenceHash = Guid.NewGuid().ToString("N");
+        }
+
+        if (dto.SimulateAddressMatch && !string.IsNullOrWhiteSpace(guarantor.GuestAddress))
+        {
+            guarantor.IsAddressVerified = true;
+            guarantor.AddressVerifiedAt = DateTime.UtcNow;
         }
 
         guarantor.EmploymentType = Enum.TryParse<EmploymentType>(dto.EmploymentType, out var et) ? et : EmploymentType.Employee;
@@ -526,6 +534,8 @@ public class GuarantorService : IGuarantorService
             GuestEmailMasked = MaskEmail(guarantor.GuestEmail),
             GuestName = guarantor.GuestName,
             GuestPhoneNumber = guarantor.GuestPhoneNumber,
+            GuestAddress = guarantor.GuestAddress,
+            GuestPostalCode = guarantor.GuestPostalCode,
             GuestAccessUrl = BuildGuestUrl(guarantor.GuestAccessToken),
             PropertyTitle = property?.Title,
             PropertyAddress = FormatAddress(property),
@@ -537,6 +547,8 @@ public class GuarantorService : IGuarantorService
             RespondedAt = guarantor.RespondedAt,
             IsIdentityVerified = guarantor.IsIdentityVerified,
             IdentityVerifiedAt = guarantor.IdentityVerifiedAt,
+            IsAddressVerified = guarantor.IsAddressVerified,
+            AddressVerifiedAt = guarantor.AddressVerifiedAt,
             IncomeRangeCode = guarantor.IncomeRange?.Code,
             IncomeRangeLabel = guarantor.IncomeRange?.Label,
             IncomeValidatedAt = guarantor.IncomeValidatedAt,

@@ -260,6 +260,53 @@ public static class DocumentPrompts
         }
         """;
 
+      public static string ComprovativoMorada => $$"""
+        Estás a analisar um COMPROVATIVO DE MORADA português.
+        O documento pode ser uma fatura de serviços essenciais (luz, água, gás, internet/telecomunicações),
+        uma certidão/comprovativo de morada fiscal da AT, uma declaração bancária, extrato bancário,
+        contrato/documento oficial de uma entidade regulada, ou outro documento oficial que associe uma pessoa
+        a uma morada residencial.
+
+        {{CommonInstructions}}
+
+        CAMPOS A EXTRAIR:
+        - holderName: Nome completo da pessoa titular/destinatária do documento. Pode aparecer como "Cliente", "Titular", "Destinatário", "Contribuinte", "Nome" ou no cabeçalho.
+        - nif: NIF da pessoa titular/destinatária, se existir. Devolve apenas 9 dígitos. Se não existir, devolve null.
+        - address: Morada completa sem código postal, incluindo rua, número, andar/fração/localidade quando disponível. Deve ser a morada do titular/destinatário, não a morada da entidade emissora.
+        - postalCode: Código postal português no formato 0000-000, se existir.
+        - documentType: Tipo normalizado do documento. Usa uma destas categorias quando possível: "utility_bill", "tax_address", "bank_document", "insurance_document", "public_authority_document", "other_official".
+        - issuerName: Nome da entidade emissora, por exemplo E-REDES, MEO, Vodafone, Portal das Finanças, banco, seguradora, câmara municipal.
+        - issueDate: Data de emissão ou data do documento, no formato DD/MM/AAAA. Se houver período de faturação e data de emissão, usa a data de emissão.
+
+        REGRAS IMPORTANTES:
+        - O documento só é válido como comprovativo de morada se tiver uma entidade emissora identificável e uma morada associada ao titular/destinatário.
+        - Não uses moradas de rodapé, sede social da empresa emissora, lojas, balcões ou contactos da entidade emissora.
+        - Se houver várias moradas, escolhe a morada do titular/cliente/contribuinte, não a da entidade emissora.
+        - Para faturas, a morada pode aparecer como "morada de faturação", "local de consumo" ou "morada do cliente". Prefere a morada do cliente/titular quando existir; se só existir local de consumo e estiver associado ao cliente, usa essa.
+        - Se o documento parecer uma captura informal sem entidade oficial, marca isAuthentic=false ou allFieldsExtracted=false conforme apropriado.
+
+        SINAIS DE ADULTERAÇÃO A PROCURAR:
+        - Nome ou morada com fonte/alinhamento diferente do resto do documento.
+        - Sobreposições, cortes, páginas incompletas, valores cobertos ou áreas editadas.
+        - Ausência de logótipo/cabeçalho/identificação da entidade emissora.
+        - Morada incompleta sem rua/localidade ou sem qualquer ligação ao titular.
+
+        SCHEMA JSON DE RESPOSTA:
+        {
+          "isAuthentic": boolean,
+          "fraudReason": string | null,
+          "imageQuality": "good" | "blurry" | "dark" | "cropped" | "unreadable",
+          "allFieldsExtracted": boolean,
+          "holderName": string | null,
+          "nif": string | null,
+          "address": string | null,
+          "postalCode": string | null,
+          "documentType": string | null,
+          "issuerName": string | null,
+          "issueDate": string | null
+        }
+        """;
+
     public static string ReciboVencimento => $$"""
         Estás a analisar um RECIBO DE VENCIMENTO português (folha de remunerações mensal emitida pela entidade empregadora).
 
@@ -475,6 +522,7 @@ public static class DocumentPrompts
         "declaracao-empregador" => DeclaracaoEntidadeEmpregadora,
         "declaracao-atividade" => DeclaracaoInicioAtividade,
         "recibo-verde" => ReciboVerde,
+        "comprovativo-morada" => ComprovativoMorada,
         _ => throw new ArgumentException($"Tipo de documento desconhecido: {docType}")
     };
 }

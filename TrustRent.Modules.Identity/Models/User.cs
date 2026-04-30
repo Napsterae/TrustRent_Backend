@@ -21,6 +21,8 @@ public class User
     public DateTime? IdentityExpiryDate { get; set; }
     public bool IsNoDebtVerified { get; set; } = false;
     public DateTime? NoDebtExpiryDate { get; set; }
+    public bool IsAddressVerified { get; set; } = false;
+    public DateTime? AddressVerifiedAt { get; set; }
     public int TrustScore { get; set; } = 50;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

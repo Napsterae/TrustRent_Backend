@@ -10,7 +10,7 @@ public interface IUserService
     Task UpdateProfileAsync(Guid userId, UpdateProfileDto request);
     Task UpdatePasswordAsync(Guid userId, string currentPassword, string newPassword);
     Task<string> UpdateAvatarAsync(Guid userId, Stream fileStream, string fileName);
-    Task<VerificationResultDto> VerifyDocumentsAsync(Guid userId, Stream? ccFrontStream, string? ccFrontFileName, Stream? ccBackStream, string? ccBackFileName, Stream? noDebtStream, string? noDebtFileName);
+    Task<VerificationResultDto> VerifyDocumentsAsync(Guid userId, Stream? ccFrontStream, string? ccFrontFileName, Stream? ccBackStream, string? ccBackFileName, Stream? noDebtStream, string? noDebtFileName, Stream? addressProofStream, string? addressProofFileName);
     Task<VerificationResultDto> SimulateVerifyCitizenCardAsync(Guid userId);
     Task<VerificationResultDto> SimulateVerifyNoDebtAsync(Guid userId);
     Task UpdateTrustScoreAsync(Guid userId, int newScore);
@@ -42,6 +42,8 @@ public record UserProfileDto(
     DateTime? IdentityExpiryDate,
     bool IsNoDebtVerified,
     DateTime? NoDebtExpiryDate,
+    bool IsAddressVerified,
+    DateTime? AddressVerifiedAt,
     int TrustScore
 );
 public record VerificationResultDto(
@@ -52,7 +54,11 @@ public record VerificationResultDto(
     int TrustScore,
     string? ExtractedName = null,
     string? ExtractedNif = null,
-    string? ExtractedCcNumber = null
+    string? ExtractedCcNumber = null,
+    string? ExtractedAddress = null,
+    string? ExtractedPostalCode = null,
+    bool IsAddressVerified = false,
+    DateTime? AddressVerifiedAt = null
 );
 public record PublicUserProfileDto(
     Guid Id,

@@ -15,6 +15,8 @@ public class GuarantorSummaryDto
     public string? GuestEmailMasked { get; set; }
     public string? GuestName { get; set; }
     public string? GuestPhoneNumber { get; set; }
+    public string? GuestAddress { get; set; }
+    public string? GuestPostalCode { get; set; }
     public string? GuestAccessUrl { get; set; }
     public string? PropertyTitle { get; set; }
     public string? PropertyAddress { get; set; }
@@ -28,6 +30,8 @@ public class GuarantorSummaryDto
 
     public bool IsIdentityVerified { get; set; }
     public DateTime? IdentityVerifiedAt { get; set; }
+    public bool IsAddressVerified { get; set; }
+    public DateTime? AddressVerifiedAt { get; set; }
 
     public string? IncomeRangeCode { get; set; }
     public string? IncomeRangeLabel { get; set; }

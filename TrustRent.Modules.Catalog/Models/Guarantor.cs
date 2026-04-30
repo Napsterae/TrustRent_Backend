@@ -19,6 +19,8 @@ public class Guarantor
     public string GuestEmail { get; set; } = string.Empty;
     public string? GuestName { get; set; }
     public string? GuestPhoneNumber { get; set; }
+    public string? GuestAddress { get; set; }
+    public string? GuestPostalCode { get; set; }
     public string GuestAccessToken { get; set; } = string.Empty;
     public DateTime? GuestTokenIssuedAt { get; set; }
     public DateTime? GuestTokenLastUsedAt { get; set; }
@@ -38,6 +40,8 @@ public class Guarantor
     public bool IsIdentityVerified { get; set; }
     public DateTime? IdentityVerifiedAt { get; set; }
     public string? IdentityMatchEvidenceHash { get; set; }
+    public bool IsAddressVerified { get; set; }
+    public DateTime? AddressVerifiedAt { get; set; }
 
     // ===== Validação de rendimentos =====
     public Guid? IncomeRangeId { get; set; }

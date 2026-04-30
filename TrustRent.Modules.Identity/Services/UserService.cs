@@ -78,6 +78,8 @@ public class UserService : IUserService
             user.IdentityExpiryDate,
             user.IsNoDebtVerified,
             user.NoDebtExpiryDate,
+            user.IsAddressVerified,
+            user.AddressVerifiedAt,
             user.TrustScore
         );
     }
@@ -120,6 +122,11 @@ public class UserService : IUserService
             {
                 throw new Exception("Não podes alterar o Nome, NIF ou Cartão de Cidadão após a validação de identidade.");
             }
+        }
+
+        if (user.IsAddressVerified && (normalizedAddress != user.Address || normalizedPostalCode != user.PostalCode))
+        {
+            throw new Exception("Não podes alterar a morada após a validação do comprovativo de morada.");
         }
 
         if (!string.IsNullOrWhiteSpace(normalizedNif))
@@ -184,13 +191,17 @@ public class UserService : IUserService
         Stream? ccBackStream,
         string? ccBackFileName,
         Stream? noDebtStream,
-        string? noDebtFileName)
+        string? noDebtFileName,
+        Stream? addressProofStream,
+        string? addressProofFileName)
     {
         var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
 
         string? extractedName = null;
         string? extractedNif = null;
         string? extractedCc = null;
+        string? extractedAddress = null;
+        string? extractedPostalCode = null;
 
         // 1. VALIDAÇÃO DO CARTÃO DE CIDADÃO (FRENTE E VERSO)
         if (ccFrontStream != null && ccFrontStream.Length > 0 && ccBackStream != null && ccBackStream.Length > 0)
@@ -260,6 +271,36 @@ public class UserService : IUserService
             user.TrustScore += 15;
         }
 
+        // 3. VALIDAÇÃO DO COMPROVATIVO DE MORADA
+        if (addressProofStream != null && addressProofStream.Length > 0 && !string.IsNullOrEmpty(addressProofFileName))
+        {
+            var proof = await _geminiService.ExtractDocumentAsync<AddressProofResponse>(
+                addressProofStream, addressProofFileName, DocumentPrompts.ComprovativoMorada);
+
+            ValidateDocumentResponse(proof);
+
+            extractedAddress = NormalizeAddress(proof.Address);
+            extractedPostalCode = NormalizePostalCode(proof.PostalCode);
+            var extractedProofNif = NormalizeOptionalDigits(proof.Nif);
+
+            if (string.IsNullOrWhiteSpace(extractedAddress))
+                throw new Exception("Não foi possível extrair uma morada válida do comprovativo enviado.");
+
+            if (!string.IsNullOrWhiteSpace(extractedProofNif)
+                && !string.IsNullOrWhiteSpace(user.Nif)
+                && extractedProofNif != user.Nif)
+            {
+                throw new Exception("O NIF do comprovativo de morada não coincide com o NIF do perfil.");
+            }
+
+            user.Address = extractedAddress;
+            user.PostalCode = extractedPostalCode;
+            if (!user.IsAddressVerified)
+                user.TrustScore += 10;
+            user.IsAddressVerified = true;
+            user.AddressVerifiedAt = DateTime.UtcNow;
+        }
+
         await _uow.SaveChangesAsync();
         return new VerificationResultDto(
             user.IsIdentityVerified, 
@@ -269,7 +310,11 @@ public class UserService : IUserService
             user.TrustScore,
             extractedName,
             extractedNif,
-            extractedCc
+            extractedCc,
+            extractedAddress,
+            extractedPostalCode,
+            user.IsAddressVerified,
+            user.AddressVerifiedAt
         );
     }
 
@@ -305,7 +350,11 @@ public class UserService : IUserService
             user.TrustScore,
             user.Name,
             user.Nif,
-            user.CitizenCardNumber
+            user.CitizenCardNumber,
+            user.Address,
+            user.PostalCode,
+            user.IsAddressVerified,
+            user.AddressVerifiedAt
         );
     }
 
@@ -337,7 +386,11 @@ public class UserService : IUserService
             user.TrustScore,
             user.Name,
             user.Nif,
-            user.CitizenCardNumber
+            user.CitizenCardNumber,
+            user.Address,
+            user.PostalCode,
+            user.IsAddressVerified,
+            user.AddressVerifiedAt
         );
     }
 
@@ -416,6 +469,20 @@ public class UserService : IUserService
 
         var digits = new string(value.Where(char.IsDigit).ToArray());
         return string.IsNullOrWhiteSpace(digits) ? null : digits;
+    }
+
+    private static string? NormalizeAddress(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return Regex.Replace(value.Trim(), "\\s+", " ");
+    }
+
+    private static string? NormalizePostalCode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var digits = new string(value.Where(char.IsDigit).ToArray());
+        if (digits.Length != 7) return value.Trim();
+        return $"{digits[..4]}-{digits[4..]}";
     }
 
     private static (string? PhoneCountryCode, string? PhoneNumber) NormalizePhone(string? phoneCountryCode, string? phoneNumber)

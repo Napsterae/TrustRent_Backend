@@ -60,7 +60,7 @@ public static class UserEndpoints
         }).DisableAntiforgery();
 
         userGroup.MapPost("/verify-documents", async (ClaimsPrincipal userClaims,
-            IFormFile? ccFrontDocument, IFormFile? ccBackDocument, IFormFile? noDebtDocument, IUserService userService) =>
+            IFormFile? ccFrontDocument, IFormFile? ccBackDocument, IFormFile? noDebtDocument, IFormFile? addressProofDocument, IUserService userService) =>
         {
             try
             {
@@ -69,11 +69,13 @@ public static class UserEndpoints
                 using var ccFrontStream = ccFrontDocument?.OpenReadStream();
                 using var ccBackStream = ccBackDocument?.OpenReadStream();
                 using var noDebtStream = noDebtDocument?.OpenReadStream();
+                using var addressProofStream = addressProofDocument?.OpenReadStream();
 
                 var result = await userService.VerifyDocumentsAsync(userId,
                     ccFrontStream, ccFrontDocument?.FileName,
                     ccBackStream, ccBackDocument?.FileName,
-                    noDebtStream, noDebtDocument?.FileName);
+                    noDebtStream, noDebtDocument?.FileName,
+                    addressProofStream, addressProofDocument?.FileName);
 
                 return Results.Ok(result);
             }
