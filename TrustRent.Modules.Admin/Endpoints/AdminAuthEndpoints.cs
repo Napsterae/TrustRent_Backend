@@ -17,8 +17,7 @@ public static class AdminAuthEndpoints
 {
     public static void MapAdminAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/admin/auth")
-            .RequireRateLimiting("admin-auth");
+        var group = app.MapGroup("/api/admin/auth");
 
         group.MapPost("/login", async ([FromBody] AdminLoginRequest request, HttpContext ctx, IAdminAuthService auth, IConfiguration cfg) =>
         {
@@ -50,7 +49,7 @@ public static class AdminAuthEndpoints
             {
                 return Results.Json(new { error = ex.Message }, statusCode: 401);
             }
-        });
+        }).RequireRateLimiting("admin-auth");
 
         group.MapPost("/logout", async (HttpContext ctx, IAdminAuthService auth) =>
         {

@@ -335,7 +335,7 @@ builder.Services.AddRateLimiter(options =>
             });
     });
 
-    // Admin auth: brute-force defence on /api/admin/auth/* (5 req/min por IP)
+    // Admin login: brute-force defence on /api/admin/auth/login (5 req/min por IP)
     options.AddPolicy("admin-auth", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -435,10 +435,12 @@ app.Use(async (context, next) =>
 });
 
 app.UseStaticFiles();
-app.UseCors("AllowViteFrontend");
-// Admin SPA origin gets its own CORS policy on /api/admin/* paths.
+// Apply mutually exclusive CORS policies so admin preflight requests do not get
+// short-circuited by the public frontend policy first.
 app.UseWhen(ctx => ctx.Request.Path.StartsWithSegments("/api/admin"),
     branch => branch.UseCors("AllowBackoffice"));
+app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/api/admin"),
+    branch => branch.UseCors("AllowViteFrontend"));
 app.UseResponseCompression();
 app.UseRequestBodySizeLimiter();
 app.UseRateLimiter();
