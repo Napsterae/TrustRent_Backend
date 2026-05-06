@@ -105,10 +105,81 @@ public static class CommunicationsEndpoints
             return Results.NoContent();
         })
         .RequireAuthorization();
+
+        group.MapPost("/notifications/devices/register", async (RegisterPushDeviceRequest request, ClaimsPrincipal user, CommunicationsDbContext db) =>
+        {
+            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdStr)) return Results.Unauthorized();
+            if (string.IsNullOrWhiteSpace(request.ExpoPushToken)) return Results.BadRequest(new { Error = "ExpoPushToken é obrigatório." });
+
+            var userId = Guid.Parse(userIdStr);
+            var token = request.ExpoPushToken.Trim();
+            var platform = string.IsNullOrWhiteSpace(request.Platform) ? "unknown" : request.Platform.Trim().ToLowerInvariant();
+
+            var device = await db.PushDevices.FirstOrDefaultAsync(entry => entry.ExpoPushToken == token);
+            if (device == null)
+            {
+                db.PushDevices.Add(new Models.PushDevice
+                {
+                    UserId = userId,
+                    ExpoPushToken = token,
+                    Platform = platform,
+                    DeviceName = request.DeviceName?.Trim(),
+                    AppVersion = request.AppVersion?.Trim(),
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    LastSeenAt = DateTime.UtcNow
+                });
+            }
+            else
+            {
+                device.UserId = userId;
+                device.Platform = platform;
+                device.DeviceName = request.DeviceName?.Trim();
+                device.AppVersion = request.AppVersion?.Trim();
+                device.IsActive = true;
+                device.LastSeenAt = DateTime.UtcNow;
+            }
+
+            await db.SaveChangesAsync();
+            return Results.Ok(new { Registered = true });
+        })
+        .RequireAuthorization();
+
+        group.MapPost("/notifications/devices/unregister", async (UnregisterPushDeviceRequest request, ClaimsPrincipal user, CommunicationsDbContext db) =>
+        {
+            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdStr)) return Results.Unauthorized();
+            if (string.IsNullOrWhiteSpace(request.ExpoPushToken)) return Results.BadRequest(new { Error = "ExpoPushToken é obrigatório." });
+
+            var userId = Guid.Parse(userIdStr);
+            var token = request.ExpoPushToken.Trim();
+            var devices = await db.PushDevices
+                .Where(device => device.UserId == userId && device.ExpoPushToken == token && device.IsActive)
+                .ToListAsync();
+
+            foreach (var device in devices)
+            {
+                device.IsActive = false;
+                device.LastSeenAt = DateTime.UtcNow;
+            }
+
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        })
+        .RequireAuthorization();
     }
 
     private static bool IsApplicationChatParticipant((Guid TenantId, Guid LandlordId, Guid? CoTenantUserId) participants, Guid userId)
         => participants.TenantId == userId
            || participants.LandlordId == userId
            || participants.CoTenantUserId == userId;
+
+    private sealed record RegisterPushDeviceRequest(
+        string ExpoPushToken,
+        string Platform,
+        string? DeviceName,
+        string? AppVersion);
+
+    private sealed record UnregisterPushDeviceRequest(string ExpoPushToken);
 }

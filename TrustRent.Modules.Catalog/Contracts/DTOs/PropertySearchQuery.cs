@@ -20,9 +20,28 @@ public class PropertySearchQuery
     // Contrato
     public bool? HasOfficialContract { get; set; }
 
-    // Paginação para o Scroll Infinito
-    public int Page { get; set; } = 1;
-    public int PageSize { get; set; } = 9; // 9 fica bem numa grelha de 3 colunas
+    // Paginação para o Scroll Infinito. Nullable para o binder não falhar quando
+    // o cliente omite a paginação; os defaults continuam a ser aplicados no backend.
+    public int? Page { get; set; }
+    public int? PageSize { get; set; }
+
+    public int EffectivePage
+    {
+        get
+        {
+            var page = Page.GetValueOrDefault(1);
+            return page < 1 ? 1 : page;
+        }
+    }
+
+    public int EffectivePageSize
+    {
+        get
+        {
+            var pageSize = PageSize.GetValueOrDefault(9);
+            return pageSize < 1 ? 9 : pageSize;
+        }
+    }
 }
 
 // Resposta genérica paginada

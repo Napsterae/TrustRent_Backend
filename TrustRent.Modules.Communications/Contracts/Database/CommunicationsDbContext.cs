@@ -9,6 +9,7 @@ public class CommunicationsDbContext : DbContext
 
     public DbSet<Message> Messages { get; set; }
     public DbSet<Notification> Notifications { get; set; }
+    public DbSet<PushDevice> PushDevices { get; set; }
     public DbSet<Broadcast> Broadcasts => Set<Broadcast>();
     public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
     public DbSet<Banner> Banners => Set<Banner>();
@@ -28,6 +29,14 @@ public class CommunicationsDbContext : DbContext
             builder.HasKey(n => n.Id);
             builder.HasIndex(n => n.UserId);
             builder.HasIndex(n => new { n.UserId, n.IsRead });
+        });
+
+        modelBuilder.Entity<PushDevice>(builder =>
+        {
+            builder.HasKey(d => d.Id);
+            builder.HasIndex(d => d.UserId);
+            builder.HasIndex(d => d.ExpoPushToken).IsUnique();
+            builder.HasIndex(d => new { d.UserId, d.IsActive });
         });
 
         modelBuilder.Entity<Broadcast>(b =>

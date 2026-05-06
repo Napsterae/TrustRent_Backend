@@ -49,6 +49,9 @@ public class PropertyRepository : IPropertyRepository
 
     public async Task<(IEnumerable<Property> Items, int TotalCount)> SearchAsync(PropertySearchQuery query)
     {
+        var page = query.EffectivePage;
+        var pageSize = query.EffectivePageSize;
+
         // Apenas listamos imóveis públicos que continuam disponíveis para arrendamento.
         var q = _context.Properties
             .Include(p => p.Images)
@@ -94,8 +97,8 @@ public class PropertyRepository : IPropertyRepository
 
         // Aplica a Paginação
         var items = await q.OrderByDescending(p => p.CreatedAt)
-                           .Skip((query.Page - 1) * query.PageSize)
-                           .Take(query.PageSize)
+                           .Skip((page - 1) * pageSize)
+                           .Take(pageSize)
                            .ToListAsync();
 
         return (items, totalCount);

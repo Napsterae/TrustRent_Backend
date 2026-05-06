@@ -315,8 +315,8 @@ public class PropertyService : IPropertyService
         {
             Items = items.Select(p => p.ToSearchDto()),
             TotalCount = totalCount,
-            Page = query.Page,
-            PageSize = query.PageSize
+            Page = query.EffectivePage,
+            PageSize = query.EffectivePageSize
         };
     }
 

@@ -38,5 +38,6 @@ public record PaymentClientSecretDto(
     string ClientSecret,
     Guid PaymentId,
     decimal Amount,
-    string Currency
+    string Currency,
+    string? Status = null
 );

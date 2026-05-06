@@ -68,7 +68,12 @@ public static class PropertyEndpoints
                     //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
 
                     // Documentos extraídos via IA
+                    MatrixArticle = form["matrixArticle"].ToString(),
+                    PropertyFraction = form["propertyFraction"].ToString(),
                     ParishConcelho = form["parishConcelho"].ToString(),
+                    EnergyClass = form["energyClass"].ToString(),
+                    EnergyCertificateNumber = form["energyCertificateNumber"].ToString(),
+                    AtRegistrationNumber = form["atRegistrationNumber"].ToString(),
                     PermanentCertNumber = form["permanentCertNumber"].ToString(),
                     PermanentCertOffice = form["permanentCertOffice"].ToString(),
                     UsageLicenseNumber = form["licenseNumber"].ToString(),
@@ -320,7 +325,12 @@ public static class PropertyEndpoints
                     //IsUnderMaintenance = form["isUnderMaintenance"] == "true",
 
                     // Documentos extraídos via IA
+                    MatrixArticle = form["matrixArticle"].ToString(),
+                    PropertyFraction = form["propertyFraction"].ToString(),
                     ParishConcelho = form["parishConcelho"].ToString(),
+                    EnergyClass = form["energyClass"].ToString(),
+                    EnergyCertificateNumber = form["energyCertificateNumber"].ToString(),
+                    AtRegistrationNumber = form["atRegistrationNumber"].ToString(),
                     PermanentCertNumber = form["permanentCertNumber"].ToString(),
                     PermanentCertOffice = form["permanentCertOffice"].ToString(),
                     UsageLicenseNumber = form["licenseNumber"].ToString(),

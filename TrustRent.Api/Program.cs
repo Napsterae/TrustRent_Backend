@@ -111,6 +111,10 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddHttpClient<IGeminiDocumentService, GeminiDocumentService>();
+builder.Services.AddHttpClient<TrustRent.Modules.Communications.Services.IExpoPushService, TrustRent.Modules.Communications.Services.ExpoPushService>(client =>
+{
+    client.BaseAddress = new Uri("https://exp.host/--/api/v2/");
+});
 builder.Services.AddScoped<IImageService, CloudinaryImageService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, TrustRent.Modules.Communications.Services.NotificationService>();
@@ -218,29 +222,61 @@ builder.Services.ConfigureHttpJsonOptions(options => {
 });
 
 builder.Services.AddCors(options =>{
-    // Origens permitidas via configuração (CorsSettings:AllowedOrigins) com fallback para dev local.
-    var configuredOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>();
-    var allowedOrigins = (configuredOrigins is { Length: > 0 })
-        ? configuredOrigins
-        : new[] { "http://localhost:5173" };
+    static string NormalizeOrigin(string origin) => origin.Trim().TrimEnd('/');
 
-    options.AddPolicy("AllowViteFrontend", policy =>
+    static bool IsTrustedLocalDevOrigin(string origin)
     {
-        policy.WithOrigins(allowedOrigins)
-              .AllowAnyHeader()
+        if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)) return false;
+        if (!uri.IsLoopback) return false;
+
+        var isHttp = string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+
+        return isHttp && uri.Port is >= 5173 and <= 5199;
+    }
+
+    static void ApplyOriginsPolicy(Microsoft.AspNetCore.Cors.Infrastructure.CorsPolicyBuilder policy, IEnumerable<string>? configuredOrigins, bool allowLocalDevOrigins)
+    {
+        var normalizedOrigins = (configuredOrigins ?? Array.Empty<string>())
+            .Where(origin => !string.IsNullOrWhiteSpace(origin))
+            .Select(NormalizeOrigin)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (allowLocalDevOrigins)
+        {
+            policy.SetIsOriginAllowed(origin =>
+                normalizedOrigins.Contains(NormalizeOrigin(origin), StringComparer.OrdinalIgnoreCase)
+                || IsTrustedLocalDevOrigin(origin));
+        }
+        else if (normalizedOrigins.Length > 0)
+        {
+            policy.WithOrigins(normalizedOrigins);
+        }
+        else
+        {
+            policy.WithOrigins("http://localhost:5173");
+        }
+
+        policy.AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
+    }
+
+    // Origens permitidas via configuração (CorsSettings:AllowedOrigins). Em desenvolvimento,
+    // também aceitamos Vite em localhost/127.0.0.1 com portas variáveis para não quebrar
+    // quando o frontend e o backoffice sobem em ordem diferente.
+    var configuredOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>();
+    options.AddPolicy("AllowViteFrontend", policy =>
+    {
+        ApplyOriginsPolicy(policy, configuredOrigins, builder.Environment.IsDevelopment());
     });
 
     // Backoffice admin SPA (separate origin, separate cookie domain).
-    var adminOrigins = builder.Configuration.GetSection("AdminCors:AllowedOrigins").Get<string[]>()
-        ?? new[] { "http://localhost:5174" };
+    var adminOrigins = builder.Configuration.GetSection("AdminCors:AllowedOrigins").Get<string[]>();
     options.AddPolicy("AllowBackoffice", policy =>
     {
-        policy.WithOrigins(adminOrigins)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        ApplyOriginsPolicy(policy, adminOrigins, builder.Environment.IsDevelopment());
     });
 });
 

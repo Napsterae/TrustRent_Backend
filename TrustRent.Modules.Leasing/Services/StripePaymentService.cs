@@ -204,15 +204,23 @@ public class StripePaymentService : IStripePaymentService
             .FirstOrDefaultAsync(p => p.LeaseId == leaseId && p.Type == PaymentType.InitialPayment
                 && (p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.Processing || p.Status == PaymentStatus.Succeeded));
 
+        var piService = new PaymentIntentService();
+
         if (existingPayment != null)
         {
             if (existingPayment.Status == PaymentStatus.Succeeded)
                 throw new InvalidOperationException("Pagamento inicial já foi efetuado.");
 
-            // Retornar o client secret existente
-            var piService = new PaymentIntentService();
             var existingPi = await piService.GetAsync(existingPayment.StripePaymentIntentId);
-            return new PaymentClientSecretDto(existingPi.ClientSecret, existingPayment.Id, existingPayment.Amount, existingPayment.Currency);
+            existingPi = await ConfirmPaymentIntentIfNeededAsync(piService, existingPi, paymentMethodId);
+
+            return new PaymentClientSecretDto(
+                existingPi.ClientSecret,
+                existingPayment.Id,
+                existingPayment.Amount,
+                existingPayment.Currency,
+                existingPi.Status
+            );
         }
 
         var breakdown = CalculateBreakdown(lease.MonthlyRent, lease.AdvanceRentMonths, lease.Deposit ?? 0);
@@ -259,10 +267,10 @@ public class StripePaymentService : IStripePaymentService
         if (!string.IsNullOrEmpty(paymentMethodId))
         {
             piOptions.PaymentMethod = paymentMethodId;
+            piOptions.Confirm = true;
         }
 
-        var piServiceCreate = new PaymentIntentService();
-        var paymentIntent = await piServiceCreate.CreateAsync(piOptions);
+        var paymentIntent = await piService.CreateAsync(piOptions);
 
         var payment = new Models.Payment
         {
@@ -291,7 +299,13 @@ public class StripePaymentService : IStripePaymentService
             "PaymentIntent {PaymentIntentId} criado para lease {LeaseId}: {Amount}€",
             paymentIntent.Id, leaseId, breakdown.Total);
 
-        return new PaymentClientSecretDto(paymentIntent.ClientSecret, payment.Id, payment.Amount, payment.Currency);
+        return new PaymentClientSecretDto(
+            paymentIntent.ClientSecret,
+            payment.Id,
+            payment.Amount,
+            payment.Currency,
+            paymentIntent.Status
+        );
     }
 
     public async Task<PaymentDto?> GetPaymentByIdAsync(Guid paymentId, Guid userId)
@@ -442,6 +456,24 @@ public class StripePaymentService : IStripePaymentService
     #endregion
 
     #region Private Helpers
+
+    private static async Task<PaymentIntent> ConfirmPaymentIntentIfNeededAsync(
+        PaymentIntentService piService,
+        PaymentIntent paymentIntent,
+        string? paymentMethodId)
+    {
+        if (string.IsNullOrWhiteSpace(paymentMethodId))
+            return paymentIntent;
+
+        var confirmableStatuses = new[] { "requires_payment_method", "requires_confirmation" };
+        if (!confirmableStatuses.Contains(paymentIntent.Status))
+            return paymentIntent;
+
+        return await piService.ConfirmAsync(paymentIntent.Id, new PaymentIntentConfirmOptions
+        {
+            PaymentMethod = paymentMethodId
+        });
+    }
 
     private PaymentBreakdownDto CalculateBreakdown(decimal monthlyRent, int advanceRentMonths, decimal deposit)
     {

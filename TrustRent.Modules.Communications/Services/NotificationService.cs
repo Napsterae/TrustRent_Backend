@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TrustRent.Modules.Communications.Contracts.Database;
 using TrustRent.Modules.Communications.Hubs;
 using TrustRent.Modules.Communications.Models;
@@ -10,11 +12,19 @@ public class NotificationService : INotificationService
 {
     private readonly CommunicationsDbContext _context;
     private readonly IHubContext<NotificationHub> _hubContext;
+    private readonly IExpoPushService _expoPushService;
+    private readonly ILogger<NotificationService> _logger;
 
-    public NotificationService(CommunicationsDbContext context, IHubContext<NotificationHub> hubContext)
+    public NotificationService(
+        CommunicationsDbContext context,
+        IHubContext<NotificationHub> hubContext,
+        IExpoPushService expoPushService,
+        ILogger<NotificationService> logger)
     {
         _context = context;
         _hubContext = hubContext;
+        _expoPushService = expoPushService;
+        _logger = logger;
     }
 
     public async Task SendNotificationAsync(Guid userId, string type, string message, Guid? referenceId = null)
@@ -44,6 +54,43 @@ public class NotificationService : INotificationService
             notification.IsRead,
             notification.CreatedAt
         });
+
+        var pushDevices = await _context.PushDevices
+            .Where(device => device.UserId == userId && device.IsActive)
+            .ToListAsync();
+
+        if (pushDevices.Count == 0)
+            return;
+
+        try
+        {
+            var invalidTokens = await _expoPushService.SendNotificationAsync(
+                pushDevices.Select(device => device.ExpoPushToken),
+                "TrustRent",
+                notification.Message,
+                new
+                {
+                    notificationId = notification.Id,
+                    notification.Type,
+                    notification.ReferenceId,
+                    notification.CreatedAt
+                });
+
+            if (invalidTokens.Count == 0)
+                return;
+
+            foreach (var device in pushDevices.Where(device => invalidTokens.Contains(device.ExpoPushToken)))
+            {
+                device.IsActive = false;
+                device.LastSeenAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Falha ao enviar push background para o utilizador {UserId}", userId);
+        }
     }
 
     // Métodos de conveniência para o futuro módulo de tickets ou outros eventos
