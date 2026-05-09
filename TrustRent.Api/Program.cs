@@ -36,6 +36,12 @@ using TrustRent.Modules.Admin.Seeds;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var railwayPort = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(railwayPort))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{railwayPort}");
+}
+
 // Per-endpoint request body size limits — configurable via appsettings.json
 builder.Services.Configure<RequestBodySizeOptions>(builder.Configuration.GetSection("RequestBodySize"));
 
@@ -400,6 +406,7 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
+var migrateOnly = Array.Exists(args, arg => string.Equals(arg, "--migrate-only", StringComparison.OrdinalIgnoreCase));
 
 // Initialize encryption keys from configuration
 EncryptionHelper.Initialize(builder.Configuration);
@@ -575,38 +582,11 @@ app.MapAdminJobsEndpoints();
 app.MapHub<ApplicationChatHub>("/api/chathub");
 app.MapHub<NotificationHub>("/api/notificationhub");
 
-// Reference data seeders — correm em TODOS os ambientes (produzem/actualizam tabelas lookup
-// sem nunca apagar ou sobrescrever registos existentes, para preservar edições de back-office)
-using (var refScope = app.Services.CreateScope())
-{
-    var catalogDbForRef = refScope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-    var identityDbForRef = refScope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-    await TrustRent.Modules.Catalog.Seeds.ReferenceDataSeeder.SeedAsync(catalogDbForRef);
-    await TrustRent.Modules.Identity.Seeds.IdentityReferenceDataSeeder.SeedAsync(identityDbForRef);
-}
+await InitializeDatabasesAsync(app);
 
-// Admin module — apply migrations + seed permissions catalog + bootstrap super-admin (if absent).
-using (var adminScope = app.Services.CreateScope())
+if (migrateOnly)
 {
-    var adminDb = adminScope.ServiceProvider.GetRequiredService<AdminDbContext>();
-    await adminDb.Database.MigrateAsync();
-    await AdminPermissionsSeeder.SeedAsync(adminDb);
-    var adminLogger = adminScope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>().CreateLogger("AdminBootstrap");
-    await AdminBootstrapSeeder.SeedAsync(adminDb, app.Configuration, app.Environment, adminLogger);
-}
-
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-    var identityDb = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-    var catalogDb = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-    var communicationsDb = scope.ServiceProvider.GetRequiredService<CommunicationsDbContext>();
-    var leasingDb = scope.ServiceProvider.GetRequiredService<LeasingDbContext>();
-
-    await IdentitySeeder.SeedAsync(identityDb);
-    await CatalogSeeder.SeedAsync(catalogDb);
-    await LeasingSeeder.SeedAsync(leasingDb);
-    await CommunicationsSeeder.SeedAsync(communicationsDb);
+    return;
 }
 
 // Register Hangfire recurring jobs
@@ -616,3 +596,43 @@ RecurringJob.AddOrUpdate<TrustRent.Modules.Leasing.Jobs.IDailyMaintenanceJob>(
     Cron.Daily(2, 0));
 
 app.Run();
+
+static async Task InitializeDatabasesAsync(WebApplication app)
+{
+    await using var scope = app.Services.CreateAsyncScope();
+
+    var identityDb = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+    var catalogDb = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+    var communicationsDb = scope.ServiceProvider.GetRequiredService<CommunicationsDbContext>();
+    var leasingDb = scope.ServiceProvider.GetRequiredService<LeasingDbContext>();
+    var adminDb = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
+    var adminLogger = scope.ServiceProvider
+        .GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()
+        .CreateLogger("AdminBootstrap");
+
+    // Railway runs the compiled app in pre-deploy; applying migrations here avoids depending on dotnet-ef in the runtime image.
+    await identityDb.Database.MigrateAsync();
+    await catalogDb.Database.MigrateAsync();
+    await communicationsDb.Database.MigrateAsync();
+    await leasingDb.Database.MigrateAsync();
+    await adminDb.Database.MigrateAsync();
+
+    // Reference and admin seeders are non-destructive and should exist in every environment.
+    await ReferenceDataSeeder.SeedAsync(catalogDb);
+    await IdentityReferenceDataSeeder.SeedAsync(identityDb);
+    await AdminPermissionsSeeder.SeedAsync(adminDb);
+    await AdminBootstrapSeeder.SeedAsync(adminDb, app.Configuration, app.Environment, adminLogger);
+
+    var runDemoSeeders = app.Environment.IsDevelopment()
+        || app.Configuration.GetValue<bool>("SeedSettings:RunDemoData");
+
+    if (!runDemoSeeders)
+    {
+        return;
+    }
+
+    await IdentitySeeder.SeedAsync(identityDb);
+    await CatalogSeeder.SeedAsync(catalogDb);
+    await LeasingSeeder.SeedAsync(leasingDb);
+    await CommunicationsSeeder.SeedAsync(communicationsDb);
+}

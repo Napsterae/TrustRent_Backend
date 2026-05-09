@@ -51,7 +51,34 @@ public static class AdminUsersPublicEndpoints
 
         g.MapGet("/{id:guid}", async (Guid id, IdentityDbContext db) =>
         {
-            var u = await db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+            var u = await db.Users.AsNoTracking()
+                .Where(x => x.Id == id)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.Name,
+                    x.Email,
+                    x.Nif,
+                    x.Address,
+                    x.PostalCode,
+                    x.PhoneCountryCode,
+                    x.PhoneNumber,
+                    x.ProfilePictureUrl,
+                    x.IsIdentityVerified,
+                    x.IdentityExpiryDate,
+                    x.IsNoDebtVerified,
+                    x.NoDebtExpiryDate,
+                    x.IsAddressVerified,
+                    x.AddressVerifiedAt,
+                    x.TrustScore,
+                    x.CreatedAt,
+                    x.StripeCustomerId,
+                    x.IsSuspended,
+                    x.SuspendedAt,
+                    x.SuspendedReason,
+                    x.AnonymizedAt
+                })
+                .FirstOrDefaultAsync();
             return u is null ? Results.NotFound() : Results.Ok(u);
         }).RequireAuthorization(AdminAuthorizationExtensions.PolicyName(PermissionCodes.UsersRead));
 

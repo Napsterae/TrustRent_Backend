@@ -17,6 +17,12 @@ public static class StripeEndpoints
 
         #region Connect (Proprietários)
 
+        // GET /api/stripe/connect/return — Ponte web para regressar à app móvel
+        connect.MapGet("/return", () => BuildMobileStripeBridgeResult("return"));
+
+        // GET /api/stripe/connect/refresh — Ponte web para regressar à app e reabrir o fluxo
+        connect.MapGet("/refresh", () => BuildMobileStripeBridgeResult("refresh"));
+
         // POST /api/stripe/connect/create — Criar conta Express
         connect.MapPost("/create",
             async ([FromBody] CreateConnectAccountDto dto,
@@ -32,6 +38,7 @@ public static class StripeEndpoints
                     return Results.Ok(result);
                 }
                 catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
+                catch (StripeException e) { return Results.BadRequest(e.StripeError?.Message ?? e.Message); }
             }).RequireAuthorization();
 
         // POST /api/stripe/connect/onboarding-link — Gerar link de onboarding
@@ -49,6 +56,7 @@ public static class StripeEndpoints
                     return Results.Ok(result);
                 }
                 catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
+                catch (StripeException e) { return Results.BadRequest(e.StripeError?.Message ?? e.Message); }
             }).RequireAuthorization();
 
         // GET /api/stripe/connect/status — Estado da(s) conta(s) do proprietário
@@ -107,6 +115,7 @@ public static class StripeEndpoints
                     return Results.Ok(updated);
                 }
                 catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
+                catch (StripeException e) { return Results.BadRequest(e.StripeError?.Message ?? e.Message); }
             }).RequireAuthorization();
 
         #endregion
@@ -299,6 +308,83 @@ public static class StripeEndpoints
         var claim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return claim != null && Guid.TryParse(claim, out userId);
     }
+
+        private static IResult BuildMobileStripeBridgeResult(string state)
+        {
+                var deepLink = state == "refresh"
+                        ? "trustrent://stripe?connect=refresh"
+                        : "trustrent://stripe?connect=return";
+
+                var title = state == "refresh"
+                        ? "Regressar a app para continuar"
+                        : "Regressar a app TrustRent";
+
+                var body = state == "refresh"
+                        ? "O link Stripe expirou ou precisa de ser renovado. Volta a app para reabrir o onboarding."
+                        : "O browser esta pronto para te devolver a app TrustRent. Se nao abrir automaticamente, usa o botao abaixo.";
+
+                var html = $$"""
+<!doctype html>
+<html lang="pt-PT">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TrustRent Stripe</title>
+    <meta http-equiv="refresh" content="0;url={{deepLink}}">
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 24px;
+        }
+        main {
+            max-width: 420px;
+            background: #ffffff;
+            border: 1px solid #dbe4ee;
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+        }
+        h1 {
+            margin: 0 0 12px;
+            font-size: 24px;
+        }
+        p {
+            margin: 0 0 18px;
+            line-height: 1.6;
+        }
+        a {
+            display: inline-block;
+            background: #1d4ed8;
+            color: #ffffff;
+            text-decoration: none;
+            font-weight: 700;
+            padding: 12px 18px;
+            border-radius: 12px;
+        }
+    </style>
+    <script>
+        window.location.replace('{{deepLink}}');
+    </script>
+</head>
+<body>
+    <main>
+        <h1>{{title}}</h1>
+        <p>{{body}}</p>
+        <a href="{{deepLink}}">Abrir TrustRent</a>
+    </main>
+</body>
+</html>
+""";
+
+                return Results.Content(html, "text/html; charset=utf-8");
+        }
 }
 
 // Request DTOs para os endpoints

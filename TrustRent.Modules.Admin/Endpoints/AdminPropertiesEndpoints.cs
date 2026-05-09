@@ -55,8 +55,54 @@ public static class AdminPropertiesEndpoints
 
         g.MapGet("/{id:guid}", async (Guid id, CatalogDbContext db) =>
         {
-            var p = await db.Properties.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
-            return p is null ? Results.NotFound() : Results.Ok(p);
+            var p = await db.Properties
+                .AsNoTracking()
+                .Where(x => x.Id == id)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.LandlordId,
+                    x.Title,
+                    x.Price,
+                    x.PropertyType,
+                    x.Typology,
+                    x.Area,
+                    x.Rooms,
+                    x.Bathrooms,
+                    x.District,
+                    x.Municipality,
+                    x.Parish,
+                    x.DoorNumber,
+                    x.Street,
+                    x.PostalCode,
+                    x.IsPublic,
+                    x.IsUnderMaintenance,
+                    x.CreatedAt,
+                    x.ModerationStatus,
+                    x.IsBlocked,
+                    x.IsFeatured,
+                    x.Deposit,
+                    x.HasOfficialContract,
+                    Amenities = x.Amenities
+                        .Select(a => new
+                        {
+                            a.PropertyId,
+                            a.AmenityId,
+                            Amenity = new
+                            {
+                                a.Amenity.Id,
+                                a.Amenity.Name,
+                                a.Amenity.IconName,
+                                a.Amenity.Category,
+                            },
+                        })
+                        .ToList(),
+                })
+                .FirstOrDefaultAsync();
+
+            return p is null
+                ? Results.NotFound(new { error = "Imóvel não encontrado." })
+                : Results.Ok(p);
         }).RequireAuthorization(AdminAuthorizationExtensions.PolicyName(PermissionCodes.PropertiesRead));
 
         g.MapPost("/{id:guid}/moderate", async (Guid id, [FromBody] ModerateRequest req, CatalogDbContext db, IAuditLogService audit, IPermissionService permissions, HttpContext ctx) =>
