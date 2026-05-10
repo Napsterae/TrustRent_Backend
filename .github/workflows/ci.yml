@@ -1,0 +1,31 @@
+name: backend-ci
+
+on:
+  push:
+    branches:
+      - staging
+  pull_request:
+    branches:
+      - staging
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore TrustRent.Api/TrustRent.Api.csproj
+
+      - name: Compile
+        run: dotnet msbuild TrustRent.Api/TrustRent.Api.csproj /t:Compile /p:Configuration=Debug
+
+      - name: Publish
+        run: dotnet publish TrustRent.Api/TrustRent.Api.csproj -c Release -o ./tmp-publish /p:UseAppHost=false

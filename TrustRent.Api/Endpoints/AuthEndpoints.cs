@@ -39,15 +39,9 @@ public static class AuthEndpoints
             }
         }).RequireRateLimiting("auth");
 
-        group.MapPost("/logout", (HttpContext ctx) =>
+        group.MapPost("/logout", (HttpContext ctx, IConfiguration cfg) =>
         {
-            ctx.Response.Cookies.Delete(AuthCookieName, new CookieOptions
-            {
-                Path = "/",
-                Secure = ctx.Request.IsHttps,
-                SameSite = SameSiteMode.Lax,
-                HttpOnly = true
-            });
+            ctx.Response.Cookies.Delete(AuthCookieName, BuildAuthCookieOptions(ctx, null, cfg));
             return Results.Ok(new { Message = "Sessao terminada." });
         });
     }
@@ -56,15 +50,32 @@ public static class AuthEndpoints
     {
         var days = int.TryParse(cfg["JwtSettings:ExpiryDays"], out var d) ? d : 7;
 
-        ctx.Response.Cookies.Append(AuthCookieName, token, new CookieOptions
+        ctx.Response.Cookies.Append(AuthCookieName, token, BuildAuthCookieOptions(ctx, DateTimeOffset.UtcNow.AddDays(days), cfg));
+    }
+
+    private static CookieOptions BuildAuthCookieOptions(HttpContext ctx, DateTimeOffset? expiresAt, IConfiguration cfg)
+    {
+        var sameSite = ParseSameSite(cfg["AuthCookieSettings:SameSite"], SameSiteMode.Lax);
+        var domain = cfg["AuthCookieSettings:Domain"];
+        var forceSecure = cfg.GetValue<bool>("AuthCookieSettings:ForceSecure");
+
+        return new CookieOptions
         {
             HttpOnly = true,
-            Secure = ctx.Request.IsHttps,
-            SameSite = SameSiteMode.Lax,
+            Secure = forceSecure || sameSite == SameSiteMode.None || ctx.Request.IsHttps,
+            SameSite = sameSite,
             Path = "/",
-            Expires = DateTimeOffset.UtcNow.AddDays(days),
-            IsEssential = true
-        });
+            Expires = expiresAt,
+            IsEssential = true,
+            Domain = string.IsNullOrWhiteSpace(domain) ? null : domain
+        };
+    }
+
+    private static SameSiteMode ParseSameSite(string? rawValue, SameSiteMode fallback)
+    {
+        return Enum.TryParse<SameSiteMode>(rawValue, ignoreCase: true, out var sameSite)
+            ? sameSite
+            : fallback;
     }
 }
 

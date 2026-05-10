@@ -51,17 +51,11 @@ public static class AdminAuthEndpoints
             }
         }).RequireRateLimiting("admin-auth");
 
-        group.MapPost("/logout", async (HttpContext ctx, IAdminAuthService auth) =>
+        group.MapPost("/logout", async (HttpContext ctx, IAdminAuthService auth, IConfiguration cfg) =>
         {
             var jti = ctx.User?.FindFirst("jti")?.Value;
             if (!string.IsNullOrEmpty(jti)) await auth.LogoutAsync(jti);
-            ctx.Response.Cookies.Delete(AdminModuleExtensions.AdminCookieName, new CookieOptions
-            {
-                Path = "/",
-                Secure = ctx.Request.IsHttps,
-                SameSite = SameSiteMode.Strict,
-                HttpOnly = true
-            });
+            ctx.Response.Cookies.Delete(AdminModuleExtensions.AdminCookieName, BuildAdminCookieOptions(ctx, null, cfg));
             return Results.Ok(new { message = "Sessão administrativa terminada." });
         }).RequireAuthorization(AdminModuleExtensions.AdminPolicy);
 
@@ -165,16 +159,31 @@ public static class AdminAuthEndpoints
 
     private static void AppendAdminCookie(HttpContext ctx, string token, DateTime expiresAt, IConfiguration cfg)
     {
+        ctx.Response.Cookies.Append(AdminModuleExtensions.AdminCookieName, token, BuildAdminCookieOptions(ctx, expiresAt, cfg));
+    }
+
+    private static CookieOptions BuildAdminCookieOptions(HttpContext ctx, DateTimeOffset? expiresAt, IConfiguration cfg)
+    {
+        var sameSite = ParseSameSite(cfg["AdminCookieSettings:SameSite"], SameSiteMode.Strict);
         var domain = cfg["AdminCookieSettings:Domain"];
-        ctx.Response.Cookies.Append(AdminModuleExtensions.AdminCookieName, token, new CookieOptions
+        var forceSecure = cfg.GetValue<bool>("AdminCookieSettings:ForceSecure");
+
+        return new CookieOptions
         {
             HttpOnly = true,
-            Secure = ctx.Request.IsHttps,
-            SameSite = SameSiteMode.Strict,
+            Secure = forceSecure || sameSite == SameSiteMode.None || ctx.Request.IsHttps,
+            SameSite = sameSite,
             Path = "/",
             Expires = expiresAt,
             IsEssential = true,
             Domain = string.IsNullOrWhiteSpace(domain) ? null : domain
-        });
+        };
+    }
+
+    private static SameSiteMode ParseSameSite(string? rawValue, SameSiteMode fallback)
+    {
+        return Enum.TryParse<SameSiteMode>(rawValue, ignoreCase: true, out var sameSite)
+            ? sameSite
+            : fallback;
     }
 }

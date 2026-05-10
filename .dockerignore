@@ -3,6 +3,8 @@
 .vs
 .idea
 
+TrustRent.Api/appsettings.Development.json
+
 **/bin
 **/obj
 **/node_modules

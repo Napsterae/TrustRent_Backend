@@ -3,8 +3,10 @@ using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Diagnostics;
 using System.Text;
 using TrustRent.Api.Endpoints;
 using TrustRent.Modules.Catalog.Contracts.Database;
@@ -41,6 +43,13 @@ if (!string.IsNullOrWhiteSpace(railwayPort))
 {
     builder.WebHost.UseUrls($"http://0.0.0.0:{railwayPort}");
 }
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 // Per-endpoint request body size limits — configurable via appsettings.json
 builder.Services.Configure<RequestBodySizeOptions>(builder.Configuration.GetSection("RequestBodySize"));
@@ -407,6 +416,7 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 var migrateOnly = Array.Exists(args, arg => string.Equals(arg, "--migrate-only", StringComparison.OrdinalIgnoreCase));
+var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
 
 // Initialize encryption keys from configuration
 EncryptionHelper.Initialize(builder.Configuration);
@@ -415,17 +425,53 @@ EncryptionHelper.Initialize(builder.Configuration);
 // Without this, QuestPDF calls Environment.Exit(1) and kills the process silently.
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
+startupLogger.LogInformation(
+    "Starting TrustRent API in {Environment}. MigrateOnly={MigrateOnly}. RailwayPort={RailwayPort}. StoragePath={StoragePath}",
+    app.Environment.EnvironmentName,
+    migrateOnly,
+    railwayPort ?? "not-set",
+    app.Configuration["Storage:ContractPath"] ?? "./storage/leases");
+
+app.UseForwardedHeaders();
+
+const string requestIdHeaderName = "X-Request-Id";
+
+app.Use(async (context, next) =>
+{
+    var upstreamRequestId = context.Request.Headers[requestIdHeaderName].ToString().Trim();
+    if (!string.IsNullOrWhiteSpace(upstreamRequestId))
+    {
+        context.TraceIdentifier = upstreamRequestId;
+    }
+
+    context.Response.Headers[requestIdHeaderName] = context.TraceIdentifier;
+    await next();
+});
+
 // Global exception handler — prevents leaking internal details to clients
 app.UseExceptionHandler(errorApp =>
 {
     errorApp.Run(async context =>
     {
+        var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+        var userId = context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? context.User?.FindFirst("sub")?.Value
+            ?? "anonymous";
+
+        startupLogger.LogError(
+            exception,
+            "Unhandled exception for {Method} {Path} (RequestId={RequestId}, UserId={UserId})",
+            context.Request.Method,
+            context.Request.Path,
+            context.TraceIdentifier,
+            userId);
+
         context.Response.StatusCode = 500;
         context.Response.ContentType = "application/json";
         
         var response = app.Environment.IsDevelopment()
-            ? new { Error = "Ocorreu um erro interno no servidor.", Detail = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error?.Message }
-            : new { Error = "Ocorreu um erro interno no servidor.", Detail = (string?)null };
+            ? new { Error = "Ocorreu um erro interno no servidor.", Code = "internal_error", RequestId = context.TraceIdentifier, Detail = exception?.Message }
+            : new { Error = "Ocorreu um erro interno no servidor.", Code = "internal_error", RequestId = context.TraceIdentifier, Detail = (string?)null };
         
         await context.Response.WriteAsJsonAsync(response);
     });
@@ -477,6 +523,48 @@ app.Use(async (context, next) =>
     await next();
 });
 
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path;
+    if (!path.StartsWithSegments("/api") || path.StartsWithSegments("/health"))
+    {
+        await next();
+        return;
+    }
+
+    var stopwatch = Stopwatch.StartNew();
+    context.Response.OnCompleted(() =>
+    {
+        stopwatch.Stop();
+
+        var statusCode = context.Response.StatusCode;
+        if (statusCode >= StatusCodes.Status500InternalServerError)
+        {
+            startupLogger.LogError(
+                "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMs}ms (RequestId={RequestId})",
+                context.Request.Method,
+                path,
+                statusCode,
+                stopwatch.ElapsedMilliseconds,
+                context.TraceIdentifier);
+        }
+        else if (statusCode >= StatusCodes.Status400BadRequest || stopwatch.ElapsedMilliseconds >= 1500)
+        {
+            startupLogger.LogWarning(
+                "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMs}ms (RequestId={RequestId})",
+                context.Request.Method,
+                path,
+                statusCode,
+                stopwatch.ElapsedMilliseconds,
+                context.TraceIdentifier);
+        }
+
+        return Task.CompletedTask;
+    });
+
+    await next();
+});
+
 app.UseStaticFiles();
 // Apply mutually exclusive CORS policies so admin preflight requests do not get
 // short-circuited by the public frontend policy first.
@@ -509,7 +597,7 @@ app.Use(async (context, next) =>
         if (string.IsNullOrWhiteSpace(expected) || !string.Equals(expected, provided, StringComparison.Ordinal))
         {
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await context.Response.WriteAsJsonAsync(new { error = "Token CSRF inválido." });
+            await context.Response.WriteAsJsonAsync(new { error = "Token CSRF inválido.", code = "invalid_csrf", requestId = context.TraceIdentifier });
             return;
         }
     }
@@ -541,7 +629,7 @@ app.Use(async (context, next) =>
                 if (admin?.IsSuperAdmin == true && !admin.MfaEnabled)
                 {
                     context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    await context.Response.WriteAsJsonAsync(new { error = "MFA obrigatório para super-admin.", mfaSetupRequired = true });
+                    await context.Response.WriteAsJsonAsync(new { error = "MFA obrigatório para super-admin.", code = "mfa_required", requestId = context.TraceIdentifier, mfaSetupRequired = true });
                     return;
                 }
             }
@@ -551,6 +639,7 @@ app.Use(async (context, next) =>
     await next();
 });
 app.UseAuthorization();
+app.MapInfrastructureEndpoints();
 app.MapAuthEndpoints();
 app.MapAuthUserEndpoints();
 app.MapPropertyEndpoints();
@@ -582,10 +671,13 @@ app.MapAdminJobsEndpoints();
 app.MapHub<ApplicationChatHub>("/api/chathub");
 app.MapHub<NotificationHub>("/api/notificationhub");
 
+startupLogger.LogInformation("Starting database initialization phase.");
 await InitializeDatabasesAsync(app);
+startupLogger.LogInformation("Database initialization phase completed successfully.");
 
 if (migrateOnly)
 {
+    startupLogger.LogInformation("Migrate-only run finished. Exiting without starting HTTP server.");
     return;
 }
 
@@ -609,6 +701,11 @@ static async Task InitializeDatabasesAsync(WebApplication app)
     var adminLogger = scope.ServiceProvider
         .GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()
         .CreateLogger("AdminBootstrap");
+    var initLogger = scope.ServiceProvider
+        .GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()
+        .CreateLogger("DatabaseInitialization");
+
+    initLogger.LogInformation("Applying EF Core migrations for application contexts.");
 
     // Railway runs the compiled app in pre-deploy; applying migrations here avoids depending on dotnet-ef in the runtime image.
     await identityDb.Database.MigrateAsync();
@@ -628,11 +725,14 @@ static async Task InitializeDatabasesAsync(WebApplication app)
 
     if (!runDemoSeeders)
     {
+        initLogger.LogInformation("Demo seeders disabled for environment {Environment}.", app.Environment.EnvironmentName);
         return;
     }
 
+    initLogger.LogInformation("Running demo seeders for environment {Environment}.", app.Environment.EnvironmentName);
     await IdentitySeeder.SeedAsync(identityDb);
     await CatalogSeeder.SeedAsync(catalogDb);
     await LeasingSeeder.SeedAsync(leasingDb);
     await CommunicationsSeeder.SeedAsync(communicationsDb);
+    initLogger.LogInformation("Demo seeders completed successfully.");
 }
