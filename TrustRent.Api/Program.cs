@@ -30,6 +30,7 @@ using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Seeds;
 using TrustRent.Modules.Communications.Seeds;
 using TrustRent.Shared.Security;
+using TrustRent.Shared.Infrastructure;
 using System.Threading.RateLimiting;
 using TrustRent.Modules.Admin;
 using TrustRent.Modules.Admin.Endpoints;
@@ -435,7 +436,7 @@ startupLogger.LogInformation(
 
 app.UseForwardedHeaders();
 
-const string requestIdHeaderName = "X-Request-Id";
+const string requestIdHeaderName = RequestCorrelationHeaders.RequestId;
 
 app.Use(async (context, next) =>
 {
@@ -527,7 +528,7 @@ app.Use(async (context, next) =>
 app.Use(async (context, next) =>
 {
     var path = context.Request.Path;
-    if (!path.StartsWithSegments("/api") || path.StartsWithSegments("/health"))
+    if (!path.StartsWithSegments(PublicGatewaySurface.ApiPrefix) || path.StartsWithSegments(PublicGatewaySurface.Health))
     {
         await next();
         return;
@@ -669,8 +670,8 @@ app.MapSupportTicketsEndpoints();
 app.MapAdminCommunicationsEndpoints();
 app.MapAdminJobsEndpoints();
 
-app.MapHub<ApplicationChatHub>("/api/chathub");
-app.MapHub<NotificationHub>("/api/notificationhub");
+app.MapHub<ApplicationChatHub>(PublicGatewaySurface.ChatHub);
+app.MapHub<NotificationHub>(PublicGatewaySurface.NotificationHub);
 
 startupLogger.LogInformation("Starting database initialization phase.");
 await InitializeDatabasesAsync(app);
