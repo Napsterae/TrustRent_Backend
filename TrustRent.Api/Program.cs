@@ -42,7 +42,13 @@ var builder = WebApplication.CreateBuilder(args);
 var railwayPort = Environment.GetEnvironmentVariable("PORT");
 if (!string.IsNullOrWhiteSpace(railwayPort))
 {
-    builder.WebHost.UseUrls($"http://0.0.0.0:{railwayPort}");
+    var listenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "http://0.0.0.0:8080"
+    };
+
+    listenUrls.Add($"http://0.0.0.0:{railwayPort}");
+    builder.WebHost.UseUrls(string.Join(';', listenUrls));
 }
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
