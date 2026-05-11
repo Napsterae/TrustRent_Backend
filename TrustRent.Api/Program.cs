@@ -683,7 +683,7 @@ if (migrateOnly)
 }
 
 // Register Hangfire recurring jobs
-RecurringJob.AddOrUpdate<TrustRent.Modules.Leasing.Jobs.IDailyMaintenanceJob>(
+app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<TrustRent.Modules.Leasing.Jobs.IDailyMaintenanceJob>(
     "daily-maintenance",
     job => job.ExecuteAsync(),
     Cron.Daily(2, 0));
