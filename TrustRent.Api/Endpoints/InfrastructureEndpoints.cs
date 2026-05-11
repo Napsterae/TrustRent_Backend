@@ -5,6 +5,7 @@ using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Communications.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Leasing.Contracts.Database;
+using TrustRent.Shared.Infrastructure;
 
 namespace TrustRent.Api.Endpoints;
 
@@ -14,7 +15,7 @@ public static class InfrastructureEndpoints
 
     public static void MapInfrastructureEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/health/live", (IWebHostEnvironment env) =>
+        app.MapGet(PublicGatewaySurface.HealthLive, (IWebHostEnvironment env) =>
         {
             return Results.Ok(new
             {
@@ -28,8 +29,8 @@ public static class InfrastructureEndpoints
             });
         });
 
-        app.MapGet("/health", RunReadinessCheckAsync);
-        app.MapGet("/health/ready", RunReadinessCheckAsync);
+        app.MapGet(PublicGatewaySurface.Health, RunReadinessCheckAsync);
+        app.MapGet(PublicGatewaySurface.HealthReady, RunReadinessCheckAsync);
     }
 
     private static async Task<IResult> RunReadinessCheckAsync(
