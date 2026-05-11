@@ -106,6 +106,7 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var connectionString = builder.Configuration.GetConnectionString("PostgresConnection");
+ValidatePostgresConnectionString(connectionString);
 
 builder.Services.AddDbContext<IdentityDbContext>(options =>
     options.UseNpgsql(connectionString));
@@ -735,4 +736,39 @@ static async Task InitializeDatabasesAsync(WebApplication app)
     await LeasingSeeder.SeedAsync(leasingDb);
     await CommunicationsSeeder.SeedAsync(communicationsDb);
     initLogger.LogInformation("Demo seeders completed successfully.");
+}
+
+static void ValidatePostgresConnectionString(string? connectionString)
+{
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        throw new InvalidOperationException(
+            "Missing ConnectionStrings:PostgresConnection. In Railway, add the backend service variable ConnectionStrings__PostgresConnection and reference the Postgres service variables from the database service.");
+    }
+
+    Npgsql.NpgsqlConnectionStringBuilder builder;
+    try
+    {
+        builder = new Npgsql.NpgsqlConnectionStringBuilder(connectionString);
+    }
+    catch (ArgumentException ex)
+    {
+        throw new InvalidOperationException(
+            "ConnectionStrings:PostgresConnection is invalid. Check the Railway value format and make sure it is a valid Npgsql connection string.",
+            ex);
+    }
+
+    var missingParts = new List<string>();
+    if (string.IsNullOrWhiteSpace(builder.Host)) missingParts.Add("Host");
+    if (string.IsNullOrWhiteSpace(builder.Database)) missingParts.Add("Database");
+    if (string.IsNullOrWhiteSpace(builder.Username)) missingParts.Add("Username");
+    if (string.IsNullOrWhiteSpace(builder.Password)) missingParts.Add("Password");
+
+    if (missingParts.Count == 0)
+    {
+        return;
+    }
+
+    throw new InvalidOperationException(
+        $"ConnectionStrings:PostgresConnection is missing required parts: {string.Join(", ", missingParts)}. In Railway, this usually means the Postgres service reference name in the backend variable does not match the database service name exactly, or the variable was added in the wrong service.");
 }
