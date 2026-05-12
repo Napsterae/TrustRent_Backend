@@ -52,10 +52,10 @@ public class PropertyRepository : IPropertyRepository
         var page = query.EffectivePage;
         var pageSize = query.EffectivePageSize;
 
-        // Apenas listamos imóveis públicos que continuam disponíveis para arrendamento.
+        // Apenas listamos imóveis públicos, ativos e realmente disponíveis para arrendamento.
         var q = _context.Properties
             .Include(p => p.Images)
-            .Where(p => p.IsPublic && p.TenantId == null);
+            .Where(p => p.IsPublic && !p.IsUnderMaintenance && !p.IsBlocked && p.TenantId == null);
 
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
             q = q.Where(p => 
@@ -95,11 +95,17 @@ public class PropertyRepository : IPropertyRepository
 
         var totalCount = await q.CountAsync();
 
+        var orderedQuery = query.EffectiveSort switch
+        {
+            "price_asc" => q.OrderBy(p => p.Price).ThenByDescending(p => p.CreatedAt),
+            "price_desc" => q.OrderByDescending(p => p.Price).ThenByDescending(p => p.CreatedAt),
+            _ => q.OrderByDescending(p => p.CreatedAt)
+        };
+
         // Aplica a Paginação
-        var items = await q.OrderByDescending(p => p.CreatedAt)
-                           .Skip((page - 1) * pageSize)
-                           .Take(pageSize)
-                           .ToListAsync();
+        var items = await orderedQuery.Skip((page - 1) * pageSize)
+                                      .Take(pageSize)
+                                      .ToListAsync();
 
         return (items, totalCount);
     }
