@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using TrustRent.Api.Services;
+using TrustRent.Modules.Admin.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 
 namespace TrustRent.Api.Endpoints;
@@ -85,15 +87,14 @@ public static class UserEndpoints
             }
         }).DisableAntiforgery();
 
-        // ── DEV-ONLY: simular validação do Cartão de Cidadão sem chamar a IA ──
-        // O endpoint só é montado quando a app está em ambiente de Development.
-        // Em Production/Staging devolve 404 porque a rota nem sequer existe.
+        // Simula validação do Cartão de Cidadão sem chamar a IA quando as simulações estão activas.
         userGroup.MapPost("/verify-documents/simulate-cc", async (
             ClaimsPrincipal userClaims,
             IUserService userService,
-            IWebHostEnvironment env) =>
+            IWebHostEnvironment env,
+            IStagingAccessService stagingAccessService) =>
         {
-            if (!env.IsDevelopment())
+            if (!await StagingSimulationPolicy.IsEnabledAsync(env, stagingAccessService))
                 return Results.NotFound();
 
             try
@@ -108,13 +109,14 @@ public static class UserEndpoints
             }
         });
 
-        // DEV-ONLY: simular validação da Certidão de Não Dívida.
+        // Simula validação da Certidão de Não Dívida quando as simulações estão activas.
         userGroup.MapPost("/verify-documents/simulate-no-debt", async (
             ClaimsPrincipal userClaims,
             IUserService userService,
-            IWebHostEnvironment env) =>
+            IWebHostEnvironment env,
+            IStagingAccessService stagingAccessService) =>
         {
-            if (!env.IsDevelopment())
+            if (!await StagingSimulationPolicy.IsEnabledAsync(env, stagingAccessService))
                 return Results.NotFound();
 
             try

@@ -1,9 +1,11 @@
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using TrustRent.Api.Services;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Modules.Admin.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Models;
 using TrustRent.Shared.Contracts.Interfaces;
@@ -456,11 +458,11 @@ public static class PropertyEndpoints
             }
         }).DisableAntiforgery();
 
-        // DEV-ONLY: devolve dados de extração simulados para cada tipo de documento de imóvel,
-        // sem ficheiro nem chamada à IA. Bloqueado fora de Development.
-        propertyGroup.MapPost("/extract-document/simulate", (HttpRequest request, IWebHostEnvironment env) =>
+        // Devolve dados de extração simulados para cada tipo de documento de imóvel,
+        // sem ficheiro nem chamada à IA, quando as simulações estão activas.
+        propertyGroup.MapPost("/extract-document/simulate", async (HttpRequest request, IWebHostEnvironment env, IStagingAccessService stagingAccessService) =>
         {
-            if (!env.IsDevelopment())
+            if (!await StagingSimulationPolicy.IsEnabledAsync(env, stagingAccessService))
                 return Results.NotFound();
 
             var docType = request.Query["docType"].ToString();

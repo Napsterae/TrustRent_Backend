@@ -226,11 +226,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddDataProtection();
 
 // === ADMIN MODULE (backoffice) ===
 // Adds AdminDbContext, services, second JWT scheme `AdminJwtBearer` reading cookie `trustrent_admin_auth`,
 // and a custom IAuthorizationPolicyProvider that emits per-permission policies on demand.
 builder.Services.AddAdminModule(builder.Configuration);
+builder.Services.AddSingleton<IStagingAccessCookieService, StagingAccessCookieService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -583,6 +585,7 @@ app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/api/admin"),
 app.UseResponseCompression();
 app.UseRequestBodySizeLimiter();
 app.UseRateLimiter();
+app.UseStagingAccessRequestGuard();
 
 app.UseAuthentication();
 app.Use(async (context, next) =>
@@ -649,6 +652,7 @@ app.Use(async (context, next) =>
 app.UseAuthorization();
 app.MapInfrastructureEndpoints();
 app.MapAuthEndpoints();
+app.MapStagingAccessEndpoints();
 app.MapAuthUserEndpoints();
 app.MapPropertyEndpoints();
 app.MapApplicationEndpoints();
@@ -667,6 +671,7 @@ app.MapAdminAuthEndpoints();
 app.MapAdminUsersEndpoints();
 app.MapAdminReferenceDataEndpoints();
 app.MapAdminSettingsEndpoints();
+app.MapAdminStagingAccessEndpoints();
 app.MapAdminAuditEndpoints();
 app.MapAdminUsersPublicEndpoints();
 app.MapAdminPropertiesEndpoints();

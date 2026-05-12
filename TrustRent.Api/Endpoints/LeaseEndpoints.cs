@@ -4,6 +4,8 @@ using System.Text;
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TrustRent.Api.Services;
+using TrustRent.Modules.Admin.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Contracts.DTOs;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
@@ -1316,11 +1318,11 @@ public static class LeaseEndpoints
                 });
             }).RequireAuthorization();
 
-        // DEV-ONLY: simular registo nas Finanças sem comprovativo nem chamada à IA.
+        // Simula registo nas Finanças sem comprovativo nem chamada à IA.
         group.MapPost("/{leaseId:guid}/tax-registration/simulate",
-            async (Guid leaseId, LeasingDbContext db, ClaimsPrincipal user, IWebHostEnvironment env) =>
+            async (Guid leaseId, LeasingDbContext db, ClaimsPrincipal user, IWebHostEnvironment env, IStagingAccessService stagingAccessService) =>
             {
-                if (!env.IsDevelopment())
+                if (!await StagingSimulationPolicy.IsEnabledAsync(env, stagingAccessService))
                     return Results.NotFound();
 
                 if (!TryGetUserId(user, out var userId))
