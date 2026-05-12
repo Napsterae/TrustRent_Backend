@@ -35,6 +35,7 @@ public static class AdminModuleExtensions
         services.AddScoped<IAdminAuthService, AdminAuthService>();
         services.AddScoped<IAdminUserService, AdminUserService>();
         services.AddScoped<IRoleService, RoleService>();
+        services.AddScoped<IStagingAccessService, StagingAccessService>();
 
         services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
         services.AddScoped<IAuthorizationHandler, AdminSessionAuthorizationHandler>();

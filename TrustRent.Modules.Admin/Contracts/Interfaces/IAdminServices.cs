@@ -61,6 +61,21 @@ public interface IRoleService
     Task DeleteAsync(Guid id, Guid actorAdminId, CancellationToken ct = default);
 }
 
+public interface IStagingAccessService
+{
+    Task<IReadOnlyList<StagingAccessUserDto>> ListUsersAsync(CancellationToken ct = default);
+    Task<int> CountActiveUsersAsync(CancellationToken ct = default);
+    Task<StagingAccessUserDto?> GetUserAsync(string username, CancellationToken ct = default);
+    Task<StagingAccessUserDto> CreateUserAsync(CreateStagingAccessUserRequest request, Guid? updatedByAdminId = null, CancellationToken ct = default);
+    Task<StagingAccessUserDto> UpdateUserAsync(string username, UpdateStagingAccessUserRequest request, Guid? updatedByAdminId = null, CancellationToken ct = default);
+    Task ResetPasswordAsync(string username, string newPassword, Guid? updatedByAdminId = null, CancellationToken ct = default);
+    Task DeleteUserAsync(string username, Guid? updatedByAdminId = null, CancellationToken ct = default);
+    Task<StagingAccessUserSessionDto?> GetActiveUserAsync(string username, CancellationToken ct = default);
+    Task<StagingAccessUserSessionDto?> ValidateCredentialsAsync(string username, string password, CancellationToken ct = default);
+    Task<bool?> GetSimulationOverrideAsync(CancellationToken ct = default);
+    Task<bool> SetSimulationOverrideAsync(bool enabled, Guid? updatedByAdminId = null, CancellationToken ct = default);
+}
+
 public interface IPermissionCatalogService
 {
     Task<IReadOnlyList<PermissionDto>> GetCatalogAsync(CancellationToken ct = default);

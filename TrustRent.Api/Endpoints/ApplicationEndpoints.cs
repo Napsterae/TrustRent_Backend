@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using TrustRent.Api.Services;
+using TrustRent.Modules.Admin.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Shared.Models;
@@ -199,12 +201,12 @@ public static class ApplicationEndpoints
         .DisableAntiforgery()
         .RequireRateLimiting("incomeValidation");
 
-        // DEV-ONLY: simular validação de rendimentos sem ficheiros nem chamada à IA.
+        // Simula validação de rendimentos sem ficheiros nem chamada à IA.
         // Query opcional ?scenario=employee | employee-declaration | self-employed
         group.MapPost("/applications/{id:guid}/income-validation/simulate",
-            async (Guid id, string? scenario, IIncomeValidationService svc, ClaimsPrincipal user, IWebHostEnvironment env) =>
+            async (Guid id, string? scenario, IIncomeValidationService svc, ClaimsPrincipal user, IWebHostEnvironment env, IStagingAccessService stagingAccessService) =>
         {
-            if (!env.IsDevelopment())
+            if (!await StagingSimulationPolicy.IsEnabledAsync(env, stagingAccessService))
                 return Results.NotFound();
 
             var userIdString = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
