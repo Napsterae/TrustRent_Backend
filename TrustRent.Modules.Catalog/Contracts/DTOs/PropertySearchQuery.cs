@@ -6,6 +6,7 @@ public class PropertySearchQuery
     public string? SearchTerm { get; set; }
     public string? Type { get; set; }
     public string? Typologies { get; set; }
+    public string? Sort { get; set; }
     public decimal? MinPrice { get; set; }
     public decimal? MaxPrice { get; set; }
     public string? Locations { get; set; }
@@ -40,6 +41,19 @@ public class PropertySearchQuery
         {
             var pageSize = PageSize.GetValueOrDefault(9);
             return pageSize < 1 ? 9 : pageSize;
+        }
+    }
+
+    public string EffectiveSort
+    {
+        get
+        {
+            return Sort?.Trim().ToLowerInvariant() switch
+            {
+                "price_asc" or "priceasc" => "price_asc",
+                "price_desc" or "pricedesc" => "price_desc",
+                _ => "recent"
+            };
         }
     }
 }
