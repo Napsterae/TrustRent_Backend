@@ -153,7 +153,7 @@ public class LeaseService : ILeaseService
         else if (!string.IsNullOrWhiteSpace(appContext.GuarantorGuestEmail) && !string.IsNullOrWhiteSpace(appContext.GuarantorGuestAccessToken))
         {
             await _emailService.SendEmailAsync(appContext.GuarantorGuestEmail,
-                "Contrato iniciado — TrustRent",
+                "Contrato iniciado — Wekaza",
                 BuildGuestLeaseEmail("Contrato iniciado", "O processo de arrendamento em que és fiador avançou para contrato.", BuildGuestUrl(appContext.GuarantorGuestAccessToken)));
         }
 
@@ -768,6 +768,11 @@ public class LeaseService : ILeaseService
             "O contrato foi aceite por ambas as partes. Efetua o pagamento inicial para ativar o arrendamento.", lease.Id);
         await _notificationService.SendNotificationAsync(lease.LandlordId, "payment",
             "O contrato foi aceite por ambas as partes. Aguarda o pagamento inicial do inquilino.", lease.Id);
+        await NotifyExtraPartiesAsync(
+            lease,
+            Guid.Empty,
+            "payment",
+            "O contrato foi aceite por todas as partes e entrou em fase de pagamento inicial.");
     }
 
     /// <summary>
@@ -800,7 +805,7 @@ public class LeaseService : ILeaseService
                         if (!string.IsNullOrWhiteSpace(appContext?.GuarantorGuestEmail) && !string.IsNullOrWhiteSpace(appContext.GuarantorGuestAccessToken))
                         {
                                 await _emailService.SendEmailAsync(appContext.GuarantorGuestEmail,
-                                        "Atualização do contrato — TrustRent",
+                                "Atualização do contrato — Wekaza",
                                         BuildGuestLeaseEmail("Atualização do contrato", message, BuildGuestUrl(appContext.GuarantorGuestAccessToken)));
                         }
                 }
@@ -814,7 +819,7 @@ public class LeaseService : ILeaseService
                         if (!string.IsNullOrWhiteSpace(appContext?.GuarantorGuestEmail) && !string.IsNullOrWhiteSpace(appContext.GuarantorGuestAccessToken))
                         {
                                 await _emailService.SendEmailAsync(appContext.GuarantorGuestEmail,
-                                        "Assinatura pendente — TrustRent",
+                                "Assinatura pendente — Wekaza",
                                         BuildGuestLeaseEmail("Assinatura pendente", message, BuildGuestUrl(appContext.GuarantorGuestAccessToken)));
                         }
                         return;
@@ -827,18 +832,8 @@ public class LeaseService : ILeaseService
 
         private static string BuildGuestLeaseEmail(string title, string message, string url)
                 => $"""
-                     <div style="margin:0;padding:32px;background:#f3f4f6;font-family:Inter,Segoe UI,Arial,sans-serif;color:#111827">
-                         <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden">
-                             <div style="padding:28px 32px;background:#0f766e;color:#ffffff">
-                                 <div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.85">TrustRent</div>
-                                 <h1 style="margin:10px 0 0;font-size:26px;line-height:1.2">{title}</h1>
-                             </div>
-                             <div style="padding:32px">
-                                 <p style="font-size:15px;line-height:1.6;color:#374151;margin:0 0 28px">{message}</p>
-                                 <a href="{url}" style="display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:12px">Abrir área de fiador</a>
-                                 <p style="font-size:12px;line-height:1.5;color:#6b7280;margin:28px 0 0">Se o botão não funcionar, copia este endereço: <br><span style="word-break:break-all;color:#374151">{url}</span></p>
-                             </div>
-                         </div>
-                     </div>
-                     """;
+                   <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#334155">{message}</p>
+                   <a href="{url}" style="display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:14px">Abrir área de fiador</a>
+                   <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#64748b">Se o botão não funcionar, copia este endereço:<br /><span style="word-break:break-all;color:#334155">{url}</span></p>
+                   """;
 }

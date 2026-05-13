@@ -131,19 +131,8 @@ public static class UserEndpoints
             }
         });
 
-        userGroup.MapPut("/security", async (ClaimsPrincipal userClaims, [FromBody] UpdatePasswordRequest request, IUserService userService) =>
-        {
-            try
-            {
-                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
-                await userService.UpdatePasswordAsync(userId, request.CurrentPassword, request.NewPassword);
-                return Results.Ok(new { Message = "Password atualizada com sucesso." });
-            }
-            catch (Exception ex)
-            {
-                return Results.BadRequest(new { Error = ex.Message });
-            }
-        });
+        userGroup.MapPut("/security", () =>
+            Results.Json(new { Error = "A conta Wekaza usa login por código enviado por email. Passwords deixaram de estar disponíveis." }, statusCode: 410));
     }
 }
 

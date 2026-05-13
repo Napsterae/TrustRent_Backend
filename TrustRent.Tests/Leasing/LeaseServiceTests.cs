@@ -1,4 +1,5 @@
 using Hangfire;
+using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
@@ -260,6 +261,42 @@ public class LeaseServiceTests
 
         await Assert.ThrowsAsync<KeyNotFoundException>(
             () => service.CancelLeaseAsync(Guid.NewGuid(), Guid.NewGuid(), dto));
+
+        context.Dispose();
+    }
+
+    [Fact]
+    public async Task ActivateLeaseAsync_NotifiesCoTenantAndGuarantorWhenAwaitingPaymentStarts()
+    {
+        var (service, context) = CreateService();
+        var landlordId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+        var coTenantId = Guid.NewGuid();
+        var guarantorId = Guid.NewGuid();
+
+        var lease = CreateTestLease(tenantId: tenantId, landlordId: landlordId, status: LeaseStatus.PendingGuarantorSignature);
+        lease.CoTenantId = coTenantId;
+        lease.GuarantorUserId = guarantorId;
+        context.Leases.Add(lease);
+
+        _catalogAccessMock.Setup(c => c.UpdateApplicationStatusAsync(
+            lease.ApplicationId,
+            (int)ApplicationStatus.AwaitingPayment,
+            Guid.Empty,
+            It.IsAny<string>(),
+            It.IsAny<string>())).Returns(Task.CompletedTask);
+
+        var method = typeof(LeaseService).GetMethod("ActivateLeaseAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        var task = method!.Invoke(service, new object[] { lease }) as Task;
+        Assert.NotNull(task);
+        await task!;
+
+        Assert.Equal(LeaseStatus.AwaitingPayment, lease.Status);
+        _notificationMock.Verify(n => n.SendNotificationAsync(tenantId, "payment", It.IsAny<string>(), lease.Id), Times.Once);
+        _notificationMock.Verify(n => n.SendNotificationAsync(landlordId, "payment", It.IsAny<string>(), lease.Id), Times.Once);
+        _notificationMock.Verify(n => n.SendNotificationAsync(coTenantId, "payment", It.Is<string>(s => s.Contains("pagamento inicial")), lease.Id), Times.Once);
+        _notificationMock.Verify(n => n.SendNotificationAsync(guarantorId, "payment", It.Is<string>(s => s.Contains("pagamento inicial")), lease.Id), Times.Once);
 
         context.Dispose();
     }

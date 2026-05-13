@@ -75,8 +75,8 @@ builder.Services.AddRateLimiter(options =>
                 });
         }
 
-        if (path.StartsWithSegments("/api/auth/login")
-            || path.StartsWithSegments("/api/auth/register"))
+        if (path.StartsWithSegments("/api/auth/request-code")
+            || path.StartsWithSegments("/api/auth/verify-code"))
         {
             return RateLimitPartition.GetFixedWindowLimiter(
                 partitionKey: $"auth:{clientKey}",
@@ -201,6 +201,23 @@ app.Use(async (context, next) =>
     context.Request.Headers[RequestCorrelationHeaders.RequestId] = context.TraceIdentifier;
     context.Request.Headers["X-TrustRent-Gateway"] = "public-api";
     context.Response.Headers[RequestCorrelationHeaders.RequestId] = context.TraceIdentifier;
+
+    await next();
+});
+
+app.Use(async (context, next) =>
+{
+    if (IsCacheSensitiveAuthPath(context.Request.Path))
+    {
+        context.Response.OnStarting(() =>
+        {
+            var headers = context.Response.Headers;
+            headers.CacheControl = "no-store, no-cache, max-age=0";
+            headers.Pragma = "no-cache";
+            headers.Expires = "0";
+            return Task.CompletedTask;
+        });
+    }
 
     await next();
 });
@@ -342,6 +359,8 @@ static string ResolveBackendBaseUrl(IConfiguration configuration)
 static string EnsureTrailingSlash(string url) => url.EndsWith('/') ? url : $"{url}/";
 
 static string NormalizeHost(string host) => host.Trim().TrimEnd('.').ToLowerInvariant();
+
+static bool IsCacheSensitiveAuthPath(PathString path) => path.StartsWithSegments("/api/auth");
 
 static RouteConfig[] BuildPublicRoutes()
 {

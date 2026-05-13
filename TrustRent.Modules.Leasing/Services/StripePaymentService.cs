@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Stripe;
+using System.Globalization;
 using System.Text.Json;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Contracts.DTOs;
@@ -17,6 +18,7 @@ public class StripePaymentService : IStripePaymentService
     private readonly ILeaseAccessService _leaseAccessService;
     private readonly ILeaseActivationService _leaseActivationService;
     private readonly IStripeAccountService _stripeAccountService;
+    private readonly INotificationService _notificationService;
     private readonly ILogger<StripePaymentService> _logger;
     private readonly int _platformFeePerMonth;
 
@@ -25,6 +27,7 @@ public class StripePaymentService : IStripePaymentService
         ILeaseAccessService leaseAccessService,
         ILeaseActivationService leaseActivationService,
         IStripeAccountService stripeAccountService,
+        INotificationService notificationService,
         IConfiguration configuration,
         ILogger<StripePaymentService> logger)
     {
@@ -32,6 +35,7 @@ public class StripePaymentService : IStripePaymentService
         _leaseAccessService = leaseAccessService;
         _leaseActivationService = leaseActivationService;
         _stripeAccountService = stripeAccountService;
+        _notificationService = notificationService;
         _logger = logger;
         _platformFeePerMonth = configuration.GetValue<int>("Stripe:PlatformFeePerMonth", 3000);
         StripeConfiguration.ApiKey = configuration["Stripe:SecretKey"];
@@ -350,6 +354,12 @@ public class StripePaymentService : IStripePaymentService
             return;
         }
 
+        if (payment.Status == PaymentStatus.Succeeded)
+        {
+            _logger.LogInformation("Webhook duplicado payment_intent.succeeded ignorado para pagamento {PaymentId}", payment.Id);
+            return;
+        }
+
         payment.Status = PaymentStatus.Succeeded;
         payment.PaidAt = DateTime.UtcNow;
         payment.UpdatedAt = DateTime.UtcNow;
@@ -362,7 +372,10 @@ public class StripePaymentService : IStripePaymentService
         if (payment.Type == PaymentType.InitialPayment)
         {
             await _leaseActivationService.ActivateLeaseAfterPaymentAsync(payment.LeaseId);
+            return;
         }
+
+        await NotifyPaymentSucceededAsync(payment);
     }
 
     public async Task HandlePaymentFailedAsync(string paymentIntentId, string? failureMessage)
@@ -376,6 +389,12 @@ public class StripePaymentService : IStripePaymentService
             return;
         }
 
+        if (payment.Status == PaymentStatus.Failed)
+        {
+            _logger.LogInformation("Webhook duplicado payment_intent.payment_failed ignorado para pagamento {PaymentId}", payment.Id);
+            return;
+        }
+
         payment.Status = PaymentStatus.Failed;
         payment.FailureReason = failureMessage;
         payment.UpdatedAt = DateTime.UtcNow;
@@ -383,6 +402,8 @@ public class StripePaymentService : IStripePaymentService
         await _db.SaveChangesAsync();
 
         _logger.LogWarning("Pagamento {PaymentId} falhou para lease {LeaseId}: {Reason}", payment.Id, payment.LeaseId, failureMessage);
+
+        await NotifyPaymentFailedAsync(payment);
     }
 
     #endregion
@@ -450,8 +471,65 @@ public class StripePaymentService : IStripePaymentService
 
         _logger.LogInformation("Reembolso de caução {Amount}€ efetuado para lease {LeaseId}", amount, leaseId);
 
+        await NotifyDepositRefundAsync(refundPayment);
+
         return MapPaymentToDto(refundPayment);
     }
+
+    private async Task NotifyPaymentSucceededAsync(Payment payment)
+    {
+        var amount = FormatCurrency(payment.Amount);
+        var tenantMessage = payment.Type == PaymentType.MonthlyRent
+            ? $"A tua renda mensal de {amount} foi confirmada com sucesso."
+            : $"O teu pagamento de {amount} foi confirmado com sucesso."
+            ;
+        var landlordMessage = payment.Type == PaymentType.MonthlyRent
+            ? $"Recebeste a confirmação da renda mensal de {amount}."
+            : $"Foi confirmado um pagamento de {amount} associado ao teu arrendamento."
+            ;
+
+        await _notificationService.SendNotificationAsync(payment.TenantId, "payment", tenantMessage, payment.LeaseId);
+        await _notificationService.SendNotificationAsync(payment.LandlordId, "payment", landlordMessage, payment.LeaseId);
+    }
+
+    private async Task NotifyPaymentFailedAsync(Payment payment)
+    {
+        var amount = FormatCurrency(payment.Amount);
+        var reasonSuffix = string.IsNullOrWhiteSpace(payment.FailureReason)
+            ? string.Empty
+            : $" Motivo: {payment.FailureReason}.";
+
+        var tenantMessage = payment.Type == PaymentType.MonthlyRent
+            ? $"A renda mensal de {amount} falhou.{reasonSuffix} Atualiza o método de pagamento e tenta novamente."
+            : $"O pagamento de {amount} não foi concluído.{reasonSuffix} Verifica o método de pagamento e tenta novamente."
+            ;
+        var landlordMessage = payment.Type == PaymentType.MonthlyRent
+            ? $"A cobrança da renda mensal de {amount} falhou.{reasonSuffix}"
+            : $"Um pagamento de {amount} associado ao arrendamento falhou.{reasonSuffix}"
+            ;
+
+        await _notificationService.SendNotificationAsync(payment.TenantId, "payment", tenantMessage, payment.LeaseId);
+        await _notificationService.SendNotificationAsync(payment.LandlordId, "payment", landlordMessage, payment.LeaseId);
+    }
+
+    private async Task NotifyDepositRefundAsync(Payment refundPayment)
+    {
+        var amount = FormatCurrency(Math.Abs(refundPayment.Amount));
+        await _notificationService.SendNotificationAsync(
+            refundPayment.TenantId,
+            "payment",
+            $"Foi emitido um reembolso de caução no valor de {amount}.",
+            refundPayment.LeaseId);
+
+        await _notificationService.SendNotificationAsync(
+            refundPayment.LandlordId,
+            "payment",
+            $"O reembolso de caução de {amount} foi processado com sucesso.",
+            refundPayment.LeaseId);
+    }
+
+    private static string FormatCurrency(decimal amount)
+        => amount.ToString("C2", CultureInfo.GetCultureInfo("pt-PT"));
 
     #endregion
 

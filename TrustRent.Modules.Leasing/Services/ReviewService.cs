@@ -72,6 +72,10 @@ public class ReviewService : IReviewService
             await RecalculateTrustScoreAsync(review.ReviewedUserId);
             if (pairedReview != null)
                 await RecalculateTrustScoreAsync(pairedReview.ReviewedUserId);
+
+            await NotifyReviewPublishedAsync(review);
+            if (pairedReview?.Status == ReviewStatus.Published)
+                await NotifyReviewPublishedAsync(pairedReview);
         }
 
         return await MapToResponseAsync(review);
@@ -289,6 +293,8 @@ public class ReviewService : IReviewService
 
     public async Task ProcessExpiredReviewsAsync()
     {
+        var newlyPublishedReviews = new List<Review>();
+
         // Find all pairs where at least one review has expired
         var expiredPairIds = await _db.Reviews
             .Where(r => (r.Status == ReviewStatus.Pending || r.Status == ReviewStatus.Submitted)
@@ -309,6 +315,7 @@ public class ReviewService : IReviewService
                 {
                     review.Status = ReviewStatus.Published;
                     review.PublishedAt = DateTime.UtcNow;
+                    newlyPublishedReviews.Add(review);
                 }
                 else if (review.Status == ReviewStatus.Pending)
                 {
@@ -333,6 +340,21 @@ public class ReviewService : IReviewService
         {
             await RecalculateTrustScoreAsync(userId);
         }
+
+        foreach (var review in newlyPublishedReviews)
+        {
+            await NotifyReviewPublishedAsync(review);
+        }
+    }
+
+    private async Task NotifyReviewPublishedAsync(Review review)
+    {
+        var contextLabel = review.Type == ReviewType.TicketReview ? "ticket" : "arrendamento";
+        await _notificationService.SendNotificationAsync(
+            review.ReviewedUserId,
+            "review",
+            $"Uma nova avaliação do teu {contextLabel} já está publicada no teu perfil.",
+            review.LeaseId ?? review.TicketId);
     }
 
     private async Task RecalculateTrustScoreAsync(Guid userId)

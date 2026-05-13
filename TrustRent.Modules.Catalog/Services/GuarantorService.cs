@@ -167,7 +167,7 @@ public class GuarantorService : IGuarantorService
 
         var guestUrl = BuildGuestUrl(guarantor.GuestAccessToken);
         await _emailService.SendEmailAsync(email,
-            "Convite para fiador — TrustRent",
+            "Convite para fiador — Wekaza",
             BuildInviteEmail(inviter.Name, property.Title, guestUrl));
 
         return await BuildSummaryAsync(guarantor);
@@ -373,7 +373,7 @@ public class GuarantorService : IGuarantorService
                 "guarantor_approved", "Foste aprovado como fiador.", app.Id);
         }
         await _emailService.SendEmailAsync(guarantor.GuestEmail,
-            "Fiador aprovado — TrustRent",
+            "Fiador aprovado — Wekaza",
             BuildStatusEmail("Fiador aprovado", "O senhorio aprovou os teus dados de fiador. Avisamos-te novamente quando o contrato estiver pronto para assinatura.", BuildGuestUrl(guarantor.GuestAccessToken)));
         await _notificationService.SendNotificationAsync(app.TenantId,
             "guarantor_approved", "O fiador foi aprovado pelo senhorio.", app.Id);
@@ -404,7 +404,7 @@ public class GuarantorService : IGuarantorService
                 "guarantor_rejected", "Foste rejeitado como fiador.", app.Id);
         }
         await _emailService.SendEmailAsync(guarantor.GuestEmail,
-            "Fiador não aprovado — TrustRent",
+            "Fiador não aprovado — Wekaza",
             BuildStatusEmail("Fiador não aprovado", "O senhorio não aprovou a proposta de fiador para esta candidatura.", BuildGuestUrl(guarantor.GuestAccessToken)));
         await _notificationService.SendNotificationAsync(app.TenantId,
             "guarantor_rejected", "O senhorio rejeitou o fiador proposto.", app.Id);
@@ -600,31 +600,18 @@ public class GuarantorService : IGuarantorService
     }
 
     private static string BuildInviteEmail(string inviterName, string propertyTitle, string guestUrl)
-        => BuildEmailShell(
-            "Convite para seres fiador",
-            $"{inviterName} indicou-te como fiador para a candidatura ao imóvel <strong>{propertyTitle}</strong>.",
-            "Acede de forma segura, confirma os dados da candidatura e submete a tua informação e documentos.",
-            "Abrir convite",
-            guestUrl);
+                => $"""
+                     <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#334155">{inviterName} indicou-te como fiador para a candidatura ao imóvel <strong>{propertyTitle}</strong>.</p>
+                     <p style="margin:0 0 22px;font-size:15px;line-height:1.7;color:#475569">Acede de forma segura, confirma os dados da candidatura e submete a tua informação e documentos.</p>
+                     <a href="{guestUrl}" style="display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:14px">Abrir convite</a>
+                     <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#64748b">Se o botão não funcionar, copia este endereço:<br /><span style="word-break:break-all;color:#334155">{guestUrl}</span></p>
+                     """;
 
     private static string BuildStatusEmail(string title, string message, string guestUrl)
-        => BuildEmailShell(title, message, "Podes consultar o estado atualizado através da tua área segura de convidado.", "Consultar candidatura", guestUrl);
-
-    private static string BuildEmailShell(string title, string lead, string body, string buttonText, string url)
-        => $"""
-           <div style="margin:0;padding:32px;background:#f3f4f6;font-family:Inter,Segoe UI,Arial,sans-serif;color:#111827">
-             <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden">
-               <div style="padding:28px 32px;background:#0f766e;color:#ffffff">
-                 <div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.85">TrustRent</div>
-                 <h1 style="margin:10px 0 0;font-size:26px;line-height:1.2">{title}</h1>
-               </div>
-               <div style="padding:32px">
-                 <p style="font-size:16px;line-height:1.6;margin:0 0 16px">{lead}</p>
-                 <p style="font-size:15px;line-height:1.6;color:#4b5563;margin:0 0 28px">{body}</p>
-                 <a href="{url}" style="display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:12px">{buttonText}</a>
-                 <p style="font-size:12px;line-height:1.5;color:#6b7280;margin:28px 0 0">Se o botão não funcionar, copia este endereço: <br><span style="word-break:break-all;color:#374151">{url}</span></p>
-               </div>
-             </div>
-           </div>
-           """;
+                => $"""
+                     <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#334155">{message}</p>
+                     <p style="margin:0 0 22px;font-size:15px;line-height:1.7;color:#475569">Podes consultar o estado atualizado através da tua área segura de convidado.</p>
+                     <a href="{guestUrl}" style="display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:14px">Consultar candidatura</a>
+                     <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#64748b">Se o botão não funcionar, copia este endereço:<br /><span style="word-break:break-all;color:#334155">{guestUrl}</span></p>
+                     """;
 }

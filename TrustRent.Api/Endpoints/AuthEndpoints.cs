@@ -11,13 +11,22 @@ public static class AuthEndpoints
     {
         var group = app.MapGroup("/api/auth");
 
-        group.MapPost("/register", async ([FromBody] RegisterRequest request, IAuthService authService, HttpContext ctx, IConfiguration cfg) =>
+        group.MapPost("/request-code", async ([FromBody] RequestLoginCodeRequest request, ILoginCodeService loginCodeService, HttpContext ctx) =>
         {
             try
             {
-                var token = await authService.RegisterAsync(request.Name, request.Email, request.Password);
-                AppendAuthCookie(ctx, token, cfg);
-                return Results.Ok(new { Token = token });
+                var result = await loginCodeService.SendLoginCodeAsync(
+                    request.Email,
+                    ctx.Connection.RemoteIpAddress?.ToString(),
+                    ctx.Request.Headers.UserAgent.ToString(),
+                    ctx.RequestAborted);
+
+                return Results.Ok(new
+                {
+                    Message = "Se o email for válido, enviámos um código de acesso.",
+                    MaskedEmail = result.MaskedEmail,
+                    ExpiresAtUtc = result.ExpiresAtUtc
+                });
             }
             catch (Exception ex)
             {
@@ -25,17 +34,22 @@ public static class AuthEndpoints
             }
         }).RequireRateLimiting("auth");
 
-        group.MapPost("/login", async ([FromBody] LoginRequest request, IAuthService authService, HttpContext ctx, IConfiguration cfg) =>
+        group.MapPost("/verify-code", async ([FromBody] VerifyLoginCodeRequest request, ILoginCodeService loginCodeService, IAuthService authService, HttpContext ctx, IConfiguration cfg) =>
         {
             try
             {
-                var token = await authService.LoginAsync(request.Email, request.Password);
+                var verifiedEmail = await loginCodeService.VerifyLoginCodeAsync(request.Email, request.Code, ctx.RequestAborted);
+                var token = await authService.SignInWithEmailAsync(verifiedEmail);
                 AppendAuthCookie(ctx, token, cfg);
                 return Results.Ok(new { Token = token });
             }
-            catch
+            catch (UnauthorizedAccessException)
             {
-                return Results.Json(new { Error = "Credenciais invalidas." }, statusCode: 401);
+                return Results.Json(new { Error = "Código inválido ou expirado." }, statusCode: 401);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
             }
         }).RequireRateLimiting("auth");
 
@@ -79,5 +93,5 @@ public static class AuthEndpoints
     }
 }
 
-public record RegisterRequest(string Name, string Email, string Password);
-public record LoginRequest(string Email, string Password);
+public record RequestLoginCodeRequest(string Email);
+public record VerifyLoginCodeRequest(string Email, string Code);

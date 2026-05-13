@@ -60,8 +60,6 @@ public class CoTenantInviteService : ICoTenantInviteService
             throw new InvalidOperationException("Não podes convidar o proprietário do imóvel.");
 
         var invitee = await _userRepository.GetByEmailAsync(email);
-        if (invitee == null)
-            throw new KeyNotFoundException("user_not_registered");
 
         var activeInvite = application.CoTenantInvites
             .FirstOrDefault(i => i.Status is CoTenantInviteStatus.Pending or CoTenantInviteStatus.Accepted);
@@ -83,7 +81,7 @@ public class CoTenantInviteService : ICoTenantInviteService
             Application = application,
             InviterUserId = inviterUserId,
             InviteeEmail = email,
-            InviteeUserId = invitee.Id,
+            InviteeUserId = invitee?.Id,
             Status = CoTenantInviteStatus.Pending,
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddDays(InviteValidityDays),
@@ -106,17 +104,21 @@ public class CoTenantInviteService : ICoTenantInviteService
         await _context.SaveChangesAsync();
 
         // Notificações
-        await _notificationService.SendNotificationAsync(
-            invitee.Id,
-            "cotenant_invite",
-            $"{inviter.Name} convidou-te para co-candidatar a '{application.Property.Title}'.",
-            applicationId);
+        if (invitee != null)
+        {
+            await _notificationService.SendNotificationAsync(
+                invitee.Id,
+                "cotenant_invite",
+                $"{inviter.Name} convidou-te para co-candidatar a '{application.Property.Title}'.",
+                applicationId);
+        }
 
         await _emailService.SendEmailAsync(
             email,
-            "Convite para candidatura conjunta — TrustRent",
-            $"<p>{inviter.Name} convidou-te para co-candidatares ao imóvel <strong>{application.Property.Title}</strong>.</p>" +
-            "<p>Acede ao TrustRent para responder ao convite no teu painel.</p>");
+            "Convite para candidatura conjunta — Wekaza",
+            $"<p style=\"margin:0 0 16px;font-size:16px;line-height:1.7;color:#334155\">{inviter.Name} convidou-te para co-candidatares ao imóvel <strong>{application.Property.Title}</strong>.</p>" +
+            "<p style=\"margin:0 0 16px;font-size:15px;line-height:1.7;color:#475569\">Entra na Wekaza com este mesmo email para veres o convite pendente no teu painel.</p>" +
+            "<p style=\"margin:0;font-size:14px;line-height:1.6;color:#64748b\">Se ainda não tens conta, a Wekaza cria-a automaticamente quando validares o teu código de acesso.</p>");
 
         return await BuildDtoAsync(invite, application.Property);
     }
