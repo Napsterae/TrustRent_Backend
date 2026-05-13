@@ -132,6 +132,7 @@ builder.Services.AddSignalR();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ILoginCodeService, LoginCodeService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddHttpClient<IGeminiDocumentService, GeminiDocumentService>();
 builder.Services.AddHttpClient<TrustRent.Modules.Communications.Services.IExpoPushService, TrustRent.Modules.Communications.Services.ExpoPushService>(client =>
@@ -139,6 +140,7 @@ builder.Services.AddHttpClient<TrustRent.Modules.Communications.Services.IExpoPu
     client.BaseAddress = new Uri("https://exp.host/--/api/v2/");
 });
 builder.Services.AddScoped<IImageService, CloudinaryImageService>();
+builder.Services.AddSingleton<IEmailTemplateService, EmailTemplateService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, TrustRent.Modules.Communications.Services.NotificationService>();
 builder.Services.AddScoped<ILeaseAccessService, CatalogLeaseAccessService>();
@@ -213,7 +215,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     return Task.CompletedTask;
                 }
 
-                // Fonte primária: cookie httpOnly definido por /api/auth/login e /api/auth/register.
+                // Fonte primária: cookie httpOnly definido por /api/auth/verify-code.
                 if (string.IsNullOrEmpty(context.Token) &&
                     context.Request.Cookies.TryGetValue(AuthEndpoints.AuthCookieName, out var cookieToken) &&
                     !string.IsNullOrEmpty(cookieToken))

@@ -535,7 +535,7 @@ public static class LeaseEndpoints
                             Esta comunicação foi registada para efeitos legais conforme o Art. 9.º
                             do NRAU (Lei n.º 6/2006).
 
-                            TrustRent — Plataforma de Arrendamento
+                            Wekaza — Plataforma de Arrendamento
                             """;
 
                         if (landlordUser != null)

@@ -2,6 +2,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Security.Claims;
 using System.Text;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
@@ -21,37 +23,39 @@ public class AuthService : IAuthService
         _config = config;
     }
 
-    public async Task<string> RegisterAsync(string name, string email, string password)
+    public async Task<string> SignInWithEmailAsync(string email)
     {
-        // Strict normalization here: rejects malformed emails at registration boundary.
         var normalizedEmail = EmailHelper.NormalizeEmail(email);
-        var existingUser = await _uow.Users.GetByEmailAsync(normalizedEmail);
-        if (existingUser != null) throw new Exception("Email já está em uso.");
+        var user = await _uow.Users.GetByEmailAsync(normalizedEmail);
 
-        var user = new User
+        if (user == null)
         {
-            Id = Guid.NewGuid(),
-            Name = name,
-            Email = normalizedEmail,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password)
-        };
+            user = new User
+            {
+                Id = Guid.NewGuid(),
+                Name = BuildDefaultName(normalizedEmail),
+                Email = normalizedEmail,
+                PasswordHash = string.Empty
+            };
 
-        await _uow.Users.AddAsync(user);
-        await _uow.SaveChangesAsync(); // Commit na BD
+            await _uow.Users.AddAsync(user);
+            await _uow.SaveChangesAsync();
+        }
 
         return GenerateJwtToken(user);
     }
 
-    public async Task<string> LoginAsync(string email, string password)
+    private static string BuildDefaultName(string normalizedEmail)
     {
-        // Repository handles normalization tolerantly; malformed input -> null user -> generic 401.
-        var user = await _uow.Users.GetByEmailAsync(email);
-        if (user == null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
-        {
-            throw new Exception("Credenciais inválidas.");
-        }
+        var localPart = normalizedEmail.Split('@', 2)[0];
+        var cleaned = Regex.Replace(localPart, @"[._+\-]+", " ");
+        cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim();
+        if (string.IsNullOrWhiteSpace(cleaned))
+            return "Utilizador Wekaza";
 
-        return GenerateJwtToken(user);
+        var textInfo = CultureInfo.GetCultureInfo("pt-PT").TextInfo;
+        var titleCased = textInfo.ToTitleCase(cleaned.ToLowerInvariant());
+        return titleCased.Length > 120 ? titleCased[..120] : titleCased;
     }
 
     private string GenerateJwtToken(User user)
@@ -62,6 +66,9 @@ public class AuthService : IAuthService
 
         var claims = new[]
         {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Name, user.Name),
+            new Claim(ClaimTypes.Email, user.Email),
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim("name", user.Name),

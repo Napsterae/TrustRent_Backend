@@ -9,6 +9,7 @@ public class IdentityDbContext : DbContext
     public IdentityDbContext(DbContextOptions<IdentityDbContext> options) : base(options) { }
 
     public DbSet<User> Users { get; set; }
+    public DbSet<EmailLoginCode> EmailLoginCodes { get; set; }
 
     public DbSet<PhoneCountry> PhoneCountries { get; set; }
 
@@ -33,6 +34,18 @@ public class IdentityDbContext : DbContext
             v => v == null ? null : EncryptionHelper.Encrypt(v),
             v => v == null ? null : EncryptionHelper.Decrypt(v)
         );
+
+        modelBuilder.Entity<EmailLoginCode>(b =>
+        {
+            b.ToTable("EmailLoginCodes", "identity");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Email).IsRequired().HasMaxLength(320);
+            b.Property(x => x.CodeHash).IsRequired().HasMaxLength(128);
+            b.Property(x => x.RequestedUserAgent).HasMaxLength(1024);
+            b.Property(x => x.RequestedFromIp).HasMaxLength(128);
+            b.HasIndex(x => new { x.Email, x.RequestedAt });
+            b.HasIndex(x => x.ExpiresAt);
+        });
 
         modelBuilder.Entity<PhoneCountry>(b =>
         {

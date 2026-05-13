@@ -98,13 +98,18 @@ public class CoTenantInviteServiceTests
     }
 
     [Fact]
-    public async Task CreateInvite_UserNotRegistered_ThrowsKeyNotFound()
+    public async Task CreateInvite_UserNotRegistered_CreatesEmailOnlyInvite()
     {
-        var (svc, _, app) = Setup(coTenantEmail: null);
+        var (svc, db, app) = Setup(coTenantEmail: null);
 
-        var ex = await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            svc.CreateInviteAsync(app.Id, app.TenantId, new CreateCoTenantInviteDto("missing@test.pt"), null));
-        Assert.Equal("user_not_registered", ex.Message);
+        var result = await svc.CreateInviteAsync(app.Id, app.TenantId, new CreateCoTenantInviteDto("missing@test.pt"), null);
+
+        Assert.NotNull(result);
+        Assert.Equal("missing@test.pt", result.InviteeEmail);
+        Assert.Null(result.InviteeUserId);
+        Assert.Single(db.ApplicationCoTenantInvites);
+        _notificationMock.Verify(n => n.SendNotificationAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid?>()), Times.Never);
+        _emailMock.Verify(e => e.SendEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Once);
     }
 
     [Fact]
