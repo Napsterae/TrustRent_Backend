@@ -40,14 +40,23 @@ using TrustRent.Modules.Admin.Seeds;
 var builder = WebApplication.CreateBuilder(args);
 
 var railwayPort = Environment.GetEnvironmentVariable("PORT");
-if (!string.IsNullOrWhiteSpace(railwayPort))
+var runningInContainer = string.Equals(
+    Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"),
+    "true",
+    StringComparison.OrdinalIgnoreCase);
+
+if (runningInContainer || !string.IsNullOrWhiteSpace(railwayPort))
 {
     var listenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "http://0.0.0.0:8080"
     };
 
-    listenUrls.Add($"http://0.0.0.0:{railwayPort}");
+    if (!string.IsNullOrWhiteSpace(railwayPort))
+    {
+        listenUrls.Add($"http://0.0.0.0:{railwayPort}");
+    }
+
     builder.WebHost.UseUrls(string.Join(';', listenUrls));
 }
 
