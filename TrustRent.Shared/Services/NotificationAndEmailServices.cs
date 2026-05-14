@@ -6,7 +6,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Net.Mail;
+using System.Net.Mime;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using TrustRent.Shared.Contracts.Interfaces;
 
@@ -43,11 +45,13 @@ public class EmailService : IEmailService
         var fromName = options.FromName ?? _config["EmailSettings:FromName"] ?? "Wekaza";
         var replyTo = options.ReplyToAddress ?? _config["EmailSettings:ReplyToAddress"];
         var htmlBody = _emailTemplateService.RenderTransactionalEmail(subject, body);
+        var textBody = BuildPlainTextBody(body);
 
         var emailMessage = new EmailMessage(
             to,
             subject,
             htmlBody,
+            textBody,
             fromAddress,
             fromName,
             replyTo);
@@ -89,13 +93,15 @@ public class EmailService : IEmailService
         {
             From = new MailAddress(emailMessage.FromAddress, emailMessage.FromName),
             Subject = emailMessage.Subject,
-            Body = emailMessage.HtmlBody,
-            IsBodyHtml = true,
+            Body = emailMessage.TextBody,
+            IsBodyHtml = false,
             BodyEncoding = Encoding.UTF8,
             SubjectEncoding = Encoding.UTF8
         };
 
         message.To.Add(new MailAddress(emailMessage.To));
+        message.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(emailMessage.TextBody, Encoding.UTF8, MediaTypeNames.Text.Plain));
+        message.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(emailMessage.HtmlBody, Encoding.UTF8, MediaTypeNames.Text.Html));
 
         var replyTo = emailMessage.ReplyToAddress ?? settings.DefaultReplyToAddress;
         if (!string.IsNullOrWhiteSpace(replyTo))
@@ -149,6 +155,11 @@ public class EmailService : IEmailService
                     },
                     Body = new Body
                     {
+                        Text = new Amazon.SimpleEmailV2.Model.Content
+                        {
+                            Data = emailMessage.TextBody,
+                            Charset = Encoding.UTF8.WebName
+                        },
                         Html = new Amazon.SimpleEmailV2.Model.Content
                         {
                             Data = emailMessage.HtmlBody,
@@ -302,6 +313,27 @@ public class EmailService : IEmailService
         };
     }
 
+    private static string BuildPlainTextBody(string body)
+    {
+        var source = string.IsNullOrWhiteSpace(body) ? "Sem conteúdo." : body;
+        var withLineBreaks = Regex.Replace(source, @"<\s*br\s*/?>", "\n", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        withLineBreaks = Regex.Replace(withLineBreaks, @"<\s*/p\s*>", "\n\n", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        withLineBreaks = Regex.Replace(withLineBreaks, @"<\s*/div\s*>", "\n", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        var noTags = Regex.Replace(withLineBreaks, @"<[^>]+>", " ", RegexOptions.CultureInvariant);
+        var decoded = WebUtility.HtmlDecode(noTags)
+            .Replace("\r\n", "\n")
+            .Replace('\r', '\n');
+
+        var normalized = Regex.Replace(decoded, @"[ \t]+", " ", RegexOptions.CultureInvariant);
+        normalized = Regex.Replace(normalized, @" ?\n ?", "\n", RegexOptions.CultureInvariant);
+        normalized = Regex.Replace(normalized, @"\n{3,}", "\n\n", RegexOptions.CultureInvariant).Trim();
+
+        return string.IsNullOrWhiteSpace(normalized)
+            ? "Sem conteúdo."
+            : normalized;
+    }
+
     private sealed record SmtpSettings(
         string Host,
         int Port,
@@ -316,6 +348,7 @@ public class EmailService : IEmailService
         string To,
         string Subject,
         string HtmlBody,
+        string TextBody,
         string FromAddress,
         string FromName,
         string? ReplyToAddress);
