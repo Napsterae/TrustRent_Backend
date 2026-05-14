@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -601,17 +602,46 @@ public class GuarantorService : IGuarantorService
 
     private static string BuildInviteEmail(string inviterName, string propertyTitle, string guestUrl)
                 => $"""
-                     <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#334155">{inviterName} indicou-te como fiador para a candidatura ao imóvel <strong>{propertyTitle}</strong>.</p>
-                     <p style="margin:0 0 22px;font-size:15px;line-height:1.7;color:#475569">Acede de forma segura, confirma os dados da candidatura e submete a tua informação e documentos.</p>
-                     <a href="{guestUrl}" style="display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:14px">Abrir convite</a>
-                     <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#64748b">Se o botão não funcionar, copia este endereço:<br /><span style="word-break:break-all;color:#334155">{guestUrl}</span></p>
+                     <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#334155">{WebUtility.HtmlEncode(inviterName)} indicou-te como fiador para a candidatura ao imóvel <strong>{WebUtility.HtmlEncode(propertyTitle)}</strong>.</p>
+                     {BuildAccentPanel("Próximo passo", "Acede de forma segura, confirma os dados da candidatura e submete a tua informação e documentos.")}
+                     {BuildActionButton(guestUrl, "Abrir convite")}
+                     {BuildFallbackLink(guestUrl)}
                      """;
 
     private static string BuildStatusEmail(string title, string message, string guestUrl)
                 => $"""
-                     <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#334155">{message}</p>
-                     <p style="margin:0 0 22px;font-size:15px;line-height:1.7;color:#475569">Podes consultar o estado atualizado através da tua área segura de convidado.</p>
-                     <a href="{guestUrl}" style="display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:14px">Consultar candidatura</a>
-                     <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#64748b">Se o botão não funcionar, copia este endereço:<br /><span style="word-break:break-all;color:#334155">{guestUrl}</span></p>
+                     <p style="margin:0 0 10px;font-size:12px;line-height:1.4;letter-spacing:1.8px;text-transform:uppercase;font-weight:700;color:#a65710">{WebUtility.HtmlEncode(title)}</p>
+                     <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#334155">{WebUtility.HtmlEncode(message)}</p>
+                     {BuildAccentPanel("Área segura", "Podes consultar o estado atualizado através da tua área segura de convidado.")}
+                     {BuildActionButton(guestUrl, "Consultar candidatura")}
+                     {BuildFallbackLink(guestUrl)}
+                     """;
+
+    private static string BuildAccentPanel(string title, string message)
+                => $"""
+                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin:0 0 22px;mso-table-lspace:0pt;mso-table-rspace:0pt">
+                         <tr>
+                             <td style="padding:18px 20px;background-color:#f7f3ee;background-image:linear-gradient(90deg,#fff7ef 0%,#f3fbf9 100%);border:1px solid #e5d6c6;border-radius:20px">
+                                 <p style="margin:0 0 8px;font-size:12px;line-height:1.4;letter-spacing:1.6px;text-transform:uppercase;font-weight:700;color:#1e6b66">{WebUtility.HtmlEncode(title)}</p>
+                                 <p style="margin:0;font-size:14px;line-height:1.7;color:#475569">{WebUtility.HtmlEncode(message)}</p>
+                             </td>
+                         </tr>
+                     </table>
+                     """;
+
+    private static string BuildActionButton(string url, string label)
+                => $"""
+                     <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin:0 0 20px;mso-table-lspace:0pt;mso-table-rspace:0pt">
+                         <tr>
+                             <td align="center" bgcolor="#1e6b66" style="border-radius:14px;background-color:#1e6b66;background-image:linear-gradient(135deg,#a65710 0%,#f2a04b 24%,#1e6b66 68%,#41b0a8 100%)">
+                                 <a href="{WebUtility.HtmlEncode(url)}" style="display:inline-block;padding:13px 20px;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;line-height:1.2;border-radius:14px">{WebUtility.HtmlEncode(label)}</a>
+                             </td>
+                         </tr>
+                     </table>
+                     """;
+
+    private static string BuildFallbackLink(string url)
+                => $"""
+                     <p style="margin:0;font-size:12px;line-height:1.6;color:#64748b">Se o botão não funcionar, copia este endereço:<br /><span style="word-break:break-all;color:#334155">{WebUtility.HtmlEncode(url)}</span></p>
                      """;
 }

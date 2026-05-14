@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Contracts.DTOs;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
@@ -25,6 +26,7 @@ public class LeaseService : ILeaseService
     private readonly IUserService _userService;
     private readonly IEmailService _emailService;
     private readonly IBackgroundJobClient _backgroundJobs;
+    private readonly IConfiguration? _configuration;
 
     public LeaseService(
         LeasingDbContext context,
@@ -35,7 +37,8 @@ public class LeaseService : ILeaseService
         ISignedPdfVerificationService signedPdfVerification,
         IUserService userService,
         IEmailService emailService,
-        IBackgroundJobClient backgroundJobs)
+        IBackgroundJobClient backgroundJobs,
+        IConfiguration? configuration = null)
     {
         _context = context;
         _catalogAccess = catalogAccess;
@@ -46,6 +49,7 @@ public class LeaseService : ILeaseService
         _userService = userService;
         _emailService = emailService;
         _backgroundJobs = backgroundJobs;
+        _configuration = configuration;
     }
 
     public async Task<LeaseDto> InitiateLeaseProcedureAsync(Guid applicationId, Guid userId, InitiateLeaseProcedureDto dto)
@@ -828,12 +832,34 @@ public class LeaseService : ILeaseService
                 await _notificationService.SendNotificationAsync(signature.UserId, "lease", message, lease.Id);
         }
 
-        private static string BuildGuestUrl(string token) => $"http://localhost:5173/guarantor/guest/{token}";
+        private string BuildGuestUrl(string token)
+        {
+                var frontendBaseUrl = _configuration?["Frontend:BaseUrl"]
+                    ?? _configuration?["App:FrontendBaseUrl"]
+                    ?? "http://localhost:5173";
+
+                return $"{frontendBaseUrl.TrimEnd('/')}/guarantor/guest/{token}";
+        }
 
         private static string BuildGuestLeaseEmail(string title, string message, string url)
                 => $"""
-                   <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#334155">{message}</p>
-                   <a href="{url}" style="display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:14px">Abrir área de fiador</a>
-                   <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#64748b">Se o botão não funcionar, copia este endereço:<br /><span style="word-break:break-all;color:#334155">{url}</span></p>
+                   <p style="margin:0 0 10px;font-size:12px;line-height:1.4;letter-spacing:1.8px;text-transform:uppercase;font-weight:700;color:#a65710">{title}</p>
+                   <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#334155">{message}</p>
+                   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin:0 0 22px;mso-table-lspace:0pt;mso-table-rspace:0pt">
+                       <tr>
+                           <td style="padding:18px 20px;background-color:#f7f3ee;background-image:linear-gradient(90deg,#fff7ef 0%,#f3fbf9 100%);border:1px solid #e5d6c6;border-radius:20px">
+                               <p style="margin:0 0 8px;font-size:12px;line-height:1.4;letter-spacing:1.6px;text-transform:uppercase;font-weight:700;color:#1e6b66">Área segura de fiador</p>
+                               <p style="margin:0;font-size:14px;line-height:1.7;color:#475569">Abre a tua área segura para acompanhar o estado do contrato e concluir o próximo passo.</p>
+                           </td>
+                       </tr>
+                   </table>
+                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin:0 0 20px;mso-table-lspace:0pt;mso-table-rspace:0pt">
+                       <tr>
+                           <td align="center" bgcolor="#1e6b66" style="border-radius:14px;background-color:#1e6b66;background-image:linear-gradient(135deg,#a65710 0%,#f2a04b 24%,#1e6b66 68%,#41b0a8 100%)">
+                               <a href="{url}" style="display:inline-block;padding:13px 20px;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;line-height:1.2;border-radius:14px">Abrir área de fiador</a>
+                           </td>
+                       </tr>
+                   </table>
+                   <p style="margin:0;font-size:12px;line-height:1.6;color:#64748b">Se o botão não funcionar, copia este endereço:<br /><span style="word-break:break-all;color:#334155">{url}</span></p>
                    """;
 }

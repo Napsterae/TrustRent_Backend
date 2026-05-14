@@ -145,14 +145,14 @@ public class LoginCodeService : ILoginCodeService
                      <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#374151">Usa o código abaixo para entrar na tua conta Wekaza.</p>
                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin:0 0 24px;mso-table-lspace:0pt;mso-table-rspace:0pt">
                          <tr>
-                             <td align="center" style="padding:20px 16px;background-color:#1b232c;border:1px solid #2f3a46">
-                                 <p style="margin:0 0 10px;font-size:12px;line-height:1.4;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:#d7c1ad">Codigo de acesso</p>
+                             <td align="center" bgcolor="#349f99" style="padding:20px 16px;background-color:#349f99;background-image:linear-gradient(135deg,#a65710 0%,#f2a04b 18%,#1e6b66 58%,#41b0a8 100%);border-radius:22px">
+                                 <p style="margin:0 0 10px;font-size:12px;line-height:1.4;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:#fff1df">Codigo de acesso</p>
                                  <p style="margin:0;font-family:'Courier New',Courier,monospace;font-size:34px;line-height:1.1;font-weight:700;letter-spacing:6px;color:#ffffff">{WebUtility.HtmlEncode(spacedCode)}</p>
                              </td>
                          </tr>
                      </table>
-                     <p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#4b5563">Este código expira em <strong>{ttlMinutes} minutos</strong> e só pode ser usado uma vez.</p>
-                     <p style="margin:0;font-size:14px;line-height:1.6;color:#6b7280">Se não pediste este acesso, podes ignorar este email.</p>
+                     <p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#475569">Este código expira em <strong>{ttlMinutes} minutos</strong> e só pode ser usado uma vez.</p>
+                     <p style="margin:0;font-size:14px;line-height:1.6;color:#64748b">Se não pediste este acesso, podes ignorar este email.</p>
                      """;
         }
 
