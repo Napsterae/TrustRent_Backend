@@ -1,5 +1,7 @@
 using Hangfire;
 using Hangfire.PostgreSql;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
@@ -237,7 +239,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 builder.Services.AddAuthorization();
-builder.Services.AddDataProtection();
+builder.Services.AddSingleton<PlatformSettingsXmlRepository>();
+builder.Services.AddDataProtection()
+    .SetApplicationName("TrustRent");
+builder.Services.AddOptions<KeyManagementOptions>()
+    .Configure<PlatformSettingsXmlRepository>((options, repository) =>
+    {
+        options.XmlRepository = repository;
+    });
 
 // === ADMIN MODULE (backoffice) ===
 // Adds AdminDbContext, services, second JWT scheme `AdminJwtBearer` reading cookie `trustrent_admin_auth`,
