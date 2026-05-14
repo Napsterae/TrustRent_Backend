@@ -21,9 +21,9 @@ public class EmailTemplateService : IEmailTemplateService
                    <meta name="supported-color-schemes" content="light only" />
                    <title>{WebUtility.HtmlEncode(subject)}</title>
                  </head>
-                 <body style="margin:0;padding:0;background-color:#f5f1eb;font-family:'Segoe UI',Arial,sans-serif;color:#1f2937;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%">
+                 <body style="margin:0;padding:0;background-color:#eef7f5;font-family:'Segoe UI',Arial,sans-serif;color:#1f2937;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%">
                    <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all">{WebUtility.HtmlEncode(previewText)}</div>
-                   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;background-color:#f5f1eb;mso-table-lspace:0pt;mso-table-rspace:0pt">
+                   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;background-color:#eef7f5;mso-table-lspace:0pt;mso-table-rspace:0pt">
                      <tr>
                        <td align="center" style="padding:24px 12px">
                          <!--[if mso]>
@@ -31,21 +31,21 @@ public class EmailTemplateService : IEmailTemplateService
                            <tr>
                              <td>
                          <![endif]-->
-                         <table role="presentation" width="680" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;width:100%;max-width:680px;background-color:#ffffff;border:1px solid #ddd4c8;mso-table-lspace:0pt;mso-table-rspace:0pt">
+                         <table role="presentation" width="680" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;width:100%;max-width:680px;background-color:#ffffff;border:1px solid #d8ece8;border-radius:28px;overflow:hidden;mso-table-lspace:0pt;mso-table-rspace:0pt">
                            <tr>
-                             <td style="padding:0;background-color:#1b232c">
+                             <td bgcolor="#379d97" style="padding:0;background-color:#379d97;background-image:linear-gradient(135deg,#f2a04b 0%,#c58b4d 18%,#1e6b66 58%,#41b0a8 100%)">
                                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt">
                                  <tr>
                                    <td style="padding:28px 32px 30px">
                                      <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt">
                                        <tr>
-                                         <td style="padding:8px 14px;border:1px solid #8f7862;background-color:#2a333d;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#f6ebdf">
+                                         <td style="padding:8px 14px;border:1px solid #ffd6ae;background-color:rgba(255,245,234,0.18);font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#fff7ef;border-radius:999px">
                                            WEKAZA
                                          </td>
                                        </tr>
                                      </table>
                                      <h1 style="margin:18px 0 8px;font-size:30px;line-height:1.15;color:#ffffff;font-weight:700">{WebUtility.HtmlEncode(subject)}</h1>
-                                     <p style="margin:0;font-size:15px;line-height:1.7;color:#dbe5ea">Comunicação transacional segura enviada pela plataforma Wekaza.</p>
+                                     <p style="margin:0;font-size:15px;line-height:1.7;color:#f0fbf9">Comunicação transacional segura enviada pela plataforma Wekaza.</p>
                                    </td>
                                  </tr>
                                </table>
@@ -58,7 +58,7 @@ public class EmailTemplateService : IEmailTemplateService
                            </tr>
                            <tr>
                              <td style="padding:0 28px 24px;background-color:#ffffff">
-                               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;background-color:#f7f3ee;border:1px solid #e2d8cc;mso-table-lspace:0pt;mso-table-rspace:0pt">
+                               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;background-color:#f7f3ee;background-image:linear-gradient(90deg,#fff7ef 0%,#f3fbf9 100%);border:1px solid #e2d8cc;border-radius:20px;mso-table-lspace:0pt;mso-table-rspace:0pt">
                                  <tr>
                                    <td style="padding:18px 20px;font-size:13px;line-height:1.7;color:#4b5563">
                                      Este email foi enviado automaticamente pela Wekaza. Se não reconheces esta ação, ignora a mensagem.
@@ -69,7 +69,7 @@ public class EmailTemplateService : IEmailTemplateService
                            </tr>
                            <tr>
                              <td style="padding:0 28px 28px;background-color:#ffffff">
-                               <div style="padding-top:20px;border-top:1px solid #e5ddd3;font-size:12px;line-height:1.7;color:#8b735f">
+                               <div style="padding-top:20px;border-top:1px solid #eadfd1;font-size:12px;line-height:1.7;color:#a58b76">
                                  Wekaza · Plataforma de arrendamento · Email transacional
                                </div>
                              </td>

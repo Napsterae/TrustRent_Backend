@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Net;
 using System.Text;
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
@@ -521,22 +522,11 @@ public static class LeaseEndpoints
                         var landlordUser = await identityDb.Users.FindAsync(lease.LandlordId);
                         var tenantUser = await identityDb.Users.FindAsync(lease.TenantId);
                         var emailSubject = $"Não Renovação de Contrato — Imóvel (Contrato {leaseId.ToString()[..8]})";
-                        var emailBody = $"""
-                            Caro(a) utilizador(a),
-
-                            Informamos que o contrato de arrendamento não será renovado.
-                            O {cancelledBy} comunicou a sua decisão de não renovação.
-
-                            Data de término do contrato: {lease.EndDate:dd/MM/yyyy}
-
-                            Nos termos do Art. 1081.º do Código Civil, o imóvel deve ser entregue
-                            nas condições previstas no contrato até à data de término.
-
-                            Esta comunicação foi registada para efeitos legais conforme o Art. 9.º
-                            do NRAU (Lei n.º 6/2006).
-
-                            Wekaza — Plataforma de Arrendamento
-                            """;
+                        var emailBody = BuildLeaseNoticeEmail(
+                            "Não renovação de contrato",
+                            $"Informamos que o contrato de arrendamento não será renovado. O {cancelledBy} comunicou a sua decisão de não renovação.",
+                            "Nos termos do Art. 1081.º do Código Civil, o imóvel deve ser entregue nas condições previstas no contrato até à data de término. Esta comunicação foi registada para efeitos legais conforme o Art. 9.º do NRAU (Lei n.º 6/2006).",
+                            ("Data de término do contrato", $"{lease.EndDate:dd/MM/yyyy}"));
 
                         if (landlordUser != null)
                             await emailService.SendEmailAsync(landlordUser.Email, emailSubject, emailBody);
@@ -860,12 +850,14 @@ public static class LeaseEndpoints
                     await emailService.SendEmailAsync(
                         landlordUser.Email,
                         $"Denúncia Antecipada — Contrato {leaseId.ToString()[..8]}",
-                        $"O inquilino comunicou a sua intenção de terminar antecipadamente o contrato.\n\n" +
-                        $"Data proposta: {proposedDate:dd/MM/yyyy}\n" +
-                        $"Pré-aviso legal: {noticeDays} dias\n" +
-                        (indemnificationRequired ? $"Indemnização: {indemnification:F2}€\n" : "") +
-                        $"Motivo: {dto.Reason}\n\n" +
-                        "Esta comunicação tem valor legal nos termos do Art. 9.º do NRAU.");
+                        BuildLeaseNoticeEmail(
+                            "Denúncia antecipada",
+                            "O inquilino comunicou a sua intenção de terminar antecipadamente o contrato.",
+                            "Esta comunicação tem valor legal nos termos do Art. 9.º do NRAU.",
+                            ("Data proposta", $"{proposedDate:dd/MM/yyyy}"),
+                            ("Pré-aviso legal", $"{noticeDays} dias"),
+                            ("Indemnização", indemnificationRequired ? $"{indemnification:F2}€" : string.Empty),
+                            ("Motivo", dto.Reason)));
                 }
 
                 return Results.Ok(new EarlyTerminationResultDto
@@ -1116,13 +1108,14 @@ public static class LeaseEndpoints
                     await emailService.SendEmailAsync(
                         tenantUser.Email,
                         $"Atualização de Renda — Contrato {leaseId.ToString()[..8]}",
-                        $"O senhorio comunicou uma atualização da renda do seu arrendamento.\n\n" +
-                        $"Renda atual: {lease.MonthlyRent:F2}€\n" +
-                        $"Nova renda: {newRent:F2}€ (aumento de {percentage}%)\n" +
-                        $"Coeficiente aplicado: {coefficient}\n" +
-                        $"Data de entrada em vigor: {effectiveDate:dd/MM/yyyy}\n\n" +
-                        $"Tem até {contestDeadline:dd/MM/yyyy} para contestar esta atualização.\n\n" +
-                        "Esta comunicação tem valor legal nos termos do Art. 24.º do NRAU.");
+                        BuildLeaseNoticeEmail(
+                            "Atualização de renda",
+                            "O senhorio comunicou uma atualização da renda do teu arrendamento.",
+                            $"Tens até {contestDeadline:dd/MM/yyyy} para contestar esta atualização. Esta comunicação tem valor legal nos termos do Art. 24.º do NRAU.",
+                            ("Renda atual", $"{lease.MonthlyRent:F2}€"),
+                            ("Nova renda", $"{newRent:F2}€ (aumento de {percentage}%)"),
+                            ("Coeficiente aplicado", $"{coefficient}"),
+                            ("Data de entrada em vigor", $"{effectiveDate:dd/MM/yyyy}")));
                 }
 
                 return Results.Ok(new RentIncreaseResultDto
@@ -1203,10 +1196,12 @@ public static class LeaseEndpoints
                     await emailService.SendEmailAsync(
                         landlordUser.Email,
                         $"Contestação de Atualização de Renda — Contrato {leaseId.ToString()[..8]}",
-                        $"O inquilino contestou a atualização de renda proposta.\n\n" +
-                        $"Aumento contestado: {request.CurrentRent:F2}€ → {request.ProposedRent:F2}€\n" +
-                        $"Motivo da contestação: {dto.Reason}\n\n" +
-                        "A atualização de renda fica suspensa até resolução da contestação.");
+                        BuildLeaseNoticeEmail(
+                            "Contestação de atualização de renda",
+                            "O inquilino contestou a atualização de renda proposta.",
+                            "A atualização de renda fica suspensa até resolução da contestação.",
+                            ("Aumento contestado", $"{request.CurrentRent:F2}€ → {request.ProposedRent:F2}€"),
+                            ("Motivo da contestação", dto.Reason)));
                 }
 
                 return Results.Ok(new { message = "Contestação registada com sucesso.", requestId = request.Id, status = request.Status });
@@ -1432,6 +1427,36 @@ public static class LeaseEndpoints
 
         return builder.ToString().Normalize(NormalizationForm.FormC).ToUpperInvariant().Trim();
     }
+
+    private static string BuildLeaseNoticeEmail(string title, string intro, string legalNote, params (string Label, string Value)[] details)
+    {
+        var detailRows = string.Join(string.Empty, details
+            .Where(detail => !string.IsNullOrWhiteSpace(detail.Value))
+            .Select(detail => $"""
+                <tr>
+                    <td style="padding:0 14px 10px 0;font-size:12px;line-height:1.5;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#1e6b66;vertical-align:top;white-space:nowrap">{EncodeHtml(detail.Label)}</td>
+                    <td style="padding:0 0 10px;font-size:14px;line-height:1.7;color:#334155">{EncodeHtml(detail.Value)}</td>
+                </tr>
+                """));
+
+        return $"""
+               <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#334155">{EncodeHtml(intro)}</p>
+               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin:0 0 18px;mso-table-lspace:0pt;mso-table-rspace:0pt">
+                   <tr>
+                       <td style="padding:18px 20px;background-color:#f7f3ee;background-image:linear-gradient(90deg,#fff7ef 0%,#f3fbf9 100%);border:1px solid #e5d6c6;border-radius:20px">
+                           <p style="margin:0 0 12px;font-size:12px;line-height:1.4;letter-spacing:1.6px;text-transform:uppercase;font-weight:700;color:#a65710">{EncodeHtml(title)}</p>
+                           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt">
+                               {detailRows}
+                           </table>
+                       </td>
+                   </tr>
+               </table>
+               <p style="margin:0;font-size:13px;line-height:1.7;color:#64748b">{EncodeHtml(legalNote)}</p>
+               """;
+    }
+
+    private static string EncodeHtml(string? value)
+        => WebUtility.HtmlEncode(value ?? string.Empty).Replace("\r\n", "<br />").Replace("\n", "<br />");
 
     private static string ComputeSha256(string content)
     {

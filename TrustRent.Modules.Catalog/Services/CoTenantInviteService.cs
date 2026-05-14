@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
@@ -116,9 +117,7 @@ public class CoTenantInviteService : ICoTenantInviteService
         await _emailService.SendEmailAsync(
             email,
             "Convite para candidatura conjunta — Wekaza",
-            $"<p style=\"margin:0 0 16px;font-size:16px;line-height:1.7;color:#334155\">{inviter.Name} convidou-te para co-candidatares ao imóvel <strong>{application.Property.Title}</strong>.</p>" +
-            "<p style=\"margin:0 0 16px;font-size:15px;line-height:1.7;color:#475569\">Entra na Wekaza com este mesmo email para veres o convite pendente no teu painel.</p>" +
-            "<p style=\"margin:0;font-size:14px;line-height:1.6;color:#64748b\">Se ainda não tens conta, a Wekaza cria-a automaticamente quando validares o teu código de acesso.</p>");
+            BuildInviteEmail(inviter.Name, application.Property.Title));
 
         return await BuildDtoAsync(invite, application.Property);
     }
@@ -346,4 +345,18 @@ public class CoTenantInviteService : ICoTenantInviteService
         var visible = local.Length <= 2 ? local[..1] : local[..2];
         return $"{visible}{new string('*', Math.Max(2, local.Length - 2))}{domain}";
     }
+
+    private static string BuildInviteEmail(string inviterName, string propertyTitle)
+        => $"""
+           <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#334155">{WebUtility.HtmlEncode(inviterName)} convidou-te para co-candidatares ao imóvel <strong>{WebUtility.HtmlEncode(propertyTitle)}</strong>.</p>
+           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin:0 0 18px;mso-table-lspace:0pt;mso-table-rspace:0pt">
+               <tr>
+                   <td style="padding:18px 20px;background-color:#f7f3ee;background-image:linear-gradient(90deg,#fff7ef 0%,#f3fbf9 100%);border:1px solid #e5d6c6;border-radius:20px">
+                       <p style="margin:0 0 8px;font-size:12px;line-height:1.4;letter-spacing:1.6px;text-transform:uppercase;font-weight:700;color:#1e6b66">Como entrar</p>
+                       <p style="margin:0;font-size:14px;line-height:1.7;color:#475569">Entra na Wekaza com este mesmo email para veres o convite pendente no teu painel.</p>
+                   </td>
+               </tr>
+           </table>
+           <p style="margin:0;font-size:14px;line-height:1.6;color:#64748b">Se ainda não tens conta, a Wekaza cria-a automaticamente quando validares o teu código de acesso. Não precisas de criar password.</p>
+           """;
 }
