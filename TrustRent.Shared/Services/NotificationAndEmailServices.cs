@@ -10,6 +10,7 @@ namespace TrustRent.Shared.Services;
 
 public class EmailService : IEmailService
 {
+    private const int DefaultSendTimeoutSeconds = 15;
     private static int _missingConfigLogged;
     private readonly IConfiguration _config;
     private readonly IEmailTemplateService _emailTemplateService;
@@ -67,7 +68,22 @@ public class EmailService : IEmailService
             Credentials = new NetworkCredential(settings.Username, settings.Password)
         };
 
-        await client.SendMailAsync(message);
+        var sendTimeoutSeconds = GetSendTimeoutSeconds();
+        try
+        {
+            await client.SendMailAsync(message).WaitAsync(TimeSpan.FromSeconds(sendTimeoutSeconds));
+        }
+        catch (TimeoutException ex)
+        {
+            _logger.LogError(ex,
+                "Timeout SMTP ao enviar email para {Recipient} com assunto {Subject} apos {TimeoutSeconds}s.",
+                to,
+                subject,
+                sendTimeoutSeconds);
+
+            throw new InvalidOperationException("O serviço de email não respondeu a tempo. Tenta novamente.", ex);
+        }
+
         _logger.LogInformation("Email enviado para {Recipient} com assunto {Subject}", to, subject);
     }
 
@@ -94,6 +110,15 @@ public class EmailService : IEmailService
                && !string.IsNullOrWhiteSpace(settings.Username)
                && !string.IsNullOrWhiteSpace(settings.Password)
                && !string.IsNullOrWhiteSpace(settings.DefaultFromAddress);
+    }
+
+    private int GetSendTimeoutSeconds()
+    {
+        var configured = int.TryParse(_config["EmailSettings:SendTimeoutSeconds"], out var parsed)
+            ? parsed
+            : DefaultSendTimeoutSeconds;
+
+        return Math.Clamp(configured, 5, 120);
     }
 
     private sealed record SmtpSettings(
