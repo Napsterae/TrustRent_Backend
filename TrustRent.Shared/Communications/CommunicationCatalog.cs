@@ -149,7 +149,7 @@ public static class CommunicationCatalog
             "Código de login",
             "Autenticação",
             "Entrega do código one-time para autenticação por email.",
-            "1.0.0",
+            "1.0.1",
             "Default 2026",
             $"O teu código de acesso — {Token("AppName")}",
             $"""
@@ -158,14 +158,19 @@ public static class CommunicationCatalog
                 <tr>
                     <td align="center" bgcolor="#349f99" style="padding:20px 16px;background-color:#349f99;background-image:linear-gradient(135deg,#a65710 0%,#f2a04b 18%,#1e6b66 58%,#41b0a8 100%);border-radius:22px">
                         <p style="margin:0 0 10px;font-size:12px;line-height:1.4;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:#fff1df">Código de acesso</p>
-                        <p style="margin:0;font-family:'Courier New',Courier,monospace;font-size:34px;line-height:1.1;font-weight:700;letter-spacing:6px;color:#ffffff">{Token("LoginCode")}</p>
+                        <p style="margin:0;font-family:'Courier New',Courier,monospace;font-size:34px;line-height:1.1;font-weight:700;letter-spacing:6px;color:#ffffff;-webkit-user-select:all;user-select:all">{Token("LoginCode")}</p>
                     </td>
+                </tr>
+            </table>
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin:0 0 18px;mso-table-lspace:0pt;mso-table-rspace:0pt">
+                <tr>
+                    <td style="padding:12px 18px;border:1px solid #d7e3e2;border-radius:999px;background-color:#f8fbfb;font-size:13px;line-height:1.5;font-weight:600;color:#1e6b66">Para copiar rapidamente, seleciona o código acima e copia-o no teu dispositivo.</td>
                 </tr>
             </table>
             <p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#475569">Este código expira em <strong>{Token("LoginCodeExpiresMinutes")} minutos</strong> e só pode ser usado uma vez.</p>
             <p style="margin:0;font-size:14px;line-height:1.6;color:#64748b">Se não pediste este acesso, podes ignorar este email.</p>
             """,
-            $"Usa o código {Token("LoginCode")} para entrar em {Token("AppName")}. Expira em {Token("LoginCodeExpiresMinutes")} minutos.",
+            $"Usa o código {Token("LoginCode")} para entrar em {Token("AppName")}. Seleciona e copia o código manualmente se precisares. Expira em {Token("LoginCodeExpiresMinutes")} minutos.",
             ["AppName", "LoginCode", "LoginCodeExpiresMinutes"]),
         new(
             CommunicationEmailTemplateKeys.ApplicationSubmitted,
