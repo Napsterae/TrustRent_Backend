@@ -34,4 +34,20 @@ public class ApplicationStatusValidator : IApplicationStatusValidator
 
         return (application.TenantId, application.Property.LandlordId, application.CoTenantUserId);
     }
+
+    public async Task<ApplicationChatContext?> GetApplicationChatContextAsync(Guid applicationId)
+    {
+        return await _context.Applications
+            .Include(a => a.Property)
+            .Where(a => a.Id == applicationId)
+            .Select(a => new ApplicationChatContext
+            {
+                ApplicationId = a.Id,
+                TenantId = a.TenantId,
+                LandlordId = a.Property!.LandlordId,
+                CoTenantUserId = a.CoTenantUserId,
+                PropertyTitle = string.IsNullOrWhiteSpace(a.Property!.Title) ? "Candidatura" : a.Property.Title
+            })
+            .FirstOrDefaultAsync();
+    }
 }

@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Contracts.DTOs;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Models;
+using TrustRent.Shared.Communications;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Models;
 
@@ -16,17 +18,26 @@ public class ReviewService : IReviewService
     private readonly IUserService _userService;
     private readonly INotificationService _notificationService;
     private readonly ILogger<ReviewService> _logger;
+    private readonly ICommunicationContentService? _communicationContentService;
+    private readonly IEmailService? _emailService;
+    private readonly IConfiguration? _configuration;
 
     public ReviewService(
         LeasingDbContext db,
         IUserService userService,
         INotificationService notificationService,
-        ILogger<ReviewService> logger)
+        ILogger<ReviewService> logger,
+        ICommunicationContentService? communicationContentService = null,
+        IEmailService? emailService = null,
+        IConfiguration? configuration = null)
     {
         _db = db;
         _userService = userService;
         _notificationService = notificationService;
         _logger = logger;
+        _communicationContentService = communicationContentService;
+        _emailService = emailService;
+        _configuration = configuration;
     }
 
     public async Task<ReviewResponse> SubmitReviewAsync(Guid userId, CreateReviewRequest request)
@@ -234,6 +245,9 @@ public class ReviewService : IReviewService
             "É hora de avaliar o seu senhorio! Tem 10 dias para submeter a sua avaliação.",
             leaseId);
 
+        await TrySendPendingReviewEmailAsync(lease.LandlordId, lease.TenantId, ReviewType.LeaseReview, expiresAt);
+        await TrySendPendingReviewEmailAsync(lease.TenantId, lease.LandlordId, ReviewType.LeaseReview, expiresAt);
+
         _logger.LogInformation("Created lease review pair {PairId} for lease {LeaseId}", pairId, leaseId);
     }
 
@@ -288,7 +302,42 @@ public class ReviewService : IReviewService
             $"O ticket \"{ticket.Title}\" foi encerrado. Avalie o processo! Tem 10 dias.",
             ticketId);
 
+        await TrySendPendingReviewEmailAsync(ticket.LandlordId, ticket.TenantId, ReviewType.TicketReview, expiresAt);
+        await TrySendPendingReviewEmailAsync(ticket.TenantId, ticket.LandlordId, ReviewType.TicketReview, expiresAt);
+
         _logger.LogInformation("Created ticket review pair {PairId} for ticket {TicketId}", pairId, ticketId);
+    }
+
+    private async Task TrySendPendingReviewEmailAsync(Guid recipientId, Guid counterpartyId, ReviewType reviewType, DateTime expiresAt)
+    {
+        if (_communicationContentService is null || _emailService is null)
+            return;
+
+        var recipient = await _userService.GetProfileAsync(recipientId);
+        var counterparty = await _userService.GetProfileAsync(counterpartyId);
+        if (recipient is null || string.IsNullOrWhiteSpace(recipient.Email))
+            return;
+
+        var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+            CommunicationEmailTemplateKeys.ReviewPending,
+            new Dictionary<string, string?>
+            {
+                ["CounterpartyName"] = counterparty?.Name ?? "a contraparte",
+                ["ReviewContextLabel"] = reviewType == ReviewType.TicketReview ? "ticket" : "arrendamento",
+                ["ReviewDeadline"] = expiresAt.ToLocalTime().ToString("dd/MM/yyyy"),
+                ["ReviewUrl"] = BuildFrontendUrl("/reviews")
+            });
+
+        await _emailService.SendEmailAsync(recipient.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
+    }
+
+    private string BuildFrontendUrl(string relativePath)
+    {
+        var frontendBaseUrl = _configuration?["Frontend:BaseUrl"]
+            ?? _configuration?["App:FrontendBaseUrl"]
+            ?? "http://localhost:5173";
+
+        return $"{frontendBaseUrl.TrimEnd('/')}/{relativePath.TrimStart('/')}";
     }
 
     public async Task ProcessExpiredReviewsAsync()

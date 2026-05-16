@@ -15,6 +15,7 @@ using TrustRent.Modules.Leasing.Services;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Shared.Communications;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Models.DocumentExtraction;
 using TrustRent.Shared.Models;
@@ -360,7 +361,7 @@ public static class LeaseEndpoints
         group.MapPost("/{leaseId:guid}/renewal-response",
             async (Guid leaseId, [FromBody] RenewalResponseDto dto,
                    LeasingDbContext db, IdentityDbContext identityDb,
-                   INotificationService notificationService, IEmailService emailService,
+                   INotificationService notificationService, IEmailService emailService, ICommunicationContentService communicationContentService,
                    ClaimsPrincipal user, HttpContext httpContext) =>
             {
                 if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
@@ -521,17 +522,19 @@ public static class LeaseEndpoints
                         // Enviar emails de notificação de não renovação
                         var landlordUser = await identityDb.Users.FindAsync(lease.LandlordId);
                         var tenantUser = await identityDb.Users.FindAsync(lease.TenantId);
-                        var emailSubject = $"Não Renovação de Contrato — Imóvel (Contrato {leaseId.ToString()[..8]})";
-                        var emailBody = BuildLeaseNoticeEmail(
-                            "Não renovação de contrato",
-                            $"Informamos que o contrato de arrendamento não será renovado. O {cancelledBy} comunicou a sua decisão de não renovação.",
-                            "Nos termos do Art. 1081.º do Código Civil, o imóvel deve ser entregue nas condições previstas no contrato até à data de término. Esta comunicação foi registada para efeitos legais conforme o Art. 9.º do NRAU (Lei n.º 6/2006).",
-                            ("Data de término do contrato", $"{lease.EndDate:dd/MM/yyyy}"));
+                        var renderedTemplate = await communicationContentService.RenderEmailTemplateAsync(
+                            CommunicationEmailTemplateKeys.LeaseNonRenewalNotice,
+                            new Dictionary<string, string?>
+                            {
+                                ["LeaseReference"] = leaseId.ToString()[..8],
+                                ["DecisionActor"] = cancelledBy,
+                                ["LeaseEndDate"] = lease.EndDate.ToString("dd/MM/yyyy")
+                            });
 
-                        if (landlordUser != null)
-                            await emailService.SendEmailAsync(landlordUser.Email, emailSubject, emailBody);
-                        if (tenantUser != null)
-                            await emailService.SendEmailAsync(tenantUser.Email, emailSubject, emailBody);
+                        if (landlordUser?.Email != null)
+                            await emailService.SendEmailAsync(landlordUser.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
+                        if (tenantUser?.Email != null)
+                            await emailService.SendEmailAsync(tenantUser.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
                     }
                 }
 
@@ -735,7 +738,7 @@ public static class LeaseEndpoints
         group.MapPost("/{leaseId:guid}/request-early-termination",
             async (Guid leaseId, [FromBody] RequestEarlyTerminationDto dto,
                    LeasingDbContext db, IdentityDbContext identityDb,
-                   INotificationService notificationService, IEmailService emailService,
+                   INotificationService notificationService, IEmailService emailService, ICommunicationContentService communicationContentService,
                    HttpContext httpContext, ClaimsPrincipal user) =>
             {
                 if (!TryGetUserId(user, out var userId))
@@ -847,17 +850,17 @@ public static class LeaseEndpoints
                 var landlordUser = await identityDb.Users.FindAsync(lease.LandlordId);
                 if (landlordUser?.Email != null)
                 {
-                    await emailService.SendEmailAsync(
-                        landlordUser.Email,
-                        $"Denúncia Antecipada — Contrato {leaseId.ToString()[..8]}",
-                        BuildLeaseNoticeEmail(
-                            "Denúncia antecipada",
-                            "O inquilino comunicou a sua intenção de terminar antecipadamente o contrato.",
-                            "Esta comunicação tem valor legal nos termos do Art. 9.º do NRAU.",
-                            ("Data proposta", $"{proposedDate:dd/MM/yyyy}"),
-                            ("Pré-aviso legal", $"{noticeDays} dias"),
-                            ("Indemnização", indemnificationRequired ? $"{indemnification:F2}€" : string.Empty),
-                            ("Motivo", dto.Reason)));
+                    var renderedTemplate = await communicationContentService.RenderEmailTemplateAsync(
+                        CommunicationEmailTemplateKeys.LeaseEarlyTerminationNotice,
+                        new Dictionary<string, string?>
+                        {
+                            ["LeaseReference"] = leaseId.ToString()[..8],
+                            ["ProposedTerminationDate"] = proposedDate.ToString("dd/MM/yyyy"),
+                            ["NoticeDays"] = $"{noticeDays} dias",
+                            ["IndemnificationAmount"] = indemnificationRequired && indemnification.HasValue ? $"{indemnification.Value:F2}€" : string.Empty,
+                            ["Reason"] = dto.Reason
+                        });
+                    await emailService.SendEmailAsync(landlordUser.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
                 }
 
                 return Results.Ok(new EarlyTerminationResultDto
@@ -999,7 +1002,7 @@ public static class LeaseEndpoints
         group.MapPost("/{leaseId:guid}/request-rent-increase",
             async (Guid leaseId, [FromBody] RequestRentIncreaseDto dto,
                    LeasingDbContext db, IdentityDbContext identityDb,
-                   INotificationService notificationService, IEmailService emailService,
+                   INotificationService notificationService, IEmailService emailService, ICommunicationContentService communicationContentService,
                    HttpContext httpContext, ClaimsPrincipal user) =>
             {
                 if (!TryGetUserId(user, out var userId))
@@ -1105,17 +1108,19 @@ public static class LeaseEndpoints
                 var tenantUser = await identityDb.Users.FindAsync(lease.TenantId);
                 if (tenantUser?.Email != null)
                 {
-                    await emailService.SendEmailAsync(
-                        tenantUser.Email,
-                        $"Atualização de Renda — Contrato {leaseId.ToString()[..8]}",
-                        BuildLeaseNoticeEmail(
-                            "Atualização de renda",
-                            "O senhorio comunicou uma atualização da renda do teu arrendamento.",
-                            $"Tens até {contestDeadline:dd/MM/yyyy} para contestar esta atualização. Esta comunicação tem valor legal nos termos do Art. 24.º do NRAU.",
-                            ("Renda atual", $"{lease.MonthlyRent:F2}€"),
-                            ("Nova renda", $"{newRent:F2}€ (aumento de {percentage}%)"),
-                            ("Coeficiente aplicado", $"{coefficient}"),
-                            ("Data de entrada em vigor", $"{effectiveDate:dd/MM/yyyy}")));
+                    var renderedTemplate = await communicationContentService.RenderEmailTemplateAsync(
+                        CommunicationEmailTemplateKeys.LeaseRentIncreaseNotice,
+                        new Dictionary<string, string?>
+                        {
+                            ["LeaseReference"] = leaseId.ToString()[..8],
+                            ["CurrentRent"] = $"{lease.MonthlyRent:F2}€",
+                            ["NewRent"] = $"{newRent:F2}€ (aumento de {percentage}%)",
+                            ["IncreasePercentage"] = $"{percentage}%",
+                            ["CoefficientApplied"] = $"{coefficient}",
+                            ["EffectiveDate"] = effectiveDate.ToString("dd/MM/yyyy"),
+                            ["ContestationDeadline"] = contestDeadline.ToString("dd/MM/yyyy")
+                        });
+                    await emailService.SendEmailAsync(tenantUser.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
                 }
 
                 return Results.Ok(new RentIncreaseResultDto
@@ -1134,7 +1139,7 @@ public static class LeaseEndpoints
         group.MapPost("/{leaseId:guid}/rent-increase/{requestId:guid}/contest",
             async (Guid leaseId, Guid requestId, [FromBody] ContestRentIncreaseDto dto,
                    LeasingDbContext db, IdentityDbContext identityDb,
-                   INotificationService notificationService, IEmailService emailService,
+                   INotificationService notificationService, IEmailService emailService, ICommunicationContentService communicationContentService,
                    HttpContext httpContext, ClaimsPrincipal user) =>
             {
                 if (!TryGetUserId(user, out var userId))
@@ -1193,15 +1198,16 @@ public static class LeaseEndpoints
                 var landlordUser = await identityDb.Users.FindAsync(lease.LandlordId);
                 if (landlordUser?.Email != null)
                 {
-                    await emailService.SendEmailAsync(
-                        landlordUser.Email,
-                        $"Contestação de Atualização de Renda — Contrato {leaseId.ToString()[..8]}",
-                        BuildLeaseNoticeEmail(
-                            "Contestação de atualização de renda",
-                            "O inquilino contestou a atualização de renda proposta.",
-                            "A atualização de renda fica suspensa até resolução da contestação.",
-                            ("Aumento contestado", $"{request.CurrentRent:F2}€ → {request.ProposedRent:F2}€"),
-                            ("Motivo da contestação", dto.Reason)));
+                    var renderedTemplate = await communicationContentService.RenderEmailTemplateAsync(
+                        CommunicationEmailTemplateKeys.LeaseRentIncreaseContestation,
+                        new Dictionary<string, string?>
+                        {
+                            ["LeaseReference"] = leaseId.ToString()[..8],
+                            ["CurrentRent"] = $"{request.CurrentRent:F2}€",
+                            ["NewRent"] = $"{request.ProposedRent:F2}€",
+                            ["Reason"] = dto.Reason
+                        });
+                    await emailService.SendEmailAsync(landlordUser.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
                 }
 
                 return Results.Ok(new { message = "Contestação registada com sucesso.", requestId = request.Id, status = request.Status });

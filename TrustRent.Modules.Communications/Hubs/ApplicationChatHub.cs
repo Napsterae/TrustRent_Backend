@@ -1,8 +1,11 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Configuration;
 using TrustRent.Modules.Communications.Contracts.Database;
 using TrustRent.Modules.Communications.Models;
+using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Shared.Communications;
 using TrustRent.Shared.Contracts.Interfaces;
 
 namespace TrustRent.Modules.Communications.Hubs;
@@ -13,12 +16,27 @@ public class ApplicationChatHub : Hub
     private readonly CommunicationsDbContext _context;
     private readonly IApplicationStatusValidator _statusValidator;
     private readonly INotificationService _notificationService;
+    private readonly IUserService? _userService;
+    private readonly ICommunicationContentService? _communicationContentService;
+    private readonly IEmailService? _emailService;
+    private readonly IConfiguration? _configuration;
 
-    public ApplicationChatHub(CommunicationsDbContext context, IApplicationStatusValidator statusValidator, INotificationService notificationService)
+    public ApplicationChatHub(
+        CommunicationsDbContext context,
+        IApplicationStatusValidator statusValidator,
+        INotificationService notificationService,
+        IUserService? userService = null,
+        ICommunicationContentService? communicationContentService = null,
+        IEmailService? emailService = null,
+        IConfiguration? configuration = null)
     {
         _context = context;
         _statusValidator = statusValidator;
         _notificationService = notificationService;
+        _userService = userService;
+        _communicationContentService = communicationContentService;
+        _emailService = emailService;
+        _configuration = configuration;
     }
 
     private Guid GetAuthenticatedUserId()
@@ -58,10 +76,10 @@ public class ApplicationChatHub : Hub
             throw new HubException("Não pode enviar mensagens em nome de outro utilizador.");
 
         // Verify the user is a participant
-        var participants = await _statusValidator.GetApplicationParticipantsAsync(applicationId);
-        if (participants == null)
+        var chatContext = await _statusValidator.GetApplicationChatContextAsync(applicationId);
+        if (chatContext == null)
             throw new HubException("Candidatura não encontrada.");
-        if (!IsApplicationChatParticipant(participants.Value, userId))
+        if (!IsApplicationChatParticipant((chatContext.TenantId, chatContext.LandlordId, chatContext.CoTenantUserId), userId))
             throw new HubException("Não tem permissão para enviar mensagens nesta conversa.");
 
         bool isLocked = await _statusValidator.IsApplicationChatLockedAsync(applicationId);
@@ -87,13 +105,55 @@ public class ApplicationChatHub : Hub
         await Clients.Group(applicationId.ToString()).SendAsync("ReceiveMessage", message);
 
         // 3. Notificar o outro participante (SignalR + Persistência)
-        var recipientIds = GetApplicationChatRecipients(participants.Value)
+        var recipientIds = GetApplicationChatRecipients((chatContext.TenantId, chatContext.LandlordId, chatContext.CoTenantUserId))
             .Where(recipientId => recipientId != senderId);
 
         foreach (var recipientId in recipientIds)
         {
             await _notificationService.SendNotificationAsync(recipientId, "application", "Recebeste uma nova mensagem na candidatura.", applicationId);
+            await TrySendNewMessageEmailAsync(recipientId, senderId, applicationId, chatContext.PropertyTitle, content);
         }
+    }
+
+    private async Task TrySendNewMessageEmailAsync(Guid recipientId, Guid senderId, Guid applicationId, string propertyTitle, string content)
+    {
+        if (_userService is null || _communicationContentService is null || _emailService is null)
+            return;
+
+        var recipient = await _userService.GetProfileAsync(recipientId);
+        var sender = await _userService.GetProfileAsync(senderId);
+        if (recipient is null || sender is null || string.IsNullOrWhiteSpace(recipient.Email))
+            return;
+
+        var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+            CommunicationEmailTemplateKeys.ApplicationNewMessage,
+            new Dictionary<string, string?>
+            {
+                ["SenderName"] = sender.Name,
+                ["PropertyTitle"] = propertyTitle,
+                ["MessagePreview"] = BuildMessagePreview(content),
+                ["ApplicationUrl"] = BuildFrontendUrl($"/applications/{applicationId}")
+            });
+
+        await _emailService.SendEmailAsync(recipient.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
+    }
+
+    private string BuildFrontendUrl(string relativePath)
+    {
+        var frontendBaseUrl = _configuration?["Frontend:BaseUrl"]
+            ?? _configuration?["App:FrontendBaseUrl"]
+            ?? "http://localhost:5173";
+
+        return $"{frontendBaseUrl.TrimEnd('/')}/{relativePath.TrimStart('/')}";
+    }
+
+    private static string BuildMessagePreview(string content)
+    {
+        var normalized = string.Join(' ', (content ?? string.Empty).Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)).Trim();
+        if (normalized.Length <= 180)
+            return normalized;
+
+        return $"{normalized[..177]}...";
     }
 
     private static bool IsApplicationChatParticipant((Guid TenantId, Guid LandlordId, Guid? CoTenantUserId) participants, Guid userId)

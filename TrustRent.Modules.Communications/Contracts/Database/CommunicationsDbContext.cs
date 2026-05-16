@@ -12,6 +12,7 @@ public class CommunicationsDbContext : DbContext
     public DbSet<PushDevice> PushDevices { get; set; }
     public DbSet<Broadcast> Broadcasts => Set<Broadcast>();
     public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
+    public DbSet<LegalDocumentVersion> LegalDocumentVersions => Set<LegalDocumentVersion>();
     public DbSet<Banner> Banners => Set<Banner>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -54,9 +55,25 @@ public class CommunicationsDbContext : DbContext
         {
             b.HasKey(x => x.Id);
             b.Property(x => x.Key).HasMaxLength(100).IsRequired();
-            b.HasIndex(x => new { x.Key, x.Locale }).IsUnique();
+            b.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            b.Property(x => x.Version).HasMaxLength(32).IsRequired();
+            b.HasIndex(x => new { x.Key, x.Locale, x.Version }).IsUnique();
+            b.HasIndex(x => new { x.Key, x.Locale, x.IsActive });
             b.Property(x => x.Subject).HasMaxLength(300).IsRequired();
             b.Property(x => x.Locale).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<LegalDocumentVersion>(b =>
+        {
+            b.HasKey(x => x.Id);
+            b.Property(x => x.DocumentType).HasMaxLength(40).IsRequired();
+            b.Property(x => x.Version).HasMaxLength(32).IsRequired();
+            b.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            b.Property(x => x.Summary).HasMaxLength(500);
+            b.Property(x => x.ChangeSummary).HasMaxLength(2000);
+            b.HasIndex(x => new { x.DocumentType, x.Version }).IsUnique();
+            b.HasIndex(x => new { x.DocumentType, x.IsCurrent });
+            b.HasIndex(x => new { x.DocumentType, x.PublishedAt });
         });
 
         modelBuilder.Entity<Banner>(b =>

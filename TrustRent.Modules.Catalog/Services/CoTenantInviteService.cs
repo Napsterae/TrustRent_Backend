@@ -5,6 +5,7 @@ using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Shared.Communications;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Models;
 
@@ -16,6 +17,7 @@ public class CoTenantInviteService : ICoTenantInviteService
     private readonly IUserRepository _userRepository;
     private readonly IUserService _userService;
     private readonly INotificationService _notificationService;
+    private readonly ICommunicationContentService _communicationContentService;
     private readonly IEmailService _emailService;
 
     private const int InviteValidityDays = 7;
@@ -25,12 +27,14 @@ public class CoTenantInviteService : ICoTenantInviteService
         IUserRepository userRepository,
         IUserService userService,
         INotificationService notificationService,
+        ICommunicationContentService communicationContentService,
         IEmailService emailService)
     {
         _context = context;
         _userRepository = userRepository;
         _userService = userService;
         _notificationService = notificationService;
+        _communicationContentService = communicationContentService;
         _emailService = emailService;
     }
 
@@ -114,10 +118,15 @@ public class CoTenantInviteService : ICoTenantInviteService
                 applicationId);
         }
 
-        await _emailService.SendEmailAsync(
-            email,
-            "Convite para candidatura conjunta — Wekaza",
-            BuildInviteEmail(inviter.Name, application.Property.Title));
+        var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+            CommunicationEmailTemplateKeys.ApplicationCoTenantInvite,
+            new Dictionary<string, string?>
+            {
+                ["InviterName"] = inviter.Name,
+                ["PropertyTitle"] = application.Property.Title
+            });
+
+        await _emailService.SendEmailAsync(email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
 
         return await BuildDtoAsync(invite, application.Property);
     }
