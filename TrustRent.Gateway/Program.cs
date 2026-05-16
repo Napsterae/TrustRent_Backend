@@ -360,13 +360,16 @@ static string EnsureTrailingSlash(string url) => url.EndsWith('/') ? url : $"{ur
 
 static string NormalizeHost(string host) => host.Trim().TrimEnd('.').ToLowerInvariant();
 
-static bool IsCacheSensitiveAuthPath(PathString path) => path.StartsWithSegments("/api/auth");
+static bool IsCacheSensitiveAuthPath(PathString path)
+    => path.StartsWithSegments("/api/auth")
+        || path.StartsWithSegments("/api/staging-access");
 
 static RouteConfig[] BuildPublicRoutes()
 {
     var routeConfigs = new List<RouteConfig>();
 
     AddPrefixRoutes(routeConfigs, "auth", "/api/auth");
+    AddPrefixRoutes(routeConfigs, "staging-access", "/api/staging-access");
     AddPrefixRoutes(routeConfigs, "user", "/api/user");
     AddPrefixRoutes(routeConfigs, "properties", "/api/properties");
     AddPrefixRoutes(routeConfigs, "applications", "/api/applications");
