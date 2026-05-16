@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
@@ -19,6 +20,7 @@ public class CoTenantInviteService : ICoTenantInviteService
     private readonly INotificationService _notificationService;
     private readonly ICommunicationContentService _communicationContentService;
     private readonly IEmailService _emailService;
+    private readonly ILogger<CoTenantInviteService>? _logger;
 
     private const int InviteValidityDays = 7;
 
@@ -28,7 +30,8 @@ public class CoTenantInviteService : ICoTenantInviteService
         IUserService userService,
         INotificationService notificationService,
         ICommunicationContentService communicationContentService,
-        IEmailService emailService)
+        IEmailService emailService,
+        ILogger<CoTenantInviteService>? logger = null)
     {
         _context = context;
         _userRepository = userRepository;
@@ -36,6 +39,7 @@ public class CoTenantInviteService : ICoTenantInviteService
         _notificationService = notificationService;
         _communicationContentService = communicationContentService;
         _emailService = emailService;
+        _logger = logger;
     }
 
     public async Task<CoTenantInviteDto> CreateInviteAsync(Guid applicationId, Guid inviterUserId, CreateCoTenantInviteDto dto, string? sourceIp)
@@ -108,25 +112,39 @@ public class CoTenantInviteService : ICoTenantInviteService
 
         await _context.SaveChangesAsync();
 
-        // Notificações
+        // Notificações e email são best-effort; a candidatura não deve falhar depois de persistida.
         if (invitee != null)
         {
-            await _notificationService.SendNotificationAsync(
-                invitee.Id,
-                "cotenant_invite",
-                $"{inviter.Name} convidou-te para co-candidatar a '{application.Property.Title}'.",
-                applicationId);
+            try
+            {
+                await _notificationService.SendNotificationAsync(
+                    invitee.Id,
+                    "cotenant_invite",
+                    $"{inviter.Name} convidou-te para co-candidatar a '{application.Property.Title}'.",
+                    applicationId);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Falha ao enviar a notificação do convite de co-candidato {InviteId} para o utilizador {InviteeUserId}.", invite.Id, invitee.Id);
+            }
         }
 
-        var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
-            CommunicationEmailTemplateKeys.ApplicationCoTenantInvite,
-            new Dictionary<string, string?>
-            {
-                ["InviterName"] = inviter.Name,
-                ["PropertyTitle"] = application.Property.Title
-            });
+        try
+        {
+            var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+                CommunicationEmailTemplateKeys.ApplicationCoTenantInvite,
+                new Dictionary<string, string?>
+                {
+                    ["InviterName"] = inviter.Name,
+                    ["PropertyTitle"] = application.Property.Title
+                });
 
-        await _emailService.SendEmailAsync(email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
+            await _emailService.SendEmailAsync(email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
+        }
+        catch (Exception ex)
+            {
+            _logger?.LogWarning(ex, "Falha ao enviar o email do convite de co-candidato {InviteId} para {InviteeEmail}.", invite.Id, email);
+        }
 
         return await BuildDtoAsync(invite, application.Property);
     }

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
@@ -24,8 +25,9 @@ public class ApplicationService : IApplicationService
     private readonly ICommunicationContentService? _communicationContentService;
     private readonly IEmailService? _emailService;
     private readonly IConfiguration? _configuration;
+    private readonly ILogger<ApplicationService>? _logger;
 
-    public ApplicationService(CatalogDbContext context, INotificationService notificationService, ILeasingAccessService leasingAccess, IUserService userService, IUserRepository userRepository, IServiceProvider serviceProvider, ICommunicationContentService? communicationContentService = null, IEmailService? emailService = null, IConfiguration? configuration = null)
+    public ApplicationService(CatalogDbContext context, INotificationService notificationService, ILeasingAccessService leasingAccess, IUserService userService, IUserRepository userRepository, IServiceProvider serviceProvider, ICommunicationContentService? communicationContentService = null, IEmailService? emailService = null, IConfiguration? configuration = null, ILogger<ApplicationService>? logger = null)
     {
         _context = context;
         _notificationService = notificationService;
@@ -36,6 +38,7 @@ public class ApplicationService : IApplicationService
         _communicationContentService = communicationContentService;
         _emailService = emailService;
         _configuration = configuration;
+        _logger = logger;
     }
 
     public async Task<ApplicationDto> SubmitApplicationAsync(Guid propertyId, Guid tenantId, SubmitApplicationDto dto)
@@ -100,14 +103,7 @@ public class ApplicationService : IApplicationService
                 sourceIp: null);
         }
 
-        // NOTIFICAR SENHORIO
-        await _notificationService.SendNotificationAsync(
-            property.LandlordId, 
-            "application", 
-            $"Recebeste uma nova candidatura para '{property.Title}'.", 
-            application.Id);
-
-        await TrySendApplicationSubmittedEmailAsync(property, application, tenantId);
+        await TryNotifyLandlordAboutSubmittedApplicationAsync(property, application, tenantId);
 
         return application.ToDto(property.LandlordId);
     }
@@ -445,6 +441,31 @@ public class ApplicationService : IApplicationService
         await _emailService.SendEmailAsync(landlord.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
     }
 
+    private async Task TryNotifyLandlordAboutSubmittedApplicationAsync(Property property, Application application, Guid tenantId)
+    {
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                property.LandlordId,
+                "application",
+                $"Recebeste uma nova candidatura para '{property.Title}'.",
+                application.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Falha ao notificar o senhorio {LandlordId} sobre a candidatura {ApplicationId}.", property.LandlordId, application.Id);
+        }
+
+        try
+        {
+            await TrySendApplicationSubmittedEmailAsync(property, application, tenantId);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Falha ao enviar o email de candidatura submetida para o senhorio {LandlordId} na candidatura {ApplicationId}.", property.LandlordId, application.Id);
+        }
+    }
+
     private async Task TrySendApplicationUpdatedEmailAsync(Application application, Property property, Guid recipientId, string updateMessage)
     {
         if (_communicationContentService is null || _emailService is null)
@@ -536,10 +557,6 @@ public class ApplicationService : IApplicationService
         var landlord = await _userRepository.GetByIdAsync(property.LandlordId);
         if (landlord != null && string.Equals(landlord.Email, email, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Não podes convidar o proprietário do imóvel.");
-
-        var invitee = await _userRepository.GetByEmailAsync(email);
-        if (invitee == null)
-            throw new KeyNotFoundException("user_not_registered");
     }
 
     private async Task HydrateParticipantProfilesAsync(IEnumerable<ApplicationDto> applications, Guid viewerUserId)

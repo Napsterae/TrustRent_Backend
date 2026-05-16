@@ -163,6 +163,74 @@ public class ApplicationServiceTests
         context.Dispose();
     }
 
+    [Fact]
+    public async Task SubmitApplicationAsync_NotificationFailure_DoesNotAbortSubmission()
+    {
+        var (service, context) = CreateService();
+        var property = CreateTestProperty();
+        context.Properties.Add(property);
+        await context.SaveChangesAsync();
+
+        _notificationMock
+            .Setup(n => n.SendNotificationAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid?>()))
+            .ThrowsAsync(new Exception("notification failed"));
+
+        var result = await service.SubmitApplicationAsync(property.Id, Guid.NewGuid(), new SubmitApplicationDto
+        {
+            Message = "I'm interested in this property",
+            DurationMonths = 12
+        });
+
+        Assert.NotNull(result);
+        Assert.Equal(property.Id, result.PropertyId);
+
+        context.Dispose();
+    }
+
+    [Fact]
+    public async Task SubmitApplicationAsync_UnregisteredCoTenantEmail_DoesNotBlockSubmission()
+    {
+        var options = new DbContextOptionsBuilder<CatalogDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        var context = new CatalogDbContext(options);
+
+        var property = CreateTestProperty();
+        context.Properties.Add(property);
+        await context.SaveChangesAsync();
+
+        var tenantId = Guid.NewGuid();
+        var inviteServiceMock = new Mock<ICoTenantInviteService>();
+        inviteServiceMock
+            .Setup(s => s.CreateInviteAsync(It.IsAny<Guid>(), tenantId, It.IsAny<CreateCoTenantInviteDto>(), It.IsAny<string?>()))
+            .ReturnsAsync(new CoTenantInviteDto { Id = Guid.NewGuid(), ApplicationId = Guid.NewGuid(), InviteeEmail = "missing@test.pt", Status = "Pending" });
+
+        _userRepositoryMock.Setup(r => r.GetByIdAsync(tenantId))
+            .ReturnsAsync(new User { Id = tenantId, Email = "tenant@test.pt", Name = "Tenant" });
+        _userRepositoryMock.Setup(r => r.GetByIdAsync(property.LandlordId))
+            .ReturnsAsync(new User { Id = property.LandlordId, Email = "landlord@test.pt", Name = "Landlord" });
+        _userRepositoryMock.Setup(r => r.GetByEmailAsync("missing@test.pt"))
+            .ReturnsAsync((User?)null);
+
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton(inviteServiceMock.Object)
+            .BuildServiceProvider();
+
+        var service = new ApplicationService(context, _notificationMock.Object, _leasingAccessMock.Object, _userServiceMock.Object, _userRepositoryMock.Object, serviceProvider);
+
+        var result = await service.SubmitApplicationAsync(property.Id, tenantId, new SubmitApplicationDto
+        {
+            Message = "I'm interested in this property",
+            DurationMonths = 12,
+            CoTenantEmail = "missing@test.pt"
+        });
+
+        Assert.NotNull(result);
+        inviteServiceMock.Verify(s => s.CreateInviteAsync(It.IsAny<Guid>(), tenantId, It.Is<CreateCoTenantInviteDto>(dto => dto.Email == "missing@test.pt"), It.IsAny<string?>()), Times.Once);
+
+        context.Dispose();
+    }
+
     // --- GetApplicationByIdAsync ---
 
     [Fact]
