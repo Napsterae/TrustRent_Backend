@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Communications.Contracts.Database;
 using TrustRent.Modules.Communications.Models;
+using TrustRent.Shared.Communications;
 
 namespace TrustRent.Modules.Communications.Seeds;
 
@@ -22,10 +23,19 @@ public static class CommunicationsSeeder
 
     public static async Task SeedAsync(CommunicationsDbContext context)
     {
+        await SeedNotificationsAndMessagesAsync(context);
+        await SeedEmailTemplatesAsync(context);
+        await SeedLegalDocumentsAsync(context);
+        await EnsureActiveEmailTemplatesAsync(context);
+        await EnsureCurrentLegalDocumentsAsync(context);
+    }
+
+    private static async Task SeedNotificationsAndMessagesAsync(CommunicationsDbContext context)
+    {
         if (await context.Notifications.AnyAsync(n => n.Id == SeedNotificationId))
         {
             var count = await context.Notifications.CountAsync();
-            Console.WriteLine($"[SEED] Communications: Ja existem {count} notificacoes seedadas. A ignorar.");
+            Console.WriteLine($"[SEED] Communications: Ja existem {count} notificacoes seedadas. A ignorar notificacoes/mensagens base.");
             return;
         }
 
@@ -162,5 +172,155 @@ public static class CommunicationsSeeder
         {
             Console.WriteLine($"[SEED] Communications: Erro no Seed — {ex.InnerException?.Message ?? ex.Message}");
         }
+    }
+
+    private static async Task SeedEmailTemplatesAsync(CommunicationsDbContext context)
+    {
+        var inserted = 0;
+        var now = DateTime.UtcNow;
+
+        foreach (var definition in CommunicationCatalog.EmailTemplates)
+        {
+            var exists = await context.EmailTemplates.AnyAsync(template =>
+                template.Key == definition.Key
+                && template.Locale == "pt-PT"
+                && template.Version == definition.DefaultVersion);
+            if (exists)
+                continue;
+
+            var hasActive = await context.EmailTemplates.AnyAsync(template =>
+                template.Key == definition.Key
+                && template.Locale == "pt-PT"
+                && template.IsActive);
+
+            context.EmailTemplates.Add(new EmailTemplate
+            {
+                Id = Guid.NewGuid(),
+                Key = definition.Key,
+                Name = definition.DefaultName,
+                Version = definition.DefaultVersion,
+                Subject = definition.SubjectTemplate,
+                BodyHtml = definition.BodyHtmlTemplate,
+                BodyText = definition.BodyTextTemplate,
+                Locale = "pt-PT",
+                Description = definition.Description,
+                IsActive = !hasActive,
+                IsSystemDefault = true,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+
+            inserted++;
+        }
+
+        if (inserted == 0)
+            return;
+
+        await context.SaveChangesAsync();
+        Console.WriteLine($"[SEED] Communications: {inserted} templates de email default adicionados.");
+    }
+
+    private static async Task SeedLegalDocumentsAsync(CommunicationsDbContext context)
+    {
+        var inserted = 0;
+        var now = DateTime.UtcNow;
+
+        foreach (var definition in CommunicationCatalog.LegalDocuments)
+        {
+            var exists = await context.LegalDocumentVersions.AnyAsync(document =>
+                document.DocumentType == definition.DocumentType
+                && document.Version == definition.DefaultVersion);
+            if (exists)
+                continue;
+
+            var hasCurrent = await context.LegalDocumentVersions.AnyAsync(document =>
+                document.DocumentType == definition.DocumentType
+                && document.IsCurrent);
+
+            context.LegalDocumentVersions.Add(new LegalDocumentVersion
+            {
+                Id = Guid.NewGuid(),
+                DocumentType = definition.DocumentType,
+                Version = definition.DefaultVersion,
+                Title = definition.Title,
+                Summary = definition.Summary,
+                ChangeSummary = definition.ChangeSummary,
+                BodyHtml = definition.BodyHtmlTemplate,
+                BodyText = definition.BodyTextTemplate,
+                IsCurrent = !hasCurrent,
+                NotifyUsers = false,
+                CreatedAt = now,
+                PublishedAt = now
+            });
+
+            inserted++;
+        }
+
+        if (inserted == 0)
+            return;
+
+        await context.SaveChangesAsync();
+        Console.WriteLine($"[SEED] Communications: {inserted} documentos legais default adicionados.");
+    }
+
+    private static async Task EnsureActiveEmailTemplatesAsync(CommunicationsDbContext context)
+    {
+        var repaired = 0;
+
+        foreach (var key in CommunicationEmailTemplateKeys.All)
+        {
+            var hasActive = await context.EmailTemplates.AnyAsync(template => template.Key == key && template.Locale == "pt-PT" && template.IsActive);
+            if (hasActive)
+                continue;
+
+            var latestTemplate = await context.EmailTemplates
+                .Where(template => template.Key == key && template.Locale == "pt-PT")
+                .OrderByDescending(template => template.UpdatedAt)
+                .ThenByDescending(template => template.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (latestTemplate is null)
+                continue;
+
+            latestTemplate.IsActive = true;
+            latestTemplate.UpdatedAt = DateTime.UtcNow;
+            repaired++;
+        }
+
+        if (repaired == 0)
+            return;
+
+        await context.SaveChangesAsync();
+        Console.WriteLine($"[SEED] Communications: {repaired} templates de email reparados para manter um ativo por chave.");
+    }
+
+    private static async Task EnsureCurrentLegalDocumentsAsync(CommunicationsDbContext context)
+    {
+        var repaired = 0;
+
+        foreach (var documentType in LegalDocumentTypes.All)
+        {
+            var hasCurrent = await context.LegalDocumentVersions.AnyAsync(document => document.DocumentType == documentType && document.IsCurrent);
+            if (hasCurrent)
+                continue;
+
+            var latestDocument = await context.LegalDocumentVersions
+                .Where(document => document.DocumentType == documentType)
+                .OrderByDescending(document => document.PublishedAt)
+                .ThenByDescending(document => document.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (latestDocument is null)
+                continue;
+
+            latestDocument.IsCurrent = true;
+            repaired++;
+        }
+
+        if (repaired == 0)
+            return;
+
+        await context.SaveChangesAsync();
+        Console.WriteLine($"[SEED] Communications: {repaired} documentos legais reparados para manter uma versão atual por tipo.");
     }
 }

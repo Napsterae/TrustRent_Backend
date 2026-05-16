@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Models;
+using TrustRent.Shared.Communications;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Security;
 
@@ -20,17 +21,20 @@ public class LoginCodeService : ILoginCodeService
     private const int ResendCooldownSeconds = 60;
 
     private readonly IdentityDbContext _db;
+    private readonly ICommunicationContentService _communicationContentService;
     private readonly IEmailService _emailService;
     private readonly ILogger<LoginCodeService> _logger;
     private readonly IConfiguration _config;
 
     public LoginCodeService(
         IdentityDbContext db,
+        ICommunicationContentService communicationContentService,
         IEmailService emailService,
         ILogger<LoginCodeService> logger,
         IConfiguration config)
     {
         _db = db;
+        _communicationContentService = communicationContentService;
         _emailService = emailService;
         _logger = logger;
         _config = config;
@@ -73,10 +77,19 @@ public class LoginCodeService : ILoginCodeService
 
         try
         {
+            var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+                CommunicationEmailTemplateKeys.AuthLoginCode,
+                new Dictionary<string, string?>
+                {
+                    ["LoginCode"] = string.Join(" ", code.ToCharArray()),
+                    ["LoginCodeExpiresMinutes"] = CodeTtlMinutes.ToString()
+                },
+                cancellationToken: ct);
+
             await _emailService.SendEmailAsync(
                 normalizedEmail,
-                "O teu código de acesso — Wekaza",
-                BuildLoginCodeBody(code, CodeTtlMinutes),
+                renderedTemplate.Subject,
+                renderedTemplate.BodyHtml,
                 new EmailSendOptions(
                     FromAddress: _config["EmailSettings:AuthFromAddress"],
                     FromName: _config["EmailSettings:FromName"] ?? "Wekaza"));
@@ -136,25 +149,6 @@ public class LoginCodeService : ILoginCodeService
         var payload = Encoding.UTF8.GetBytes($"{normalizedEmail}:{code}:{pepper}");
         return Convert.ToHexString(SHA256.HashData(payload));
     }
-
-    private static string BuildLoginCodeBody(string code, int ttlMinutes)
-        {
-                var spacedCode = string.Join(" ", code.ToCharArray());
-
-                return $"""
-                     <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#374151">Usa o código abaixo para entrar na tua conta Wekaza.</p>
-                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin:0 0 24px;mso-table-lspace:0pt;mso-table-rspace:0pt">
-                         <tr>
-                             <td align="center" bgcolor="#349f99" style="padding:20px 16px;background-color:#349f99;background-image:linear-gradient(135deg,#a65710 0%,#f2a04b 18%,#1e6b66 58%,#41b0a8 100%);border-radius:22px">
-                                 <p style="margin:0 0 10px;font-size:12px;line-height:1.4;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:#fff1df">Codigo de acesso</p>
-                                 <p style="margin:0;font-family:'Courier New',Courier,monospace;font-size:34px;line-height:1.1;font-weight:700;letter-spacing:6px;color:#ffffff">{WebUtility.HtmlEncode(spacedCode)}</p>
-                             </td>
-                         </tr>
-                     </table>
-                     <p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#475569">Este código expira em <strong>{ttlMinutes} minutos</strong> e só pode ser usado uma vez.</p>
-                     <p style="margin:0;font-size:14px;line-height:1.6;color:#64748b">Se não pediste este acesso, podes ignorar este email.</p>
-                     """;
-        }
 
     private static string MaskEmail(string email)
     {

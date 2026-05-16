@@ -1,11 +1,13 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Mappers;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Shared.Communications;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Models;
 
@@ -19,8 +21,11 @@ public class ApplicationService : IApplicationService
     private readonly IUserService _userService;
     private readonly IUserRepository _userRepository;
     private readonly IServiceProvider _serviceProvider;
+    private readonly ICommunicationContentService? _communicationContentService;
+    private readonly IEmailService? _emailService;
+    private readonly IConfiguration? _configuration;
 
-    public ApplicationService(CatalogDbContext context, INotificationService notificationService, ILeasingAccessService leasingAccess, IUserService userService, IUserRepository userRepository, IServiceProvider serviceProvider)
+    public ApplicationService(CatalogDbContext context, INotificationService notificationService, ILeasingAccessService leasingAccess, IUserService userService, IUserRepository userRepository, IServiceProvider serviceProvider, ICommunicationContentService? communicationContentService = null, IEmailService? emailService = null, IConfiguration? configuration = null)
     {
         _context = context;
         _notificationService = notificationService;
@@ -28,6 +33,9 @@ public class ApplicationService : IApplicationService
         _userService = userService;
         _userRepository = userRepository;
         _serviceProvider = serviceProvider;
+        _communicationContentService = communicationContentService;
+        _emailService = emailService;
+        _configuration = configuration;
     }
 
     public async Task<ApplicationDto> SubmitApplicationAsync(Guid propertyId, Guid tenantId, SubmitApplicationDto dto)
@@ -99,9 +107,10 @@ public class ApplicationService : IApplicationService
             $"Recebeste uma nova candidatura para '{property.Title}'.", 
             application.Id);
 
+        await TrySendApplicationSubmittedEmailAsync(property, application, tenantId);
+
         return application.ToDto(property.LandlordId);
     }
-
     public async Task<IEnumerable<ApplicationDto>> GetApplicationsForPropertyAsync(Guid propertyId, Guid landlordId)
     {
         // Verify the caller is actually the landlord of this property
@@ -264,6 +273,7 @@ public class ApplicationService : IApplicationService
 
     public async Task<ApplicationDto> UpdateVisitStatusAsync(Guid applicationId, Guid userId, UpdateApplicationVisitDto dto)
     {
+        var autoRejectedEmails = new List<(Application Application, string Message)>();
         var application = await _context.Applications
             .Include(a => a.Property)
             .Include(a => a.History)
@@ -369,16 +379,18 @@ public class ApplicationService : IApplicationService
                 {
                     otherApp.Status = ApplicationStatus.Rejected;
                     otherApp.UpdatedAt = DateTime.UtcNow;
+                    const string autoRejectedMessage = "Esta candidatura foi automaticamente cancelada porque o imóvel foi arrendado a outro candidato.";
                     _context.ApplicationHistories.Add(new ApplicationHistory
                     {
                         ApplicationId = otherApp.Id,
                         ActorId = userId,
                         Action = "Candidatura Rejeitada Ausente",
-                        Message = "Esta candidatura foi automaticamente cancelada porque o imóvel foi arrendado a outro candidato."
+                        Message = autoRejectedMessage
                     });
 
                     // Notificar inquilinos rejeitados
                     await _notificationService.SendNotificationAsync(otherApp.TenantId, "application", "A tua candidatura foi encerrada — o imóvel foi arrendado.", otherApp.Id);
+                    autoRejectedEmails.Add((otherApp, autoRejectedMessage));
                 }
                 break;
             default:
@@ -399,10 +411,90 @@ public class ApplicationService : IApplicationService
         if (recipientId != Guid.Empty)
         {
             await _notificationService.SendNotificationAsync(recipientId, "application", notificationMsg, application.Id);
+            await TrySendApplicationUpdatedEmailAsync(application, property!, recipientId, notificationMsg);
+        }
+
+        foreach (var rejected in autoRejectedEmails)
+        {
+            await TrySendApplicationUpdatedEmailAsync(rejected.Application, property!, rejected.Application.TenantId, rejected.Message);
         }
 
         return application.ToDto(property?.LandlordId ?? Guid.Empty);
     }
+
+    private async Task TrySendApplicationSubmittedEmailAsync(Property property, Application application, Guid tenantId)
+    {
+        if (_communicationContentService is null || _emailService is null)
+            return;
+
+        var applicant = await _userRepository.GetByIdAsync(tenantId);
+        var landlord = await _userRepository.GetByIdAsync(property.LandlordId);
+        if (applicant is null || landlord is null || string.IsNullOrWhiteSpace(landlord.Email))
+            return;
+
+        var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+            CommunicationEmailTemplateKeys.ApplicationSubmitted,
+            new Dictionary<string, string?>
+            {
+                ["ApplicantName"] = applicant.Name,
+                ["PropertyTitle"] = property.Title,
+                ["ApplicationMessage"] = string.IsNullOrWhiteSpace(application.Message) ? "O candidato não deixou uma mensagem adicional." : application.Message,
+                ["ApplicationUrl"] = BuildFrontendUrl($"/applications/{application.Id}")
+            });
+
+        await _emailService.SendEmailAsync(landlord.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
+    }
+
+    private async Task TrySendApplicationUpdatedEmailAsync(Application application, Property property, Guid recipientId, string updateMessage)
+    {
+        if (_communicationContentService is null || _emailService is null)
+            return;
+
+        var recipient = await _userRepository.GetByIdAsync(recipientId);
+        if (recipient is null || string.IsNullOrWhiteSpace(recipient.Email))
+            return;
+
+        var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+            CommunicationEmailTemplateKeys.ApplicationUpdated,
+            new Dictionary<string, string?>
+            {
+                ["PropertyTitle"] = property.Title,
+                ["ApplicationStatusLabel"] = DescribeApplicationStatus(application.Status),
+                ["UpdateMessage"] = updateMessage,
+                ["ApplicationUrl"] = BuildFrontendUrl($"/applications/{application.Id}")
+            });
+
+        await _emailService.SendEmailAsync(recipient.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
+    }
+
+    private string BuildFrontendUrl(string relativePath)
+    {
+        var frontendBaseUrl = _configuration?["Frontend:BaseUrl"]
+            ?? _configuration?["App:FrontendBaseUrl"]
+            ?? "http://localhost:5173";
+
+        return $"{frontendBaseUrl.TrimEnd('/')}/{relativePath.TrimStart('/')}";
+    }
+
+    private static string DescribeApplicationStatus(ApplicationStatus status)
+        => status switch
+        {
+            ApplicationStatus.Pending => "Pendente",
+            ApplicationStatus.VisitCounterProposed => "Contra-proposta de visita",
+            ApplicationStatus.VisitAccepted => "Visita aceite",
+            ApplicationStatus.InterestConfirmed => "Interesse confirmado",
+            ApplicationStatus.IncomeValidationRequested => "Validação de rendimentos pedida",
+            ApplicationStatus.Accepted => "Aprovada",
+            ApplicationStatus.Rejected => "Rejeitada",
+            ApplicationStatus.GuarantorRequested => "Fiador solicitado",
+            ApplicationStatus.GuarantorReview => "Fiador em análise",
+            ApplicationStatus.LeaseStartDateProposed => "Data de arrendamento proposta",
+            ApplicationStatus.GeneratingContract => "Contrato em preparação",
+            ApplicationStatus.ContractPendingSignature => "Contrato pendente de assinatura",
+            ApplicationStatus.AwaitingPayment => "Aguarda pagamento",
+            ApplicationStatus.LeaseActive => "Arrendamento ativo",
+            _ => status.ToString()
+        };
 
     /// <summary>
     /// Reconcilia candidaturas presas em AwaitingPayment quando o lease já está Active.

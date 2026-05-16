@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Communications.Contracts.Database;
+using TrustRent.Modules.Communications.Models;
 using TrustRent.Shared.Contracts.Interfaces;
 
 namespace TrustRent.Modules.Communications.Endpoints;
@@ -168,6 +169,73 @@ public static class CommunicationsEndpoints
             return Results.NoContent();
         })
         .RequireAuthorization();
+
+        group.MapGet("/legal-documents/{documentType}", async (string documentType, string? version, CommunicationsDbContext db, ICommunicationContentService content) =>
+        {
+            var normalizedType = NormalizeLegalDocumentType(documentType);
+            if (normalizedType is null)
+                return Results.NotFound();
+
+            var document = await content.GetLegalDocumentAsync(normalizedType, version);
+            if (document is null)
+                return Results.NotFound();
+
+            var versions = await db.LegalDocumentVersions
+                .AsNoTracking()
+                .Where(entry => entry.DocumentType == normalizedType)
+                .OrderByDescending(entry => entry.PublishedAt)
+                .Select(entry => new
+                {
+                    entry.Version,
+                    entry.PublishedAt,
+                    entry.IsCurrent,
+                    entry.Title,
+                    entry.Summary
+                })
+                .ToListAsync();
+
+            if (versions.Count == 0)
+            {
+                versions =
+                [
+                    new
+                    {
+                        Version = document.Version,
+                        PublishedAt = document.PublishedAt,
+                        IsCurrent = true,
+                        Title = document.Title,
+                        Summary = document.Summary
+                    }
+                ];
+            }
+
+            return Results.Ok(new
+            {
+                document.DocumentType,
+                document.Title,
+                document.Version,
+                document.Summary,
+                document.ChangeSummary,
+                document.BodyHtml,
+                document.BodyText,
+                document.IsCurrent,
+                document.PublishedAt,
+                Versions = versions
+            });
+        });
+    }
+
+    private static string? NormalizeLegalDocumentType(string? documentType)
+    {
+        var normalized = (documentType ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            LegalDocumentTypes.PrivacyPolicy => LegalDocumentTypes.PrivacyPolicy,
+            LegalDocumentTypes.TermsOfUse => LegalDocumentTypes.TermsOfUse,
+            "privacy-policy" => LegalDocumentTypes.PrivacyPolicy,
+            "terms-of-use" => LegalDocumentTypes.TermsOfUse,
+            _ => null
+        };
     }
 
     private static bool IsApplicationChatParticipant((Guid TenantId, Guid LandlordId, Guid? CoTenantUserId) participants, Guid userId)

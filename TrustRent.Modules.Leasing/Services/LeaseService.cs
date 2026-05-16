@@ -8,6 +8,7 @@ using TrustRent.Modules.Leasing.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Jobs;
 using TrustRent.Modules.Leasing.Mappers;
 using TrustRent.Modules.Leasing.Models;
+using TrustRent.Shared.Communications;
 using TrustRent.Shared.Contracts.DTOs;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Shared.Contracts.Interfaces;
@@ -24,6 +25,7 @@ public class LeaseService : ILeaseService
     private readonly IDigitalSignatureService _digitalSignatureService;
     private readonly ISignedPdfVerificationService _signedPdfVerification;
     private readonly IUserService _userService;
+    private readonly ICommunicationContentService _communicationContentService;
     private readonly IEmailService _emailService;
     private readonly IBackgroundJobClient _backgroundJobs;
     private readonly IConfiguration? _configuration;
@@ -36,6 +38,7 @@ public class LeaseService : ILeaseService
         IDigitalSignatureService digitalSignatureService,
         ISignedPdfVerificationService signedPdfVerification,
         IUserService userService,
+        ICommunicationContentService communicationContentService,
         IEmailService emailService,
         IBackgroundJobClient backgroundJobs,
         IConfiguration? configuration = null)
@@ -47,6 +50,7 @@ public class LeaseService : ILeaseService
         _digitalSignatureService = digitalSignatureService;
         _signedPdfVerification = signedPdfVerification;
         _userService = userService;
+        _communicationContentService = communicationContentService;
         _emailService = emailService;
         _backgroundJobs = backgroundJobs;
         _configuration = configuration;
@@ -156,9 +160,15 @@ public class LeaseService : ILeaseService
         }
         else if (!string.IsNullOrWhiteSpace(appContext.GuarantorGuestEmail) && !string.IsNullOrWhiteSpace(appContext.GuarantorGuestAccessToken))
         {
-            await _emailService.SendEmailAsync(appContext.GuarantorGuestEmail,
-                "Contrato iniciado — Wekaza",
-                BuildGuestLeaseEmail("Contrato iniciado", "O processo de arrendamento em que és fiador avançou para contrato.", BuildGuestUrl(appContext.GuarantorGuestAccessToken)));
+            var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+                CommunicationEmailTemplateKeys.LeaseGuarantorContractStarted,
+                new Dictionary<string, string?>
+                {
+                    ["GuestAccessUrl"] = BuildGuestUrl(appContext.GuarantorGuestAccessToken),
+                    ["MessageBody"] = "O processo de arrendamento em que és fiador avançou para contrato."
+                });
+
+            await _emailService.SendEmailAsync(appContext.GuarantorGuestEmail, renderedTemplate.Subject, renderedTemplate.BodyHtml);
         }
 
         return lease.ToDto();
@@ -756,6 +766,8 @@ public class LeaseService : ILeaseService
         lease.Status = LeaseStatus.AwaitingPayment;
         lease.ContractSignedAt = DateTime.UtcNow;
 
+        var initialPaymentAmount = CalculateInitialPaymentAmount(lease);
+
         lease.History.Add(new LeaseHistory
         {
             LeaseId = lease.Id,
@@ -772,6 +784,15 @@ public class LeaseService : ILeaseService
             "O contrato foi aceite por ambas as partes. Efetua o pagamento inicial para ativar o arrendamento.", lease.Id);
         await _notificationService.SendNotificationAsync(lease.LandlordId, "payment",
             "O contrato foi aceite por ambas as partes. Aguarda o pagamento inicial do inquilino.", lease.Id);
+
+        await TrySendInitialPaymentRequiredEmailAsync(lease, lease.TenantId, initialPaymentAmount, "pendente de pagamento");
+        await TrySendInitialPaymentRequiredEmailAsync(lease, lease.LandlordId, initialPaymentAmount, "aguarda pagamento inicial");
+
+        if (lease.CoTenantId.HasValue)
+            await TrySendInitialPaymentRequiredEmailAsync(lease, lease.CoTenantId.Value, initialPaymentAmount, "aguarda pagamento inicial");
+        if (lease.GuarantorUserId.HasValue)
+            await TrySendInitialPaymentRequiredEmailAsync(lease, lease.GuarantorUserId.Value, initialPaymentAmount, "aguarda pagamento inicial");
+
         await NotifyExtraPartiesAsync(
             lease,
             Guid.Empty,
@@ -808,9 +829,14 @@ public class LeaseService : ILeaseService
                         var appContext = await _catalogAccess.GetApplicationContextAsync(lease.ApplicationId);
                         if (!string.IsNullOrWhiteSpace(appContext?.GuarantorGuestEmail) && !string.IsNullOrWhiteSpace(appContext.GuarantorGuestAccessToken))
                         {
-                                await _emailService.SendEmailAsync(appContext.GuarantorGuestEmail,
-                                "Atualização do contrato — Wekaza",
-                                        BuildGuestLeaseEmail("Atualização do contrato", message, BuildGuestUrl(appContext.GuarantorGuestAccessToken)));
+                                var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+                                    CommunicationEmailTemplateKeys.LeaseGuarantorContractUpdated,
+                                    new Dictionary<string, string?>
+                                    {
+                                        ["GuestAccessUrl"] = BuildGuestUrl(appContext.GuarantorGuestAccessToken),
+                                        ["MessageBody"] = message
+                                    });
+                                await _emailService.SendEmailAsync(appContext.GuarantorGuestEmail, renderedTemplate.Subject, renderedTemplate.BodyHtml);
                         }
                 }
     }
@@ -822,15 +848,84 @@ public class LeaseService : ILeaseService
                         var appContext = await _catalogAccess.GetApplicationContextAsync(lease.ApplicationId);
                         if (!string.IsNullOrWhiteSpace(appContext?.GuarantorGuestEmail) && !string.IsNullOrWhiteSpace(appContext.GuarantorGuestAccessToken))
                         {
-                                await _emailService.SendEmailAsync(appContext.GuarantorGuestEmail,
-                                "Assinatura pendente — Wekaza",
-                                        BuildGuestLeaseEmail("Assinatura pendente", message, BuildGuestUrl(appContext.GuarantorGuestAccessToken)));
+                                var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+                                    CommunicationEmailTemplateKeys.LeaseGuarantorSignaturePending,
+                                    new Dictionary<string, string?>
+                                    {
+                                        ["GuestAccessUrl"] = BuildGuestUrl(appContext.GuarantorGuestAccessToken),
+                                        ["MessageBody"] = message
+                                    });
+                                await _emailService.SendEmailAsync(appContext.GuarantorGuestEmail, renderedTemplate.Subject, renderedTemplate.BodyHtml);
                         }
                         return;
                 }
 
-                await _notificationService.SendNotificationAsync(signature.UserId, "lease", message, lease.Id);
+                    await _notificationService.SendNotificationAsync(signature.UserId, "lease", message, lease.Id);
+                    await TrySendSignaturePendingEmailAsync(lease, signature, message);
         }
+
+                private async Task TrySendSignaturePendingEmailAsync(Lease lease, LeaseSignature signature, string message)
+                {
+                    var recipient = await _userService.GetProfileAsync(signature.UserId);
+                    if (recipient is null || string.IsNullOrWhiteSpace(recipient.Email))
+                        return;
+
+                    var appContext = await _catalogAccess.GetApplicationContextAsync(lease.ApplicationId);
+                    var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+                        CommunicationEmailTemplateKeys.LeaseSignaturePending,
+                        new Dictionary<string, string?>
+                        {
+                        ["SignerRoleLabel"] = DescribeSignatoryRole(signature.Role),
+                        ["PropertyTitle"] = appContext?.PropertyTitle ?? "contrato de arrendamento",
+                        ["MessageBody"] = message,
+                        ["LeaseUrl"] = BuildAuthenticatedLeaseUrl(signature.UserId, lease.Id)
+                        });
+
+                    await _emailService.SendEmailAsync(recipient.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
+                }
+
+                private async Task TrySendInitialPaymentRequiredEmailAsync(Lease lease, Guid recipientId, decimal amount, string paymentStatusLabel)
+                {
+                    var recipient = await _userService.GetProfileAsync(recipientId);
+                    if (recipient is null || string.IsNullOrWhiteSpace(recipient.Email))
+                        return;
+
+                    var appContext = await _catalogAccess.GetApplicationContextAsync(lease.ApplicationId);
+                    var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+                        CommunicationEmailTemplateKeys.PaymentInitialRequired,
+                        new Dictionary<string, string?>
+                        {
+                        ["PropertyTitle"] = appContext?.PropertyTitle ?? "contrato de arrendamento",
+                        ["PaymentAmount"] = amount.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("pt-PT")),
+                        ["PaymentTypeLabel"] = "pagamento inicial",
+                        ["PaymentStatusLabel"] = paymentStatusLabel,
+                        ["LeaseUrl"] = BuildAuthenticatedLeaseUrl(recipientId, lease.Id)
+                        });
+
+                    await _emailService.SendEmailAsync(recipient.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
+                }
+
+                private decimal CalculateInitialPaymentAmount(Lease lease)
+                    => lease.MonthlyRent + (lease.MonthlyRent * lease.AdvanceRentMonths) + (lease.Deposit ?? 0m);
+
+                private string BuildAuthenticatedLeaseUrl(Guid recipientId, Guid leaseId)
+                {
+                    var frontendBaseUrl = _configuration?["Frontend:BaseUrl"]
+                        ?? _configuration?["App:FrontendBaseUrl"]
+                        ?? "http://localhost:5173";
+
+                    return $"{frontendBaseUrl.TrimEnd('/')}/contracts";
+                }
+
+                private static string DescribeSignatoryRole(LeaseSignatoryRole role)
+                    => role switch
+                    {
+                        LeaseSignatoryRole.Landlord => "senhorio",
+                        LeaseSignatoryRole.Tenant => "inquilino",
+                        LeaseSignatoryRole.CoTenant => "co-inquilino",
+                        LeaseSignatoryRole.Guarantor => "fiador",
+                        _ => "parte responsável"
+                    };
 
         private string BuildGuestUrl(string token)
         {

@@ -4,10 +4,12 @@ using Microsoft.Extensions.Logging;
 using Stripe;
 using System.Globalization;
 using System.Text.Json;
+using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Contracts.DTOs;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Models;
+using TrustRent.Shared.Communications;
 using TrustRent.Shared.Contracts.Interfaces;
 
 namespace TrustRent.Modules.Leasing.Services;
@@ -20,6 +22,11 @@ public class StripePaymentService : IStripePaymentService
     private readonly IStripeAccountService _stripeAccountService;
     private readonly INotificationService _notificationService;
     private readonly ILogger<StripePaymentService> _logger;
+    private readonly ICommunicationContentService? _communicationContentService;
+    private readonly IEmailService? _emailService;
+    private readonly IUserService? _userService;
+    private readonly ICatalogAccessService? _catalogAccess;
+    private readonly IConfiguration _configuration;
     private readonly int _platformFeePerMonth;
 
     public StripePaymentService(
@@ -29,7 +36,11 @@ public class StripePaymentService : IStripePaymentService
         IStripeAccountService stripeAccountService,
         INotificationService notificationService,
         IConfiguration configuration,
-        ILogger<StripePaymentService> logger)
+        ILogger<StripePaymentService> logger,
+        ICommunicationContentService? communicationContentService = null,
+        IEmailService? emailService = null,
+        IUserService? userService = null,
+        ICatalogAccessService? catalogAccess = null)
     {
         _db = db;
         _leaseAccessService = leaseAccessService;
@@ -37,6 +48,11 @@ public class StripePaymentService : IStripePaymentService
         _stripeAccountService = stripeAccountService;
         _notificationService = notificationService;
         _logger = logger;
+        _communicationContentService = communicationContentService;
+        _emailService = emailService;
+        _userService = userService;
+        _catalogAccess = catalogAccess;
+        _configuration = configuration;
         _platformFeePerMonth = configuration.GetValue<int>("Stripe:PlatformFeePerMonth", 3000);
         StripeConfiguration.ApiKey = configuration["Stripe:SecretKey"];
     }
@@ -490,6 +506,8 @@ public class StripePaymentService : IStripePaymentService
 
         await _notificationService.SendNotificationAsync(payment.TenantId, "payment", tenantMessage, payment.LeaseId);
         await _notificationService.SendNotificationAsync(payment.LandlordId, "payment", landlordMessage, payment.LeaseId);
+        await TrySendPaymentStatusEmailAsync(payment, payment.TenantId, CommunicationEmailTemplateKeys.PaymentSucceeded, "confirmado");
+        await TrySendPaymentStatusEmailAsync(payment, payment.LandlordId, CommunicationEmailTemplateKeys.PaymentSucceeded, "confirmado");
     }
 
     private async Task NotifyPaymentFailedAsync(Payment payment)
@@ -510,6 +528,8 @@ public class StripePaymentService : IStripePaymentService
 
         await _notificationService.SendNotificationAsync(payment.TenantId, "payment", tenantMessage, payment.LeaseId);
         await _notificationService.SendNotificationAsync(payment.LandlordId, "payment", landlordMessage, payment.LeaseId);
+        await TrySendPaymentStatusEmailAsync(payment, payment.TenantId, CommunicationEmailTemplateKeys.PaymentFailed, "falhou");
+        await TrySendPaymentStatusEmailAsync(payment, payment.LandlordId, CommunicationEmailTemplateKeys.PaymentFailed, "falhou");
     }
 
     private async Task NotifyDepositRefundAsync(Payment refundPayment)
@@ -526,7 +546,61 @@ public class StripePaymentService : IStripePaymentService
             "payment",
             $"O reembolso de caução de {amount} foi processado com sucesso.",
             refundPayment.LeaseId);
+
+        await TrySendPaymentStatusEmailAsync(refundPayment, refundPayment.TenantId, CommunicationEmailTemplateKeys.PaymentDepositRefunded, "reembolsado");
+        await TrySendPaymentStatusEmailAsync(refundPayment, refundPayment.LandlordId, CommunicationEmailTemplateKeys.PaymentDepositRefunded, "reembolsado");
     }
+
+    private async Task TrySendPaymentStatusEmailAsync(Payment payment, Guid recipientId, string templateKey, string paymentStatusLabel)
+    {
+        if (_communicationContentService is null || _emailService is null || _userService is null)
+            return;
+
+        var recipient = await _userService.GetProfileAsync(recipientId);
+        if (recipient is null || string.IsNullOrWhiteSpace(recipient.Email))
+            return;
+
+        var lease = await _db.Leases.AsNoTracking().FirstOrDefaultAsync(item => item.Id == payment.LeaseId);
+        var propertyTitle = "Contrato de arrendamento";
+        if (lease is not null && _catalogAccess is not null)
+        {
+            var applicationContext = await _catalogAccess.GetApplicationContextAsync(lease.ApplicationId);
+            if (!string.IsNullOrWhiteSpace(applicationContext?.PropertyTitle))
+                propertyTitle = applicationContext.PropertyTitle!;
+        }
+
+        var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+            templateKey,
+            new Dictionary<string, string?>
+            {
+                ["PropertyTitle"] = propertyTitle,
+                ["PaymentAmount"] = FormatCurrency(Math.Abs(payment.Amount)),
+                ["PaymentTypeLabel"] = DescribePaymentType(payment.Type),
+                ["PaymentStatusLabel"] = paymentStatusLabel,
+                ["FailureReason"] = string.IsNullOrWhiteSpace(payment.FailureReason) ? "Sem detalhe adicional fornecido pelo processador de pagamentos." : payment.FailureReason,
+                ["LeaseUrl"] = BuildFrontendUrl("/contracts")
+            });
+
+        await _emailService.SendEmailAsync(recipient.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
+    }
+
+    private string BuildFrontendUrl(string relativePath)
+    {
+        var frontendBaseUrl = _configuration["Frontend:BaseUrl"]
+            ?? _configuration["App:FrontendBaseUrl"]
+            ?? "http://localhost:5173";
+
+        return $"{frontendBaseUrl.TrimEnd('/')}/{relativePath.TrimStart('/')}";
+    }
+
+    private static string DescribePaymentType(PaymentType type)
+        => type switch
+        {
+            PaymentType.InitialPayment => "pagamento inicial",
+            PaymentType.MonthlyRent => "renda mensal",
+            PaymentType.DepositRefund => "reembolso de caução",
+            _ => "pagamento"
+        };
 
     private static string FormatCurrency(decimal amount)
         => amount.ToString("C2", CultureInfo.GetCultureInfo("pt-PT"));

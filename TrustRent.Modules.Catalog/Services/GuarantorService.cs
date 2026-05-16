@@ -8,6 +8,7 @@ using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Mappers;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Shared.Communications;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Models;
 
@@ -19,6 +20,7 @@ public class GuarantorService : IGuarantorService
     private readonly IUserRepository _userRepository;
     private readonly IUserService _userService;
     private readonly INotificationService _notificationService;
+    private readonly ICommunicationContentService _communicationContentService;
     private readonly IEmailService _emailService;
     private readonly IConfiguration _configuration;
 
@@ -29,6 +31,7 @@ public class GuarantorService : IGuarantorService
         IUserRepository userRepository,
         IUserService userService,
         INotificationService notificationService,
+        ICommunicationContentService communicationContentService,
         IEmailService emailService,
         IConfiguration configuration)
     {
@@ -36,6 +39,7 @@ public class GuarantorService : IGuarantorService
         _userRepository = userRepository;
         _userService = userService;
         _notificationService = notificationService;
+        _communicationContentService = communicationContentService;
         _emailService = emailService;
         _configuration = configuration;
     }
@@ -167,9 +171,16 @@ public class GuarantorService : IGuarantorService
         }
 
         var guestUrl = BuildGuestUrl(guarantor.GuestAccessToken);
-        await _emailService.SendEmailAsync(email,
-            "Convite para fiador — Wekaza",
-            BuildInviteEmail(inviter.Name, property.Title, guestUrl));
+        var inviteTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+            CommunicationEmailTemplateKeys.ApplicationGuarantorInvite,
+            new Dictionary<string, string?>
+            {
+                ["InviterName"] = inviter.Name,
+                ["PropertyTitle"] = property.Title,
+                ["GuestAccessUrl"] = guestUrl
+            });
+
+        await _emailService.SendEmailAsync(email, inviteTemplate.Subject, inviteTemplate.BodyHtml);
 
         return await BuildSummaryAsync(guarantor);
     }
@@ -373,9 +384,13 @@ public class GuarantorService : IGuarantorService
             await _notificationService.SendNotificationAsync(guarantor.UserId.Value,
                 "guarantor_approved", "Foste aprovado como fiador.", app.Id);
         }
-        await _emailService.SendEmailAsync(guarantor.GuestEmail,
-            "Fiador aprovado — Wekaza",
-            BuildStatusEmail("Fiador aprovado", "O senhorio aprovou os teus dados de fiador. Avisamos-te novamente quando o contrato estiver pronto para assinatura.", BuildGuestUrl(guarantor.GuestAccessToken)));
+        var approvedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+            CommunicationEmailTemplateKeys.ApplicationGuarantorApproved,
+            new Dictionary<string, string?>
+            {
+                ["GuestAccessUrl"] = BuildGuestUrl(guarantor.GuestAccessToken)
+            });
+        await _emailService.SendEmailAsync(guarantor.GuestEmail, approvedTemplate.Subject, approvedTemplate.BodyHtml);
         await _notificationService.SendNotificationAsync(app.TenantId,
             "guarantor_approved", "O fiador foi aprovado pelo senhorio.", app.Id);
 
@@ -404,9 +419,13 @@ public class GuarantorService : IGuarantorService
             await _notificationService.SendNotificationAsync(guarantor.UserId.Value,
                 "guarantor_rejected", "Foste rejeitado como fiador.", app.Id);
         }
-        await _emailService.SendEmailAsync(guarantor.GuestEmail,
-            "Fiador não aprovado — Wekaza",
-            BuildStatusEmail("Fiador não aprovado", "O senhorio não aprovou a proposta de fiador para esta candidatura.", BuildGuestUrl(guarantor.GuestAccessToken)));
+        var rejectedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+            CommunicationEmailTemplateKeys.ApplicationGuarantorRejected,
+            new Dictionary<string, string?>
+            {
+                ["GuestAccessUrl"] = BuildGuestUrl(guarantor.GuestAccessToken)
+            });
+        await _emailService.SendEmailAsync(guarantor.GuestEmail, rejectedTemplate.Subject, rejectedTemplate.BodyHtml);
         await _notificationService.SendNotificationAsync(app.TenantId,
             "guarantor_rejected", "O senhorio rejeitou o fiador proposto.", app.Id);
 
