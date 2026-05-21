@@ -18,9 +18,7 @@ public static class CommunicationsEndpoints
         // --- CHAT ENDPOINTS ---
         group.MapGet("/applications/{applicationId:guid}/chat", async (Guid applicationId, ClaimsPrincipal user, CommunicationsDbContext db, IApplicationStatusValidator statusValidator) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userIdStr)) return Results.Unauthorized();
-            var userId = Guid.Parse(userIdStr);
+            if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
 
             // Verify the user is a participant of this application
             var participants = await statusValidator.GetApplicationParticipantsAsync(applicationId);
@@ -48,9 +46,7 @@ public static class CommunicationsEndpoints
         // Listar notificações do utilizador (Top 50 recentes)
         group.MapGet("/notifications", async (ClaimsPrincipal user, CommunicationsDbContext db) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userIdStr)) return Results.Unauthorized();
-            var userId = Guid.Parse(userIdStr);
+            if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
 
             var notifications = await db.Notifications
                 .Where(n => n.UserId == userId)
@@ -65,9 +61,7 @@ public static class CommunicationsEndpoints
         // Contagem de não lidas (Badge)
         group.MapGet("/notifications/unread-count", async (ClaimsPrincipal user, CommunicationsDbContext db) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userIdStr)) return Results.Unauthorized();
-            var userId = Guid.Parse(userIdStr);
+            if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
 
             var count = await db.Notifications.CountAsync(n => n.UserId == userId && !n.IsRead);
             return Results.Ok(new { UnreadCount = count });
@@ -77,9 +71,7 @@ public static class CommunicationsEndpoints
         // Marcar uma como lida
         group.MapPut("/notifications/{id:guid}/read", async (Guid id, ClaimsPrincipal user, CommunicationsDbContext db) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userIdStr)) return Results.Unauthorized();
-            var userId = Guid.Parse(userIdStr);
+            if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
 
             var notification = await db.Notifications.FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
             if (notification == null) return Results.NotFound();
@@ -94,9 +86,7 @@ public static class CommunicationsEndpoints
         // Marcar todas como lidas
         group.MapPut("/notifications/mark-all-read", async (ClaimsPrincipal user, CommunicationsDbContext db) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userIdStr)) return Results.Unauthorized();
-            var userId = Guid.Parse(userIdStr);
+            if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
 
             var unread = await db.Notifications.Where(n => n.UserId == userId && !n.IsRead).ToListAsync();
             foreach (var n in unread) n.IsRead = true;
@@ -109,11 +99,9 @@ public static class CommunicationsEndpoints
 
         group.MapPost("/notifications/devices/register", async (RegisterPushDeviceRequest request, ClaimsPrincipal user, CommunicationsDbContext db) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userIdStr)) return Results.Unauthorized();
+            if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
             if (string.IsNullOrWhiteSpace(request.ExpoPushToken)) return Results.BadRequest(new { Error = "ExpoPushToken é obrigatório." });
 
-            var userId = Guid.Parse(userIdStr);
             var token = request.ExpoPushToken.Trim();
             var platform = string.IsNullOrWhiteSpace(request.Platform) ? "unknown" : request.Platform.Trim().ToLowerInvariant();
 
@@ -149,11 +137,9 @@ public static class CommunicationsEndpoints
 
         group.MapPost("/notifications/devices/unregister", async (UnregisterPushDeviceRequest request, ClaimsPrincipal user, CommunicationsDbContext db) =>
         {
-            var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userIdStr)) return Results.Unauthorized();
+            if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
             if (string.IsNullOrWhiteSpace(request.ExpoPushToken)) return Results.BadRequest(new { Error = "ExpoPushToken é obrigatório." });
 
-            var userId = Guid.Parse(userIdStr);
             var token = request.ExpoPushToken.Trim();
             var devices = await db.PushDevices
                 .Where(device => device.UserId == userId && device.ExpoPushToken == token && device.IsActive)
@@ -236,6 +222,14 @@ public static class CommunicationsEndpoints
             "terms-of-use" => LegalDocumentTypes.TermsOfUse,
             _ => null
         };
+    }
+
+    private static bool TryGetUserId(ClaimsPrincipal user, out Guid userId)
+    {
+        var value = user.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? user.FindFirstValue("sub");
+
+        return Guid.TryParse(value, out userId);
     }
 
     private static bool IsApplicationChatParticipant((Guid TenantId, Guid LandlordId, Guid? CoTenantUserId) participants, Guid userId)

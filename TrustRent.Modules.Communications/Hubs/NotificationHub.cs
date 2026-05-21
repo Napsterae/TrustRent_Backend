@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 
@@ -8,8 +9,7 @@ public class NotificationHub : Hub
 {
     public override async Task OnConnectedAsync()
     {
-        // O Context.UserIdentifier vem automaticamente da claim NameIdentifier do JWT
-        var userId = Context.UserIdentifier;
+        var userId = GetAuthenticatedUserId();
         if (!string.IsNullOrEmpty(userId))
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, $"user_{userId}");
@@ -19,11 +19,15 @@ public class NotificationHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var userId = Context.UserIdentifier;
+        var userId = GetAuthenticatedUserId();
         if (!string.IsNullOrEmpty(userId))
         {
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user_{userId}");
         }
         await base.OnDisconnectedAsync(exception);
     }
+
+    private string? GetAuthenticatedUserId()
+        => Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? Context.User?.FindFirst("sub")?.Value;
 }
