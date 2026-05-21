@@ -87,8 +87,8 @@ public sealed class StagingAccessCookieService : IStagingAccessCookieService
 
     private int GetDurationMinutes()
     {
-        var configured = _configuration.GetValue<int?>("StagingAccessCookieSettings:DurationMinutes") ?? 480;
-        return Math.Clamp(configured, 5, 480);
+        var configured = _configuration.GetValue<int?>("StagingAccessCookieSettings:DurationMinutes") ?? 20_160;
+        return Math.Clamp(configured, 5, 20_160);
     }
 
     private static SameSiteMode ParseSameSite(string? rawValue, SameSiteMode fallback)

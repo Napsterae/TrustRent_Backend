@@ -63,6 +63,7 @@ public class AuthService : IAuthService
         // Esta chave secreta vai estar no teu appsettings.json da API
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["JwtSettings:SecretKey"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var expiryDays = GetJwtExpiryDays();
 
         var claims = new[]
         {
@@ -79,10 +80,18 @@ public class AuthService : IAuthService
             issuer: _config["JwtSettings:Issuer"],
             audience: _config["JwtSettings:Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(2),
+            expires: DateTime.UtcNow.AddDays(expiryDays),
             signingCredentials: creds
         );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private int GetJwtExpiryDays()
+    {
+        var configuredDays = int.TryParse(_config["JwtSettings:ExpiryDays"], out var parsedDays)
+            ? parsedDays
+            : 14;
+        return Math.Clamp(configuredDays, 1, 60);
     }
 }

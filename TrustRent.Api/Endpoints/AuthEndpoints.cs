@@ -62,9 +62,15 @@ public static class AuthEndpoints
 
     private static void AppendAuthCookie(HttpContext ctx, string token, IConfiguration cfg)
     {
-        var days = int.TryParse(cfg["JwtSettings:ExpiryDays"], out var d) ? d : 7;
+        var days = GetAuthSessionDurationDays(cfg);
 
         ctx.Response.Cookies.Append(AuthCookieName, token, BuildAuthCookieOptions(ctx, DateTimeOffset.UtcNow.AddDays(days), cfg));
+    }
+
+    private static int GetAuthSessionDurationDays(IConfiguration cfg)
+    {
+        var configuredDays = cfg.GetValue<int?>("JwtSettings:ExpiryDays") ?? 14;
+        return Math.Clamp(configuredDays, 1, 60);
     }
 
     private static CookieOptions BuildAuthCookieOptions(HttpContext ctx, DateTimeOffset? expiresAt, IConfiguration cfg)
