@@ -307,13 +307,31 @@ public class PropertyService : IPropertyService
         }
     }
 
-    public async Task<PagedResult<PropertySearchDto>> SearchPropertiesAsync(PropertySearchQuery query)
+    public async Task<PagedResult<PropertySearchDto>> SearchPropertiesAsync(PropertySearchQuery query, Guid? currentUserId = null)
     {
-        var (items, totalCount) = await _uow.Properties.SearchAsync(query);
+        var applicationStatesByPropertyId = new Dictionary<Guid, PropertyApplicationState>();
+        IReadOnlyCollection<Guid>? excludedPropertyIds = null;
+
+        if (currentUserId.HasValue && currentUserId.Value != Guid.Empty)
+        {
+            applicationStatesByPropertyId = await GetPropertyApplicationStatesAsync(currentUserId.Value);
+            if (query.HideAppliedProperties)
+                excludedPropertyIds = applicationStatesByPropertyId.Keys.ToList();
+        }
+
+        var (items, totalCount) = await _uow.Properties.SearchAsync(query, excludedPropertyIds);
 
         return new PagedResult<PropertySearchDto>
         {
-            Items = items.Select(p => p.ToSearchDto()),
+            Items = items.Select(p =>
+            {
+                applicationStatesByPropertyId.TryGetValue(p.Id, out var state);
+                return p.ToSearchDto(
+                    state is not null,
+                    state?.HasActiveApplication ?? false,
+                    state?.ApplicationId,
+                    state?.Status);
+            }),
             TotalCount = totalCount,
             Page = query.EffectivePage,
             PageSize = query.EffectivePageSize
@@ -367,4 +385,40 @@ public class PropertyService : IPropertyService
                     $"As seguintes durações são inválidas: {string.Join(", ", invalidPeriods.Select(p => $"{p} meses"))}.");
         }
     }
+
+    private async Task<Dictionary<Guid, PropertyApplicationState>> GetPropertyApplicationStatesAsync(Guid userId)
+    {
+        var applications = await _context.Applications
+            .AsNoTracking()
+            .Where(application => application.TenantId == userId || application.CoTenantUserId == userId)
+            .Select(application => new
+            {
+                application.Id,
+                application.PropertyId,
+                application.Status,
+                application.CreatedAt
+            })
+            .OrderByDescending(application => application.CreatedAt)
+            .ToListAsync();
+
+        return applications
+            .GroupBy(application => application.PropertyId)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                {
+                    var activeApplication = group.FirstOrDefault(application => IsActiveApplicationStatus(application.Status));
+                    var selectedApplication = activeApplication ?? group.First();
+
+                    return new PropertyApplicationState(
+                        selectedApplication.Id,
+                        selectedApplication.Status.ToString(),
+                        group.Any(application => IsActiveApplicationStatus(application.Status)));
+                });
+    }
+
+    private static bool IsActiveApplicationStatus(ApplicationStatus status)
+        => status != ApplicationStatus.Rejected && status != ApplicationStatus.LeaseActive;
+
+    private sealed record PropertyApplicationState(Guid ApplicationId, string Status, bool HasActiveApplication);
 }

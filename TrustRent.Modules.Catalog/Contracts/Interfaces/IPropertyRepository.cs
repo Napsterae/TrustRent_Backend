@@ -13,6 +13,6 @@ public interface IPropertyRepository
     Task AddAsync(Property property);
     Task AddImageAsync(PropertyImage image);
     void RemoveImages(IEnumerable<PropertyImage> images);
-    Task<(IEnumerable<Property> Items, int TotalCount)> SearchAsync(PropertySearchQuery query);
+    Task<(IEnumerable<Property> Items, int TotalCount)> SearchAsync(PropertySearchQuery query, IReadOnlyCollection<Guid>? excludedPropertyIds = null);
     Task<IEnumerable<Amenity>> GetAllAmenitiesAsync();
 }

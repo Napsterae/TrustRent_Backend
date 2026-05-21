@@ -20,6 +20,7 @@ public class PropertySearchQuery
 
     // Contrato
     public bool? HasOfficialContract { get; set; }
+    public bool HideAppliedProperties { get; set; }
 
     // Paginação para o Scroll Infinito. Nullable para o binder não falhar quando
     // o cliente omite a paginação; os defaults continuam a ser aplicados no backend.
@@ -83,5 +84,9 @@ public record PropertySearchDto(
     bool AllowsPets,
     string MainImageUrl,
     bool HasOfficialContract,
-    bool IsAvailable
+    bool IsAvailable,
+    bool HasSubmittedApplication,
+    bool HasActiveApplication,
+    Guid? ExistingApplicationId,
+    string? ExistingApplicationStatus
 );

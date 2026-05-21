@@ -126,7 +126,7 @@ public static class PropertyMappers
         property.NonPermanentReason = dto.NonPermanentReason;
     }
 
-    public static PropertySearchDto ToSearchDto(this Property p)
+    public static PropertySearchDto ToSearchDto(this Property p, bool hasSubmittedApplication = false, bool hasActiveApplication = false, Guid? existingApplicationId = null, string? existingApplicationStatus = null)
     {
         return new PropertySearchDto(
             p.Id,
@@ -137,7 +137,11 @@ public static class PropertyMappers
             p.Area, p.Rooms, p.Bathrooms, p.AllowsPets,
             p.Images.FirstOrDefault(i => i.IsMain)?.Url ?? "",
             p.HasOfficialContract,
-            p.TenantId == null
+            p.TenantId == null,
+            hasSubmittedApplication,
+            hasActiveApplication,
+            existingApplicationId,
+            existingApplicationStatus
         );
     }
 }
