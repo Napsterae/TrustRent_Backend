@@ -315,7 +315,7 @@ public class PropertyService : IPropertyService
         if (currentUserId.HasValue && currentUserId.Value != Guid.Empty)
         {
             applicationStatesByPropertyId = await GetPropertyApplicationStatesAsync(currentUserId.Value);
-            if (query.HideAppliedProperties)
+            if (query.HideAppliedProperties == true)
                 excludedPropertyIds = applicationStatesByPropertyId.Keys.ToList();
         }
 
