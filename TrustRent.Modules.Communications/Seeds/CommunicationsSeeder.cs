@@ -181,36 +181,56 @@ public static class CommunicationsSeeder
 
         foreach (var definition in CommunicationCatalog.EmailTemplates)
         {
-            var exists = await context.EmailTemplates.AnyAsync(template =>
-                template.Key == definition.Key
-                && template.Locale == "pt-PT"
-                && template.Version == definition.DefaultVersion);
-            if (exists)
+            var template = await context.EmailTemplates.FirstOrDefaultAsync(existingTemplate =>
+                existingTemplate.Key == definition.Key
+                && existingTemplate.Locale == "pt-PT"
+                && existingTemplate.Version == definition.DefaultVersion);
+
+            if (template is null)
+            {
+                template = new EmailTemplate
+                {
+                    Id = Guid.NewGuid(),
+                    Key = definition.Key,
+                    Name = definition.DefaultName,
+                    Version = definition.DefaultVersion,
+                    Subject = definition.SubjectTemplate,
+                    BodyHtml = definition.BodyHtmlTemplate,
+                    BodyText = definition.BodyTextTemplate,
+                    Locale = "pt-PT",
+                    Description = definition.Description,
+                    IsActive = false,
+                    IsSystemDefault = true,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+
+                context.EmailTemplates.Add(template);
+                inserted++;
+            }
+
+            var activeTemplates = await context.EmailTemplates
+                .Where(existingTemplate =>
+                    existingTemplate.Key == definition.Key
+                    && existingTemplate.Locale == "pt-PT"
+                    && existingTemplate.IsActive)
+                .ToListAsync();
+
+            var hasCustomActive = activeTemplates.Any(activeTemplate => !activeTemplate.IsSystemDefault);
+            if (hasCustomActive)
                 continue;
 
-            var hasActive = await context.EmailTemplates.AnyAsync(template =>
-                template.Key == definition.Key
-                && template.Locale == "pt-PT"
-                && template.IsActive);
-
-            context.EmailTemplates.Add(new EmailTemplate
+            foreach (var activeTemplate in activeTemplates.Where(activeTemplate => activeTemplate.Id != template.Id))
             {
-                Id = Guid.NewGuid(),
-                Key = definition.Key,
-                Name = definition.DefaultName,
-                Version = definition.DefaultVersion,
-                Subject = definition.SubjectTemplate,
-                BodyHtml = definition.BodyHtmlTemplate,
-                BodyText = definition.BodyTextTemplate,
-                Locale = "pt-PT",
-                Description = definition.Description,
-                IsActive = !hasActive,
-                IsSystemDefault = true,
-                CreatedAt = now,
-                UpdatedAt = now
-            });
+                activeTemplate.IsActive = false;
+                activeTemplate.UpdatedAt = now;
+            }
 
-            inserted++;
+            if (!template.IsActive)
+            {
+                template.IsActive = true;
+                template.UpdatedAt = now;
+            }
         }
 
         if (inserted == 0)

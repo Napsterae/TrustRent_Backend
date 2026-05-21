@@ -81,7 +81,7 @@ public class LoginCodeService : ILoginCodeService
                 CommunicationEmailTemplateKeys.AuthLoginCode,
                 new Dictionary<string, string?>
                 {
-                    ["LoginCode"] = string.Join(" ", code.ToCharArray()),
+                    ["LoginCode"] = code,
                     ["LoginCodeExpiresMinutes"] = CodeTtlMinutes.ToString()
                 },
                 cancellationToken: ct);
@@ -108,7 +108,7 @@ public class LoginCodeService : ILoginCodeService
     public async Task<string> VerifyLoginCodeAsync(string email, string code, CancellationToken ct = default)
     {
         var normalizedEmail = EmailHelper.NormalizeEmail(email);
-        var sanitizedCode = (code ?? string.Empty).Trim();
+        var sanitizedCode = new string((code ?? string.Empty).Where(ch => !char.IsWhiteSpace(ch)).ToArray());
         var now = DateTime.UtcNow;
 
         if (sanitizedCode.Length != CodeDigits || sanitizedCode.Any(ch => !char.IsDigit(ch)))

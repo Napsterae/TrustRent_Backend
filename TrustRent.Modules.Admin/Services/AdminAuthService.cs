@@ -78,7 +78,7 @@ public class AdminAuthService : IAdminAuthService
         var perms = await _permissions.GetEffectivePermissionsAsync(admin.Id, ct);
 
         var jti = Guid.NewGuid().ToString("N");
-        var expiryHours = int.TryParse(_config["AdminJwtSettings:ExpiryHours"], out var hh) ? hh : 8;
+        var expiryHours = int.TryParse(_config["AdminJwtSettings:ExpiryHours"], out var hh) ? hh : 336;
         var expiresAt = DateTime.UtcNow.AddHours(expiryHours);
         var csrf = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         var token = GenerateJwtToken(admin, jti, expiresAt, csrf);
