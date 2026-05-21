@@ -52,6 +52,9 @@ public class ApplicationService : IApplicationService
         if (property.TenantId.HasValue)
             throw new Exception("Este imóvel já se encontra arrendado e não aceita novas candidaturas.");
 
+        if (await UserAlreadyAppliedToPropertyAsync(propertyId, tenantId))
+            throw new InvalidOperationException("Já existe uma candidatura tua para este imóvel.");
+
         // Validação: o proprietário não se pode candidatar ao seu próprio imóvel
         if (property.LandlordId == tenantId)
             throw new Exception("Não te podes candidatar a um imóvel do qual és proprietário.");
@@ -107,6 +110,12 @@ public class ApplicationService : IApplicationService
 
         return application.ToDto(property.LandlordId);
     }
+
+    private Task<bool> UserAlreadyAppliedToPropertyAsync(Guid propertyId, Guid userId)
+        => _context.Applications.AnyAsync(application =>
+            application.PropertyId == propertyId
+            && (application.TenantId == userId || application.CoTenantUserId == userId));
+
     public async Task<IEnumerable<ApplicationDto>> GetApplicationsForPropertyAsync(Guid propertyId, Guid landlordId)
     {
         // Verify the caller is actually the landlord of this property

@@ -47,7 +47,7 @@ public class PropertyRepository : IPropertyRepository
     public void RemoveImages(IEnumerable<PropertyImage> images) =>
         _context.PropertyImages.RemoveRange(images);
 
-    public async Task<(IEnumerable<Property> Items, int TotalCount)> SearchAsync(PropertySearchQuery query)
+    public async Task<(IEnumerable<Property> Items, int TotalCount)> SearchAsync(PropertySearchQuery query, IReadOnlyCollection<Guid>? excludedPropertyIds = null)
     {
         var page = query.EffectivePage;
         var pageSize = query.EffectivePageSize;
@@ -56,6 +56,9 @@ public class PropertyRepository : IPropertyRepository
         var q = _context.Properties
             .Include(p => p.Images)
             .Where(p => p.IsPublic && !p.IsUnderMaintenance && !p.IsBlocked && p.TenantId == null);
+
+        if (excludedPropertyIds is { Count: > 0 })
+            q = q.Where(p => !excludedPropertyIds.Contains(p.Id));
 
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
             q = q.Where(p => 

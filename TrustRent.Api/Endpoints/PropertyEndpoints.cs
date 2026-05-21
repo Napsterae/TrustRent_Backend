@@ -496,11 +496,11 @@ public static class PropertyEndpoints
             return Results.Ok(result);
         });
 
-        app.MapGet("/api/properties", async ([AsParameters] PropertySearchQuery query, IPropertyService propertyService) =>
+        app.MapGet("/api/properties", async ([AsParameters] PropertySearchQuery query, IPropertyService propertyService, ClaimsPrincipal userClaims) =>
         {
             try
             {
-                var result = await propertyService.SearchPropertiesAsync(query);
+                var result = await propertyService.SearchPropertiesAsync(query, TryGetCurrentUserId(userClaims));
                 return Results.Ok(result);
             }
             catch (Exception ex)
@@ -513,8 +513,7 @@ public static class PropertyEndpoints
         app.MapGet("/api/properties/{id:guid}", async (Guid id, IPropertyService propertyService, IUserService userService, IApplicationService applicationService, ClaimsPrincipal userClaims) =>
         {
             // 1. Identificar o utilizador (se autenticado)
-            var userIdString = userClaims.FindFirstValue(ClaimTypes.NameIdentifier);
-            var currentUserId = Guid.TryParse(userIdString, out var parsedUserId) ? parsedUserId : Guid.Empty;
+            var currentUserId = TryGetCurrentUserId(userClaims);
 
             // 2. Ir buscar o imóvel ao Catalog
             var property = await propertyService.GetPropertyByIdAsync(id);
@@ -522,18 +521,25 @@ public static class PropertyEndpoints
 
             // 3. Verificar permissões para ver a morada completa
             var showFullAddress = false;
-            if (currentUserId != Guid.Empty)
+            ApplicationDto? existingApplication = null;
+
+            if (currentUserId.HasValue)
             {
-                if (currentUserId == property.LandlordId)
+                if (currentUserId.Value == property.LandlordId)
                 {
                     showFullAddress = true;
                 }
                 else
                 {
                     // Verificar se o inquilino tem uma candidatura com visita aceite ou superior
-                    var tenantApps = await applicationService.GetApplicationsForTenantAsync(currentUserId);
-                    var app = tenantApps.FirstOrDefault(a => a.PropertyId == id);
-                    if (app != null && app.Status != "Pending" && app.Status != "VisitCounterProposed" && app.Status != "Rejected")
+                    var tenantApps = await applicationService.GetApplicationsForTenantAsync(currentUserId.Value);
+                    existingApplication = tenantApps
+                        .Where(application => application.PropertyId == id)
+                        .OrderByDescending(application => IsActiveApplicationStatus(application.Status))
+                        .ThenByDescending(application => application.CreatedAt)
+                        .FirstOrDefault();
+
+                    if (existingApplication != null && IsVisitOrLaterApplicationStatus(existingApplication.Status))
                     {
                         showFullAddress = true;
                     }
@@ -606,6 +612,10 @@ public static class PropertyEndpoints
                 property.GuarantorPolicyNote,
                 property.LeaseRegime,
                 property.NonPermanentReason,
+                HasSubmittedApplication = existingApplication != null,
+                HasActiveApplication = existingApplication != null && IsActiveApplicationStatus(existingApplication.Status),
+                ExistingApplicationId = existingApplication?.Id,
+                ExistingApplicationStatus = existingApplication?.Status,
                 AcceptedPeriodicities = property.AcceptedPeriodicities.Select(pp => pp.DurationMonths),
                 Images = property.Images.Select(img => new {
                     img.Id,
@@ -694,4 +704,23 @@ public static class PropertyEndpoints
 
         return false;
     }
+
+    private static Guid? TryGetCurrentUserId(ClaimsPrincipal userClaims)
+    {
+        var userIdString = userClaims.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? userClaims.FindFirstValue("sub");
+
+        return Guid.TryParse(userIdString, out var userId) ? userId : null;
+    }
+
+    private static bool IsVisitOrLaterApplicationStatus(string? status)
+        => !string.Equals(status, "Pending", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(status, "VisitCounterProposed", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(status, "Rejected", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsActiveApplicationStatus(string? status)
+        => !string.IsNullOrWhiteSpace(status)
+            && !string.Equals(status, "Rejected", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(status, "LeaseActive", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(status, "Cancelled", StringComparison.OrdinalIgnoreCase);
 }

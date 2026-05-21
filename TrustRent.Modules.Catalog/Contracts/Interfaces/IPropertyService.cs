@@ -10,7 +10,7 @@ public interface IPropertyService
     Task<Property?> GetPropertyByIdAsync(Guid propertyId);
     Task<PropertyTenantManagementDto> GetTenantManagementAsync(Guid propertyId, Guid landlordId);
     Task UpdatePropertyAsync(Guid propertyId, Guid landlordId, CreatePropertyDto dto, IEnumerable<FileDto> newImages, IList<string> imageCategories, IList<Guid> retainedImageIds, int mainImageIndex, Guid? mainRetainedImageId, IList<Guid>? amenityIds = null, IList<int>? acceptedPeriodicities = null);
-    Task<PagedResult<PropertySearchDto>> SearchPropertiesAsync(PropertySearchQuery query);
+    Task<PagedResult<PropertySearchDto>> SearchPropertiesAsync(PropertySearchQuery query, Guid? currentUserId = null);
     Task<IEnumerable<PropertySummaryDto>> GetPropertiesByTenantAsync(Guid tenantId);
     Task<IEnumerable<Amenity>> GetAllAmenitiesAsync();
 }

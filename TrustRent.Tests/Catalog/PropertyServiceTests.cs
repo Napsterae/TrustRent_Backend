@@ -29,15 +29,17 @@ public class PropertyServiceTests
         _uowMock.Setup(u => u.Properties).Returns(_propertyRepoMock.Object);
     }
 
-    private PropertyService CreateService()
+    private (PropertyService Service, CatalogDbContext Context) CreateServiceWithContext()
     {
         var options = new DbContextOptionsBuilder<CatalogDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         var context = new CatalogDbContext(options);
 
-        return new PropertyService(_uowMock.Object, _bgJobsMock.Object, context, _userServiceMock.Object, _leasingAccessMock.Object);
+        return (new PropertyService(_uowMock.Object, _bgJobsMock.Object, context, _userServiceMock.Object, _leasingAccessMock.Object), context);
     }
+
+    private PropertyService CreateService() => CreateServiceWithContext().Service;
 
     // --- GetPropertyByIdAsync ---
 
@@ -106,6 +108,57 @@ public class PropertyServiceTests
         var result = (await service.GetAllAmenitiesAsync()).ToList();
 
         Assert.Equal(2, result.Count);
+    }
+
+    [Fact]
+    public async Task SearchPropertiesAsync_WhenUserHasApplication_AnnotatesPropertySearchDto()
+    {
+        var (service, context) = CreateServiceWithContext();
+        var tenantId = Guid.NewGuid();
+        var propertyId = Guid.NewGuid();
+        var applicationId = Guid.NewGuid();
+
+        _propertyRepoMock
+            .Setup(r => r.SearchAsync(It.IsAny<PropertySearchQuery>(), It.IsAny<IReadOnlyCollection<Guid>>()))
+            .ReturnsAsync((new[]
+            {
+                new Property
+                {
+                    Id = propertyId,
+                    Title = "Test",
+                    Municipality = "Lisboa",
+                    Parish = "Arroios",
+                    Price = 950m,
+                    PropertyType = "Apartamento",
+                    Typology = "T2",
+                    Area = 80m,
+                    Rooms = 2,
+                    Bathrooms = 1,
+                    AllowsPets = true,
+                    HasOfficialContract = true,
+                    Images = new List<PropertyImage>()
+                }
+            }, 1));
+
+        context.Applications.Add(new Application
+        {
+            Id = applicationId,
+            PropertyId = propertyId,
+            TenantId = tenantId,
+            Message = "Aplicacao ativa",
+            DurationMonths = 12,
+            Status = ApplicationStatus.Pending,
+            CreatedAt = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var result = await service.SearchPropertiesAsync(new PropertySearchQuery(), tenantId);
+        var item = Assert.Single(result.Items);
+
+        Assert.True(item.HasSubmittedApplication);
+        Assert.True(item.HasActiveApplication);
+        Assert.Equal(applicationId, item.ExistingApplicationId);
+        Assert.Equal("Pending", item.ExistingApplicationStatus);
     }
 
     // --- ValidateFinancialTerms (tested through CreatePropertyAsync) ---

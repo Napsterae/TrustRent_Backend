@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
+using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Modules.Catalog.Services;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
@@ -159,6 +160,36 @@ public class ApplicationServiceTests
         var ex = await Assert.ThrowsAsync<Exception>(
             () => service.SubmitApplicationAsync(property.Id, landlordId, dto));
         Assert.Contains("proprietário", ex.Message);
+
+        context.Dispose();
+    }
+
+    [Fact]
+    public async Task SubmitApplicationAsync_WhenUserAlreadyApplied_ThrowsInvalidOperationException()
+    {
+        var (service, context) = CreateService();
+        var property = CreateTestProperty();
+        var tenantId = Guid.NewGuid();
+
+        context.Properties.Add(property);
+        context.Applications.Add(new Application
+        {
+            Id = Guid.NewGuid(),
+            PropertyId = property.Id,
+            TenantId = tenantId,
+            Message = "Primeira candidatura",
+            DurationMonths = 12,
+            Status = ApplicationStatus.Pending
+        });
+        await context.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.SubmitApplicationAsync(property.Id, tenantId, new SubmitApplicationDto
+        {
+            Message = "Segunda tentativa",
+            DurationMonths = 12
+        }));
+
+        Assert.Contains("Já existe uma candidatura tua", ex.Message);
 
         context.Dispose();
     }

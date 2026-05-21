@@ -116,4 +116,24 @@ public class PropertyRepositoryTests
             second => Assert.Equal(medium.Id, second.Id),
             third => Assert.Equal(affordable.Id, third.Id));
     }
+
+    [Fact]
+    public async Task SearchAsync_ExcludedPropertyIds_RemovesAppliedPropertiesFromCountAndResults()
+    {
+        await using var context = CreateContext();
+
+        var hidden = CreateProperty("Hidden because applied", 1200m, DateTime.UtcNow.AddDays(-1));
+        var visible = CreateProperty("Still visible", 900m, DateTime.UtcNow.AddDays(-2));
+
+        context.Properties.AddRange(hidden, visible);
+        await context.SaveChangesAsync();
+
+        var repository = new PropertyRepository(context);
+        var result = await repository.SearchAsync(new PropertySearchQuery(), new[] { hidden.Id });
+        var items = result.Items.ToList();
+
+        Assert.Equal(1, result.TotalCount);
+        Assert.Single(items);
+        Assert.Equal(visible.Id, items[0].Id);
+    }
 }
