@@ -20,7 +20,7 @@ public class PropertySearchQuery
 
     // Contrato
     public bool? HasOfficialContract { get; set; }
-    public bool HideAppliedProperties { get; set; }
+    public bool? HideAppliedProperties { get; set; }
 
     // Paginação para o Scroll Infinito. Nullable para o binder não falhar quando
     // o cliente omite a paginação; os defaults continuam a ser aplicados no backend.
