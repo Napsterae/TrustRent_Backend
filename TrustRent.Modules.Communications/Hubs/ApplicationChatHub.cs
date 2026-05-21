@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using TrustRent.Modules.Communications.Contracts.Database;
 using TrustRent.Modules.Communications.Models;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
@@ -20,6 +21,7 @@ public class ApplicationChatHub : Hub
     private readonly ICommunicationContentService? _communicationContentService;
     private readonly IEmailService? _emailService;
     private readonly IConfiguration? _configuration;
+    private readonly ILogger<ApplicationChatHub>? _logger;
 
     public ApplicationChatHub(
         CommunicationsDbContext context,
@@ -28,7 +30,8 @@ public class ApplicationChatHub : Hub
         IUserService? userService = null,
         ICommunicationContentService? communicationContentService = null,
         IEmailService? emailService = null,
-        IConfiguration? configuration = null)
+        IConfiguration? configuration = null,
+        ILogger<ApplicationChatHub>? logger = null)
     {
         _context = context;
         _statusValidator = statusValidator;
@@ -37,6 +40,7 @@ public class ApplicationChatHub : Hub
         _communicationContentService = communicationContentService;
         _emailService = emailService;
         _configuration = configuration;
+        _logger = logger;
     }
 
     private Guid GetAuthenticatedUserId()
@@ -110,7 +114,19 @@ public class ApplicationChatHub : Hub
 
         foreach (var recipientId in recipientIds)
         {
-            await _notificationService.SendNotificationAsync(recipientId, "application", "Recebeste uma nova mensagem na candidatura.", applicationId);
+            try
+            {
+                await _notificationService.SendNotificationAsync(recipientId, "application", "Recebeste uma nova mensagem na candidatura.", applicationId);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(
+                    ex,
+                    "Falha ao enviar notificacao de chat da candidatura {ApplicationId} para o utilizador {RecipientId}.",
+                    applicationId,
+                    recipientId);
+            }
+
             await TrySendNewMessageEmailAsync(recipientId, senderId, applicationId, chatContext.PropertyTitle, content);
         }
     }
@@ -120,22 +136,33 @@ public class ApplicationChatHub : Hub
         if (_userService is null || _communicationContentService is null || _emailService is null)
             return;
 
-        var recipient = await _userService.GetProfileAsync(recipientId);
-        var sender = await _userService.GetProfileAsync(senderId);
-        if (recipient is null || sender is null || string.IsNullOrWhiteSpace(recipient.Email))
-            return;
+        try
+        {
+            var recipient = await _userService.GetProfileAsync(recipientId);
+            var sender = await _userService.GetProfileAsync(senderId);
+            if (recipient is null || sender is null || string.IsNullOrWhiteSpace(recipient.Email))
+                return;
 
-        var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
-            CommunicationEmailTemplateKeys.ApplicationNewMessage,
-            new Dictionary<string, string?>
-            {
-                ["SenderName"] = sender.Name,
-                ["PropertyTitle"] = propertyTitle,
-                ["MessagePreview"] = BuildMessagePreview(content),
-                ["ApplicationUrl"] = BuildFrontendUrl($"/applications/{applicationId}")
-            });
+            var renderedTemplate = await _communicationContentService.RenderEmailTemplateAsync(
+                CommunicationEmailTemplateKeys.ApplicationNewMessage,
+                new Dictionary<string, string?>
+                {
+                    ["SenderName"] = sender.Name,
+                    ["PropertyTitle"] = propertyTitle,
+                    ["MessagePreview"] = BuildMessagePreview(content),
+                    ["ApplicationUrl"] = BuildFrontendUrl($"/applications/{applicationId}")
+                });
 
-        await _emailService.SendEmailAsync(recipient.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
+            await _emailService.SendEmailAsync(recipient.Email, renderedTemplate.Subject, renderedTemplate.BodyHtml);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(
+                ex,
+                "Falha ao enviar email de nova mensagem da candidatura {ApplicationId} para o utilizador {RecipientId}.",
+                applicationId,
+                recipientId);
+        }
     }
 
     private string BuildFrontendUrl(string relativePath)
