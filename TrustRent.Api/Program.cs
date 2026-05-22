@@ -153,6 +153,8 @@ builder.Services.AddHttpClient<TrustRent.Modules.Communications.Services.IExpoPu
 builder.Services.AddScoped<IImageService, CloudinaryImageService>();
 builder.Services.AddSingleton<IEmailTemplateService, EmailTemplateService>();
 builder.Services.AddScoped<ICommunicationContentService, CommunicationContentService>();
+builder.Services.AddHttpClient<IResendEmailSender, ResendEmailSender>();
+builder.Services.AddScoped<IAmazonSesEmailSender, AmazonSesEmailSender>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ILegalDocumentNotificationJob, LegalDocumentNotificationJob>();
 builder.Services.AddScoped<INotificationService, TrustRent.Modules.Communications.Services.NotificationService>();
