@@ -34,12 +34,97 @@ public static class AuthEndpoints
             }
         }).RequireRateLimiting("auth");
 
+        group.MapPost("/request-whatsapp-code", async ([FromBody] RequestWhatsAppLoginCodeRequest request, IWhatsAppCodeService whatsAppCodeService, HttpContext ctx) =>
+        {
+            try
+            {
+                var result = await whatsAppCodeService.SendLoginCodeAsync(
+                    request.PhoneNumber,
+                    ctx.Connection.RemoteIpAddress?.ToString(),
+                    ctx.Request.Headers.UserAgent.ToString(),
+                    ctx.RequestAborted);
+
+                return Results.Ok(new
+                {
+                    Message = "Se o número for válido, enviámos um código de acesso por WhatsApp.",
+                    MaskedPhoneNumber = result.MaskedPhoneNumber,
+                    ExpiresAtUtc = result.ExpiresAtUtc
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        }).RequireRateLimiting("auth");
+
+        group.MapPost("/request-phone-code", async ([FromBody] RequestPhoneLoginCodeRequest request, IPhoneLoginCodeService phoneLoginCodeService, HttpContext ctx) =>
+        {
+            try
+            {
+                var result = await phoneLoginCodeService.SendLoginCodeAsync(
+                    request.PhoneNumber,
+                    ctx.Connection.RemoteIpAddress?.ToString(),
+                    ctx.Request.Headers.UserAgent.ToString(),
+                    ctx.RequestAborted);
+
+                return Results.Ok(new
+                {
+                    Message = $"Se o contacto for válido, enviámos um código de acesso na plataforma configurada ({result.Platform}).",
+                    MaskedPhoneNumber = result.MaskedPhoneNumber,
+                    Platform = result.Platform,
+                    ExpiresAtUtc = result.ExpiresAtUtc
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        }).RequireRateLimiting("auth");
+
         group.MapPost("/verify-code", async ([FromBody] VerifyLoginCodeRequest request, ILoginCodeService loginCodeService, IAuthService authService, HttpContext ctx, IConfiguration cfg) =>
         {
             try
             {
                 var verifiedEmail = await loginCodeService.VerifyLoginCodeAsync(request.Email, request.Code, ctx.RequestAborted);
                 var token = await authService.SignInWithEmailAsync(verifiedEmail);
+                AppendAuthCookie(ctx, token, cfg);
+                return Results.Ok(new { Token = token });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Results.Json(new { Error = "Código inválido ou expirado." }, statusCode: 401);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        }).RequireRateLimiting("auth");
+
+        group.MapPost("/verify-whatsapp-code", async ([FromBody] VerifyWhatsAppLoginCodeRequest request, IWhatsAppCodeService whatsAppCodeService, IAuthService authService, HttpContext ctx, IConfiguration cfg) =>
+        {
+            try
+            {
+                var verifiedPhoneNumber = await whatsAppCodeService.VerifyLoginCodeAsync(request.PhoneNumber, request.Code, ctx.RequestAborted);
+                var token = await authService.SignInWithPhoneAsync(verifiedPhoneNumber);
+                AppendAuthCookie(ctx, token, cfg);
+                return Results.Ok(new { Token = token });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Results.Json(new { Error = "Código inválido ou expirado." }, statusCode: 401);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        }).RequireRateLimiting("auth");
+
+        group.MapPost("/verify-phone-code", async ([FromBody] VerifyPhoneLoginCodeRequest request, IPhoneLoginCodeService phoneLoginCodeService, IAuthService authService, HttpContext ctx, IConfiguration cfg) =>
+        {
+            try
+            {
+                var verifiedPhoneNumber = await phoneLoginCodeService.VerifyLoginCodeAsync(request.PhoneNumber, request.Code, ctx.RequestAborted);
+                var token = await authService.SignInWithPhoneAsync(verifiedPhoneNumber);
                 AppendAuthCookie(ctx, token, cfg);
                 return Results.Ok(new { Token = token });
             }
@@ -101,3 +186,7 @@ public static class AuthEndpoints
 
 public record RequestLoginCodeRequest(string Email);
 public record VerifyLoginCodeRequest(string Email, string Code);
+public record RequestWhatsAppLoginCodeRequest(string PhoneNumber);
+public record VerifyWhatsAppLoginCodeRequest(string PhoneNumber, string Code);
+public record RequestPhoneLoginCodeRequest(string PhoneNumber);
+public record VerifyPhoneLoginCodeRequest(string PhoneNumber, string Code);

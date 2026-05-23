@@ -144,8 +144,18 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ILoginCodeService, LoginCodeService>();
+builder.Services.AddScoped<IWhatsAppCodeService, WhatsAppCodeService>();
+builder.Services.AddScoped<IPhoneLoginCodeService, PhoneLoginCodeService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddHttpClient<IGeminiDocumentService, GeminiDocumentService>();
+builder.Services.AddHttpClient<IWhatsAppService, MetaWhatsAppService>(client =>
+{
+    client.BaseAddress = new Uri("https://graph.facebook.com");
+});
+builder.Services.AddHttpClient<ITelegramMessagingPlatformService, TelegramMessagingPlatformService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.telegram.org");
+});
 builder.Services.AddHttpClient<TrustRent.Modules.Communications.Services.IExpoPushService, TrustRent.Modules.Communications.Services.ExpoPushService>(client =>
 {
     client.BaseAddress = new Uri("https://exp.host/--/api/v2/");
@@ -155,9 +165,11 @@ builder.Services.AddSingleton<IEmailTemplateService, EmailTemplateService>();
 builder.Services.AddScoped<ICommunicationContentService, CommunicationContentService>();
 builder.Services.AddHttpClient<IResendEmailSender, ResendEmailSender>();
 builder.Services.AddScoped<IAmazonSesEmailSender, AmazonSesEmailSender>();
-builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<IEmailService, PreferenceAwareEmailService>();
 builder.Services.AddScoped<ILegalDocumentNotificationJob, LegalDocumentNotificationJob>();
-builder.Services.AddScoped<INotificationService, TrustRent.Modules.Communications.Services.NotificationService>();
+builder.Services.AddScoped<TrustRent.Modules.Communications.Services.NotificationService>();
+builder.Services.AddScoped<INotificationService, MultiChannelNotificationService>();
 builder.Services.AddScoped<ILeaseAccessService, CatalogLeaseAccessService>();
 builder.Services.AddScoped<IUserContactAccessService, CatalogUserContactAccessService>();
 builder.Services.AddScoped<ICatalogAccessService, CatalogAccessService>();

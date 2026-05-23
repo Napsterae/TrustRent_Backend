@@ -13,6 +13,7 @@ public class UserServiceTests
     private readonly Mock<IImageService> _imageServiceMock;
     private readonly Mock<IGeminiDocumentService> _geminiMock;
     private readonly Mock<IUserContactAccessService> _contactAccessMock;
+    private readonly Mock<ITelegramMessagingPlatformService> _telegramMessagingMock;
     private readonly UserService _sut;
 
     public UserServiceTests()
@@ -22,6 +23,7 @@ public class UserServiceTests
         _imageServiceMock = new Mock<IImageService>();
         _geminiMock = new Mock<IGeminiDocumentService>();
         _contactAccessMock = new Mock<IUserContactAccessService>();
+        _telegramMessagingMock = new Mock<ITelegramMessagingPlatformService>();
 
         _uowMock.Setup(u => u.Users).Returns(_userRepoMock.Object);
 
@@ -86,6 +88,19 @@ public class UserServiceTests
         Assert.Equal(user.Email, dto.Email);
         Assert.Equal(user.Nif, dto.Nif);
         Assert.Equal(user.TrustScore, dto.TrustScore);
+    }
+
+    [Fact]
+    public async Task GetProfileDtoAsync_InvalidStoredPhonePlatform_FallsBackToTelegram()
+    {
+        var user = CreateTestUser();
+        user.PhoneContactPlatform = "sms";
+        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+
+        var dto = await _sut.GetProfileDtoAsync(user.Id);
+
+        Assert.NotNull(dto);
+        Assert.Equal(PhoneContactPlatforms.Telegram, dto!.PhoneContactPlatform);
     }
 
     [Fact]
@@ -322,5 +337,52 @@ public class UserServiceTests
 
         var ex = await Assert.ThrowsAsync<Exception>(() => _sut.UpdateProfileAsync(user.Id, dto));
         Assert.Contains("não é suportado", ex.Message);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_InvalidPhonePlatform_ThrowsException()
+    {
+        var user = CreateTestUser();
+        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _userRepoMock.Setup(r => r.IsEmailUniqueAsync(It.IsAny<string>(), user.Id)).ReturnsAsync(true);
+
+        var dto = new UpdateProfileDto("Name", "test@test.com", null, null, null, null, null, null, "sms");
+
+        var ex = await Assert.ThrowsAsync<Exception>(() => _sut.UpdateProfileAsync(user.Id, dto));
+        Assert.Contains("plataforma de contacto telefónico", ex.Message);
+    }
+
+    [Fact]
+    public async Task RequestPhoneNumberVerificationAsync_TelegramPlatform_UsesTelegramService()
+    {
+        var user = CreateTestUser();
+        user.PhoneCountryCode = "PT";
+        user.PhoneNumber = "+351912345678";
+        user.PhoneContactPlatform = PhoneContactPlatforms.Telegram;
+
+        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _telegramMessagingMock
+            .Setup(service => service.StartPhoneVerificationAsync(user.Id, user.PhoneNumber, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TelegramPhoneVerificationStartResult(
+                "Abre o Telegram.",
+                DateTime.UtcNow.AddMinutes(10),
+                "https://t.me/test_bot?start=abc",
+                "test_bot",
+                false));
+
+        var sut = new UserService(
+            _uowMock.Object,
+            _imageServiceMock.Object,
+            _geminiMock.Object,
+            _contactAccessMock.Object,
+            whatsAppCodeService: null,
+            telegramMessagingPlatformService: _telegramMessagingMock.Object);
+
+        var result = await sut.RequestPhoneNumberVerificationAsync(user.Id, null, null);
+
+        Assert.Equal(PhoneContactPlatforms.Telegram, result.Platform);
+        Assert.Equal("test_bot", result.BotUsername);
+        Assert.Equal("https://t.me/test_bot?start=abc", result.DeepLinkUrl);
+        _telegramMessagingMock.Verify(service => service.StartPhoneVerificationAsync(user.Id, user.PhoneNumber, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

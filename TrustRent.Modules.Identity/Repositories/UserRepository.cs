@@ -23,11 +23,27 @@ public class UserRepository : IUserRepository
         return await _context.Users.SingleOrDefaultAsync(u => u.Email == normalized);
     }
 
+    public async Task<User?> GetByPhoneNumberAsync(string phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+            return null;
+
+        return await _context.Users.SingleOrDefaultAsync(u => u.PhoneNumber == phoneNumber);
+    }
+
     public async Task<bool> IsEmailUniqueAsync(string email, Guid excludeUserId)
     {
         if (!EmailHelper.TryNormalizeEmail(email, out var normalized))
             return false;
         return !await _context.Users.AnyAsync(u => u.Email == normalized && u.Id != excludeUserId);
+    }
+
+    public async Task<bool> IsPhoneNumberUniqueAsync(string phoneNumber, Guid excludeUserId)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+            return false;
+
+        return !await _context.Users.AnyAsync(u => u.PhoneNumber == phoneNumber && u.Id != excludeUserId);
     }
 
     public async Task AddAsync(User user)

@@ -92,7 +92,8 @@ public class LoginCodeService : ILoginCodeService
                 renderedTemplate.BodyHtml,
                 new EmailSendOptions(
                     FromAddress: _config["EmailSettings:AuthFromAddress"],
-                    FromName: _config["EmailSettings:FromName"] ?? "Wekaza"));
+                    FromName: _config["EmailSettings:FromName"] ?? "Wekaza",
+                    BypassUserNotificationPreferences: true));
         }
         catch (Exception ex)
         {

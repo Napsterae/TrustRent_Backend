@@ -6,9 +6,11 @@ public interface IUserRepository
 {
     Task<User?> GetByIdAsync(Guid id);
     Task<User?> GetByEmailAsync(string email);
+    Task<User?> GetByPhoneNumberAsync(string phoneNumber);
     Task AddAsync(User user);
     Task<bool> IsNifUniqueAsync(string nif, Guid excludeUserId);
     Task<bool> IsCcUniqueAsync(string cc, Guid excludeUserId);
     Task<bool> IsEmailUniqueAsync(string email, Guid excludeUserId);
+    Task<bool> IsPhoneNumberUniqueAsync(string phoneNumber, Guid excludeUserId);
 }
 

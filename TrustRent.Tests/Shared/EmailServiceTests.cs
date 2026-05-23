@@ -104,6 +104,45 @@ public class EmailServiceTests
     }
 
     [Fact]
+    public async Task SendEmailAsync_Throws_WhenSmtpEnabledButConfigMissing()
+    {
+        var config = BuildConfig(new Dictionary<string, string?>
+        {
+            ["EmailSettings:UseSmtp"] = "true",
+            ["EmailSettings:FromAddress"] = "noreply@example.com"
+        });
+
+        var templateService = new Mock<IEmailTemplateService>();
+        templateService
+            .Setup(service => service.RenderTransactionalEmail("Subject", "Hello"))
+            .Returns("<html><body>Hello</body></html>");
+
+        var resendSender = new Mock<IResendEmailSender>();
+        var sesSender = new Mock<IAmazonSesEmailSender>();
+
+        var sut = new EmailService(
+            config,
+            templateService.Object,
+            resendSender.Object,
+            sesSender.Object,
+            NullLogger<EmailService>.Instance);
+
+        var act = () => sut.SendEmailAsync("dest@example.com", "Subject", "Hello");
+
+        await act.Should()
+            .ThrowAsync<InvalidOperationException>()
+            .WithMessage("*SMTP está ativo*EmailSettings:Host*EmailSettings:Username*EmailSettings:Password*");
+
+        resendSender.Verify(
+            sender => sender.SendAsync(It.IsAny<EmailProviderMessage>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        sesSender.Verify(
+            sender => sender.SendAsync(It.IsAny<EmailProviderMessage>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task ResendEmailSender_SendsDocumentedHttpPayload()
     {
         var handler = new RecordingHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)

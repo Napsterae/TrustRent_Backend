@@ -8,6 +8,10 @@ public interface IUserService
     Task<UserProfileDto?> GetProfileDtoAsync(Guid userId);
     Task<PublicUserProfileDto?> GetPublicProfileAsync(Guid userId, Guid viewerUserId);
     Task UpdateProfileAsync(Guid userId, UpdateProfileDto request);
+    Task<PhoneVerificationRequestResult> RequestPhoneNumberVerificationAsync(Guid userId, string? sourceIp, string? userAgent, CancellationToken ct = default);
+    Task<PhoneVerificationStatusDto> GetPhoneVerificationStatusAsync(Guid userId, CancellationToken ct = default);
+    Task VerifyPhoneNumberAsync(Guid userId, string code, CancellationToken ct = default);
+    Task UpdateNotificationPreferencesAsync(Guid userId, UpdateNotificationPreferencesDto request);
     Task UpdatePasswordAsync(Guid userId, string currentPassword, string newPassword);
     Task<string> UpdateAvatarAsync(Guid userId, Stream fileStream, string fileName);
     Task<VerificationResultDto> VerifyDocumentsAsync(Guid userId, Stream? ccFrontStream, string? ccFrontFileName, Stream? ccBackStream, string? ccBackFileName, Stream? noDebtStream, string? noDebtFileName, Stream? addressProofStream, string? addressProofFileName);
@@ -25,7 +29,31 @@ public record UpdateProfileDto(
     string? Address,
     string? PostalCode,
     string? PhoneCountryCode,
-    string? PhoneNumber
+    string? PhoneNumber,
+    string? PhoneContactPlatform = null
+);
+public record UpdateNotificationPreferencesDto(
+    bool EmailNotificationsEnabled,
+    bool MessagingNotificationsEnabled
+);
+public record PhoneVerificationRequestResult(
+    string Platform,
+    string Message,
+    DateTime? ExpiresAtUtc,
+    string? DeepLinkUrl,
+    string? BotUsername,
+    bool AwaitingContactShare
+);
+public record PhoneVerificationStatusDto(
+    string Platform,
+    bool IsConfigured,
+    bool IsPhoneNumberVerified,
+    bool HasStartedConversation,
+    bool AwaitingContactShare,
+    string Message,
+    string? DeepLinkUrl,
+    DateTime? ExpiresAtUtc,
+    string? TelegramUsername
 );
 public record UserProfileDto(
     Guid Id,
@@ -37,7 +65,14 @@ public record UserProfileDto(
     string? PostalCode,
     string? PhoneCountryCode,
     string? PhoneNumber,
+    bool IsPhoneNumberVerified,
+    DateTime? PhoneNumberVerifiedAt,
+    string PhoneContactPlatform,
+    string? TelegramUsername,
+    DateTime? TelegramLinkedAt,
     string? ProfilePictureUrl,
+    bool EmailNotificationsEnabled,
+    bool MessagingNotificationsEnabled,
     bool IsIdentityVerified,
     DateTime? IdentityExpiryDate,
     bool IsNoDebtVerified,

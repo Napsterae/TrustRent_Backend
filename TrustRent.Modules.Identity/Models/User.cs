@@ -14,7 +14,19 @@ public class User
     public string? PostalCode { get; set; }
     public string? PhoneCountryCode { get; set; }
     public string? PhoneNumber { get; set; }
+    public string PhoneContactPlatform { get; set; } = PhoneContactPlatforms.Telegram;
+    public bool IsPhoneNumberVerified { get; set; } = false;
+    public DateTime? PhoneNumberVerifiedAt { get; set; }
+    public string? TelegramChatId { get; set; }
+    public string? TelegramUsername { get; set; }
+    public DateTime? TelegramLinkedAt { get; set; }
+    public string? TelegramPendingVerificationToken { get; set; }
+    public string? TelegramPendingExpectedPhoneNumber { get; set; }
+    public DateTime? TelegramPendingVerificationExpiresAt { get; set; }
+    public string? TelegramPendingVerificationError { get; set; }
     public string? ProfilePictureUrl { get; set; }
+    public bool EmailNotificationsEnabled { get; set; } = true;
+    public bool WhatsAppNotificationsEnabled { get; set; } = false;
 
     // Validações de Confiança (Read-Only no Frontend)
     public bool IsIdentityVerified { get; set; } = false;

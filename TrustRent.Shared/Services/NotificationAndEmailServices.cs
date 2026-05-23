@@ -103,17 +103,16 @@ public class EmailService : IEmailService
     {
         if (!TryGetSmtpSettings(out var settings))
         {
+            var missingSettings = GetMissingSmtpSettingKeys();
             if (Interlocked.Exchange(ref _missingSmtpConfigLogged, 1) == 0)
             {
                 _logger.LogWarning(
-                    "EmailService sem configuração SMTP. Define EmailSettings:* e USE_SMTP=true para ativar o envio SMTP.");
+                    "EmailService com SMTP activo mas sem configuração completa. Faltam: {MissingSettings}",
+                    string.Join(", ", missingSettings));
             }
 
-            _logger.LogInformation(
-                "Email suprimido para {Recipient} com assunto {Subject} porque o SMTP não está configurado.",
-                emailMessage.To,
-                emailMessage.Subject);
-            return;
+            throw new InvalidOperationException(
+                $"O envio de email por SMTP está ativo, mas faltam configurações obrigatórias: {string.Join(", ", missingSettings)}.");
         }
 
         using var message = new MailMessage
@@ -220,6 +219,25 @@ public class EmailService : IEmailService
                && !string.IsNullOrWhiteSpace(settings.Username)
                && !string.IsNullOrWhiteSpace(settings.Password)
                && !string.IsNullOrWhiteSpace(settings.DefaultFromAddress);
+    }
+
+    private IReadOnlyList<string> GetMissingSmtpSettingKeys()
+    {
+        var missingKeys = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(_config["EmailSettings:Host"]))
+            missingKeys.Add("EmailSettings:Host");
+
+        if (string.IsNullOrWhiteSpace(_config["EmailSettings:Username"]))
+            missingKeys.Add("EmailSettings:Username");
+
+        if (string.IsNullOrWhiteSpace(_config["EmailSettings:Password"]))
+            missingKeys.Add("EmailSettings:Password");
+
+        if (string.IsNullOrWhiteSpace(_config["EmailSettings:FromAddress"]))
+            missingKeys.Add("EmailSettings:FromAddress");
+
+        return missingKeys;
     }
 
     private bool ShouldUseSmtp()
