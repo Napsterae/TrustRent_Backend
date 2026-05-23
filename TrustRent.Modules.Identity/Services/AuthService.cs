@@ -45,6 +45,16 @@ public class AuthService : IAuthService
         return GenerateJwtToken(user);
     }
 
+    public async Task<string> SignInWithPhoneAsync(string phoneNumber)
+    {
+        var user = await _uow.Users.GetByPhoneNumberAsync(phoneNumber);
+
+        if (user == null || !user.IsPhoneNumberVerified)
+            throw new UnauthorizedAccessException("Número de telemóvel inválido ou por validar.");
+
+        return GenerateJwtToken(user);
+    }
+
     private static string BuildDefaultName(string normalizedEmail)
     {
         var localPart = normalizedEmail.Split('@', 2)[0];

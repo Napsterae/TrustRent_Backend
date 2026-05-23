@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TrustRent.Modules.Identity.Contracts.Database;
@@ -11,9 +12,11 @@ using TrustRent.Modules.Identity.Contracts.Database;
 namespace TrustRent.Modules.Identity.Migrations
 {
     [DbContext(typeof(IdentityDbContext))]
-    partial class IdentityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260523005424_AddWhatsAppLoginAndNotificationPreferences")]
+    partial class AddWhatsAppLoginAndNotificationPreferences
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -193,10 +196,6 @@ namespace TrustRent.Modules.Identity.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("PhoneContactPlatform")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("PhoneCountryCode")
                         .HasColumnType("text");
 
@@ -222,27 +221,6 @@ namespace TrustRent.Modules.Identity.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("SuspendedReason")
-                        .HasColumnType("text");
-
-                    b.Property<string>("TelegramChatId")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("TelegramLinkedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("TelegramPendingExpectedPhoneNumber")
-                        .HasColumnType("text");
-
-                    b.Property<string>("TelegramPendingVerificationError")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("TelegramPendingVerificationExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("TelegramPendingVerificationToken")
-                        .HasColumnType("text");
-
-                    b.Property<string>("TelegramUsername")
                         .HasColumnType("text");
 
                     b.Property<int>("TrustScore")

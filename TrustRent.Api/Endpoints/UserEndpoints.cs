@@ -34,7 +34,89 @@ public static class UserEndpoints
             {
                 var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
                 await userService.UpdateProfileAsync(userId, request);
-                return Results.Ok(new { Message = "Perfil atualizado com sucesso." });
+                var profile = await userService.GetProfileDtoAsync(userId);
+                return Results.Ok(new
+                {
+                    Message = "Perfil atualizado com sucesso.",
+                    PhoneVerificationRequired = profile is not null
+                        && !string.IsNullOrWhiteSpace(profile.PhoneNumber)
+                        && !profile.IsPhoneNumberVerified,
+                    IsPhoneNumberVerified = profile?.IsPhoneNumberVerified ?? false,
+                    PhoneContactPlatform = profile?.PhoneContactPlatform
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        userGroup.MapPost("/phone-verification/request", async (ClaimsPrincipal userClaims, IUserService userService, HttpContext ctx) =>
+        {
+            try
+            {
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                var result = await userService.RequestPhoneNumberVerificationAsync(
+                    userId,
+                    ctx.Connection.RemoteIpAddress?.ToString(),
+                    ctx.Request.Headers.UserAgent.ToString(),
+                    ctx.RequestAborted);
+
+                return Results.Ok(new
+                {
+                    result.Platform,
+                    result.Message,
+                    result.ExpiresAtUtc,
+                    result.DeepLinkUrl,
+                    result.BotUsername,
+                    result.AwaitingContactShare
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        userGroup.MapGet("/phone-verification/status", async (ClaimsPrincipal userClaims, IUserService userService, HttpContext ctx) =>
+        {
+            try
+            {
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                var result = await userService.GetPhoneVerificationStatusAsync(userId, ctx.RequestAborted);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        userGroup.MapPost("/phone-verification/confirm", async (ClaimsPrincipal userClaims, [FromBody] ConfirmPhoneVerificationRequest request, IUserService userService) =>
+        {
+            try
+            {
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                await userService.VerifyPhoneNumberAsync(userId, request.Code);
+                return Results.Ok(new { Message = "Número de telemóvel validado com sucesso." });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Results.Json(new { Error = "Código inválido ou expirado." }, statusCode: 401);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        userGroup.MapPut("/notification-preferences", async (ClaimsPrincipal userClaims, [FromBody] UpdateNotificationPreferencesDto request, IUserService userService) =>
+        {
+            try
+            {
+                var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                await userService.UpdateNotificationPreferencesAsync(userId, request);
+                return Results.Ok(new { Message = "Preferências de notificação atualizadas com sucesso." });
             }
             catch (Exception ex)
             {
@@ -137,3 +219,4 @@ public static class UserEndpoints
 }
 
 public record UpdatePasswordRequest(string CurrentPassword, string NewPassword);
+public record ConfirmPhoneVerificationRequest(string Code);
