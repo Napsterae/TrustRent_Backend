@@ -111,7 +111,7 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
                 : awaitingContactShare
                     ? "Partilha o teu contacto no bot Telegram para concluir a validação."
                     : deepLinkUrl is not null
-                        ? "Inicia a conversa com o bot Telegram para continuar a validação."
+                        ? "Abre o bot com o link de validação e partilha o teu contacto. Se já tens a conversa aberta, partilha o contacto no bot para concluir."
                         : hasStartedConversation
                             ? "A conversa com o bot já está ligada. Pede uma nova validação para este número quando precisares."
                             : "Seleciona Telegram e pede a validação do número para começar.";
@@ -186,9 +186,11 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         if (message == null || message.Chat?.Id == null)
             return;
 
-        if (!string.IsNullOrWhiteSpace(message.Text) && message.Text.StartsWith("/start ", StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(message.Text) && message.Text.StartsWith("/start", StringComparison.OrdinalIgnoreCase))
         {
-            var payload = message.Text[7..].Trim();
+            var payload = message.Text.Length > 6
+                ? message.Text[6..].Trim()
+                : string.Empty;
             await ProcessStartCommandAsync(settings, payload, message, ct);
             return;
         }
@@ -204,14 +206,37 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         if (string.IsNullOrWhiteSpace(chatId))
             return;
 
-        var user = await _identityDb.Users.SingleOrDefaultAsync(
-            x => x.TelegramPendingVerificationToken == payload
-                 && x.TelegramPendingVerificationExpiresAt.HasValue
-                 && x.TelegramPendingVerificationExpiresAt > now,
-            ct);
+        User? user;
+        if (!string.IsNullOrWhiteSpace(payload))
+        {
+            user = await _identityDb.Users.SingleOrDefaultAsync(
+                x => x.TelegramPendingVerificationToken == payload
+                     && x.TelegramPendingVerificationExpiresAt.HasValue
+                     && x.TelegramPendingVerificationExpiresAt > now,
+                ct);
+        }
+        else
+        {
+            user = await _identityDb.Users.SingleOrDefaultAsync(
+                x => x.TelegramChatId == chatId
+                     && x.TelegramPendingVerificationExpiresAt.HasValue
+                     && x.TelegramPendingVerificationExpiresAt > now,
+                ct);
+        }
 
         if (user == null)
+        {
+            if (string.IsNullOrWhiteSpace(payload))
+            {
+                await SendTextMessageAsync(
+                    settings.BotToken,
+                    chatId,
+                    "Se estás a validar o teu número na Wekaza, abre o bot através do link ou QR code do perfil e depois partilha o teu contacto aqui.",
+                    ct);
+            }
+
             return;
+        }
 
         user.TelegramChatId = chatId;
         user.TelegramUsername = message.From?.Username;
@@ -229,6 +254,10 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         if (string.IsNullOrWhiteSpace(chatId))
             return;
 
+        var sharedDigits = DigitsOnly(message.Contact!.PhoneNumber);
+        if (string.IsNullOrWhiteSpace(sharedDigits))
+            return;
+
         var user = await _identityDb.Users.SingleOrDefaultAsync(
             x => x.TelegramChatId == chatId
                  && x.TelegramPendingVerificationExpiresAt.HasValue
@@ -236,9 +265,35 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
             ct);
 
         if (user == null)
-            return;
+        {
+            var matchingUsers = await _identityDb.Users
+                .Where(x => x.TelegramPendingVerificationExpiresAt.HasValue
+                            && x.TelegramPendingVerificationExpiresAt > now
+                            && x.TelegramPendingExpectedPhoneNumber != null)
+                .ToListAsync(ct);
 
-        var sharedDigits = DigitsOnly(message.Contact!.PhoneNumber);
+            var matchedUsers = matchingUsers
+                .Where(x => DigitsOnly(x.TelegramPendingExpectedPhoneNumber) == sharedDigits)
+                .Take(2)
+                .ToList();
+
+            if (matchedUsers.Count != 1)
+            {
+                await SendTextMessageAsync(
+                    settings.BotToken,
+                    chatId,
+                    "Nao consegui associar este contacto a um pedido ativo de validacao. Volta ao perfil, pede uma nova validacao e abre o bot pelo link ou QR code antes de partilhar o contacto.",
+                    ct);
+                return;
+            }
+
+            user = matchedUsers[0];
+            user.TelegramChatId = chatId;
+            user.TelegramUsername = message.From?.Username;
+            user.TelegramLinkedAt ??= now;
+            user.TelegramPendingVerificationError = null;
+        }
+
         var expectedDigits = DigitsOnly(user.TelegramPendingExpectedPhoneNumber);
 
         if (string.IsNullOrWhiteSpace(expectedDigits) || sharedDigits != expectedDigits)
