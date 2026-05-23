@@ -194,7 +194,7 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task UpdateProfileAsync_NewPhone_StoresPendingPhoneInsteadOfReplacingActivePhone()
+    public async Task UpdateProfileAsync_VerifiedPhone_ThrowsWhenChangingValidatedPhone()
     {
         var user = CreateTestUser();
         user.PhoneCountryCode = "PT";
@@ -204,7 +204,6 @@ public class UserServiceTests
 
         _userRepoMock.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
         _userRepoMock.Setup(r => r.IsEmailUniqueAsync(It.IsAny<string>(), user.Id)).ReturnsAsync(true);
-        _userRepoMock.Setup(r => r.IsPhoneNumberUniqueAsync("+351922222222", user.Id)).ReturnsAsync(true);
 
         var dto = new UpdateProfileDto(
             user.Name,
@@ -217,14 +216,16 @@ public class UserServiceTests
             "+351922222222",
             PhoneContactPlatforms.Telegram);
 
-        await _sut.UpdateProfileAsync(user.Id, dto);
+        var ex = await Assert.ThrowsAsync<Exception>(() => _sut.UpdateProfileAsync(user.Id, dto));
 
+        Assert.Contains("telemóvel", ex.Message);
         Assert.Equal("+351911111111", user.PhoneNumber);
         Assert.Equal("PT", user.PhoneCountryCode);
         Assert.True(user.IsPhoneNumberVerified);
-        Assert.Equal("+351922222222", user.PendingPhoneNumber);
-        Assert.Equal("PT", user.PendingPhoneCountryCode);
-        Assert.Equal(PhoneContactPlatforms.Telegram, user.PendingPhoneContactPlatform);
+        Assert.Null(user.PendingPhoneNumber);
+        Assert.Null(user.PendingPhoneCountryCode);
+        Assert.Null(user.PendingPhoneContactPlatform);
+        _uowMock.Verify(u => u.SaveChangesAsync(), Times.Never);
     }
 
     [Fact]
@@ -430,6 +431,29 @@ public class UserServiceTests
         Assert.Equal(PhoneContactPlatforms.Telegram, user.PendingPhoneContactPlatform);
         _telegramMessagingMock.Verify(service => service.StartPhoneVerificationAsync(user.Id, "+351912345678", It.IsAny<CancellationToken>()), Times.Once);
         _uowMock.Verify(u => u.SaveChangesAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task RequestPhoneNumberVerificationAsync_VerifiedPhone_ThrowsWhenTryingDifferentPhone()
+    {
+        var user = CreateTestUser();
+        user.PhoneCountryCode = "PT";
+        user.PhoneNumber = "+351911111111";
+        user.PhoneContactPlatform = PhoneContactPlatforms.Telegram;
+        user.IsPhoneNumberVerified = true;
+
+        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+
+        var ex = await Assert.ThrowsAsync<Exception>(() => _sut.RequestPhoneNumberVerificationAsync(
+            user.Id,
+            new RequestPhoneVerificationDto("PT", "+351922222222", PhoneContactPlatforms.Telegram),
+            null,
+            null,
+            CancellationToken.None));
+
+        Assert.Contains("telemóvel", ex.Message);
+        _telegramMessagingMock.Verify(service => service.StartPhoneVerificationAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _uowMock.Verify(u => u.SaveChangesAsync(), Times.Never);
     }
 
     [Fact]
