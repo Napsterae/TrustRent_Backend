@@ -228,10 +228,11 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         {
             if (string.IsNullOrWhiteSpace(payload))
             {
+                await SendContactRequestAsync(settings.BotToken, chatId, null, ct);
                 await SendTextMessageAsync(
                     settings.BotToken,
                     chatId,
-                    "Se estás a validar o teu número na Wekaza, abre o bot através do link ou QR code do perfil e depois partilha o teu contacto aqui.",
+                    "Se tens um pedido de validacao ativo na Wekaza, partilha o teu contacto aqui para eu tentar associar o numero automaticamente. Se ainda nao pediste a validacao no perfil, faz isso primeiro e depois volta a esta conversa.",
                     ct);
             }
 
