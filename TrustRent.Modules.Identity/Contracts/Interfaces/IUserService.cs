@@ -8,7 +8,7 @@ public interface IUserService
     Task<UserProfileDto?> GetProfileDtoAsync(Guid userId);
     Task<PublicUserProfileDto?> GetPublicProfileAsync(Guid userId, Guid viewerUserId);
     Task UpdateProfileAsync(Guid userId, UpdateProfileDto request);
-    Task<PhoneVerificationRequestResult> RequestPhoneNumberVerificationAsync(Guid userId, string? sourceIp, string? userAgent, CancellationToken ct = default);
+    Task<PhoneVerificationRequestResult> RequestPhoneNumberVerificationAsync(Guid userId, RequestPhoneVerificationDto? request, string? sourceIp, string? userAgent, CancellationToken ct = default);
     Task<PhoneVerificationStatusDto> GetPhoneVerificationStatusAsync(Guid userId, CancellationToken ct = default);
     Task VerifyPhoneNumberAsync(Guid userId, string code, CancellationToken ct = default);
     Task UpdateNotificationPreferencesAsync(Guid userId, UpdateNotificationPreferencesDto request);
@@ -35,6 +35,11 @@ public record UpdateProfileDto(
 public record UpdateNotificationPreferencesDto(
     bool EmailNotificationsEnabled,
     bool MessagingNotificationsEnabled
+);
+public record RequestPhoneVerificationDto(
+    string? PhoneCountryCode = null,
+    string? PhoneNumber = null,
+    string? PhoneContactPlatform = null
 );
 public record PhoneVerificationRequestResult(
     string Platform,
@@ -79,7 +84,10 @@ public record UserProfileDto(
     DateTime? NoDebtExpiryDate,
     bool IsAddressVerified,
     DateTime? AddressVerifiedAt,
-    int TrustScore
+    int TrustScore,
+    string? PendingPhoneCountryCode = null,
+    string? PendingPhoneNumber = null,
+    string? PendingPhoneContactPlatform = null
 );
 public record VerificationResultDto(
     bool IsIdentityVerified, 

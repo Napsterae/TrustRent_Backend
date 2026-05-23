@@ -42,8 +42,9 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
             ?? throw new InvalidOperationException("Utilizador não encontrado.");
 
         var now = DateTime.UtcNow;
+        var normalizedPhoneNumber = NormalizePhoneNumber(phoneNumber);
         user.TelegramPendingVerificationToken = Guid.NewGuid().ToString("N");
-        user.TelegramPendingExpectedPhoneNumber = NormalizePhoneNumber(phoneNumber);
+        user.TelegramPendingExpectedPhoneNumber = normalizedPhoneNumber;
         user.TelegramPendingVerificationExpiresAt = now.AddMinutes(VerificationTtlMinutes);
         user.TelegramPendingVerificationError = null;
 
@@ -51,7 +52,7 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
 
         if (!string.IsNullOrWhiteSpace(user.TelegramChatId))
         {
-            await SendContactRequestAsync(settings.BotToken, user.TelegramChatId, user.PhoneNumber, ct);
+            await SendContactRequestAsync(settings.BotToken, user.TelegramChatId, user.PendingPhoneNumber ?? normalizedPhoneNumber, ct);
             return new TelegramPhoneVerificationStartResult(
                 "Enviámos instruções no Telegram. Abre a conversa com o bot e partilha o teu contacto para concluir a validação.",
                 user.TelegramPendingVerificationExpiresAt!.Value,
@@ -73,6 +74,7 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         var settings = await TryGetSettingsAsync(ct);
         var user = await _identityDb.Users.SingleOrDefaultAsync(x => x.Id == userId, ct)
             ?? throw new InvalidOperationException("Utilizador não encontrado.");
+        var isCurrentPhoneVerified = !HasPendingPhone(user) && user.IsPhoneNumberVerified;
 
         if (settings == null)
         {
@@ -80,7 +82,7 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
                 false,
                 !string.IsNullOrWhiteSpace(user.TelegramChatId),
                 false,
-                user.IsPhoneNumberVerified,
+                isCurrentPhoneVerified,
                 "O Telegram da plataforma ainda não está configurado no backoffice.",
                 null,
                 null,
@@ -96,12 +98,13 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
             && user.TelegramPendingVerificationExpiresAt > now
             && !string.IsNullOrWhiteSpace(user.TelegramPendingExpectedPhoneNumber);
         var hasStartedConversation = !string.IsNullOrWhiteSpace(user.TelegramChatId);
-        var awaitingContactShare = hasPendingVerification && hasStartedConversation && !user.IsPhoneNumberVerified;
+        isCurrentPhoneVerified = !HasPendingPhone(user) && user.IsPhoneNumberVerified;
+        var awaitingContactShare = hasPendingVerification && hasStartedConversation && !isCurrentPhoneVerified;
         var deepLinkUrl = hasPendingVerification && !hasStartedConversation && !string.IsNullOrWhiteSpace(user.TelegramPendingVerificationToken)
             ? BuildDeepLink(settings.BotUsername, user.TelegramPendingVerificationToken)
             : null;
 
-        var message = user.IsPhoneNumberVerified
+        var message = isCurrentPhoneVerified
             ? "Número validado com sucesso através do Telegram."
             : !string.IsNullOrWhiteSpace(user.TelegramPendingVerificationError)
                 ? user.TelegramPendingVerificationError
@@ -117,7 +120,7 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
             true,
             hasStartedConversation,
             awaitingContactShare,
-            user.IsPhoneNumberVerified,
+            isCurrentPhoneVerified,
             message,
             deepLinkUrl,
             user.TelegramPendingVerificationExpiresAt,
@@ -216,7 +219,7 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         user.TelegramPendingVerificationError = null;
         await _identityDb.SaveChangesAsync(ct);
 
-        await SendContactRequestAsync(settings.BotToken, chatId, user.PhoneNumber, ct);
+        await SendContactRequestAsync(settings.BotToken, chatId, user.PendingPhoneNumber ?? user.PhoneNumber, ct);
     }
 
     private async Task ProcessContactShareAsync(TelegramSettings settings, TelegramMessage message, CancellationToken ct)
@@ -250,12 +253,10 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
             return;
         }
 
+        PromotePendingPhone(user);
         user.IsPhoneNumberVerified = true;
         user.PhoneNumberVerifiedAt = now;
-        user.TelegramPendingVerificationToken = null;
-        user.TelegramPendingExpectedPhoneNumber = null;
-        user.TelegramPendingVerificationExpiresAt = null;
-        user.TelegramPendingVerificationError = null;
+        ClearTelegramPendingVerification(user);
         user.TelegramLinkedAt ??= now;
         user.TelegramUsername = message.From?.Username ?? user.TelegramUsername;
         await _identityDb.SaveChangesAsync(ct);
@@ -352,6 +353,30 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
 
     private static string BuildDeepLink(string botUsername, string payload)
         => $"https://t.me/{botUsername}?start={payload}";
+
+    private static bool HasPendingPhone(User user)
+        => !string.IsNullOrWhiteSpace(user.PendingPhoneNumber);
+
+    private static void PromotePendingPhone(User user)
+    {
+        if (!HasPendingPhone(user))
+            return;
+
+        user.PhoneCountryCode = user.PendingPhoneCountryCode;
+        user.PhoneNumber = user.PendingPhoneNumber;
+        user.PhoneContactPlatform = PhoneContactPlatforms.Normalize(user.PendingPhoneContactPlatform, PhoneContactPlatforms.Telegram);
+        user.PendingPhoneCountryCode = null;
+        user.PendingPhoneNumber = null;
+        user.PendingPhoneContactPlatform = null;
+    }
+
+    private static void ClearTelegramPendingVerification(User user)
+    {
+        user.TelegramPendingVerificationToken = null;
+        user.TelegramPendingExpectedPhoneNumber = null;
+        user.TelegramPendingVerificationExpiresAt = null;
+        user.TelegramPendingVerificationError = null;
+    }
 
     private static string NormalizePhoneNumber(string phoneNumber)
     {

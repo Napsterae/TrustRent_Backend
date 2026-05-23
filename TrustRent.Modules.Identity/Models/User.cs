@@ -15,6 +15,9 @@ public class User
     public string? PhoneCountryCode { get; set; }
     public string? PhoneNumber { get; set; }
     public string PhoneContactPlatform { get; set; } = PhoneContactPlatforms.Telegram;
+    public string? PendingPhoneCountryCode { get; set; }
+    public string? PendingPhoneNumber { get; set; }
+    public string? PendingPhoneContactPlatform { get; set; }
     public bool IsPhoneNumberVerified { get; set; } = false;
     public DateTime? PhoneNumberVerifiedAt { get; set; }
     public string? TelegramChatId { get; set; }

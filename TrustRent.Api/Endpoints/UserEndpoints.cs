@@ -39,10 +39,12 @@ public static class UserEndpoints
                 {
                     Message = "Perfil atualizado com sucesso.",
                     PhoneVerificationRequired = profile is not null
-                        && !string.IsNullOrWhiteSpace(profile.PhoneNumber)
-                        && !profile.IsPhoneNumberVerified,
-                    IsPhoneNumberVerified = profile?.IsPhoneNumberVerified ?? false,
-                    PhoneContactPlatform = profile?.PhoneContactPlatform
+                        && (!string.IsNullOrWhiteSpace(profile.PendingPhoneNumber)
+                            || (!string.IsNullOrWhiteSpace(profile.PhoneNumber) && !profile.IsPhoneNumberVerified)),
+                    IsPhoneNumberVerified = profile is not null
+                        && string.IsNullOrWhiteSpace(profile.PendingPhoneNumber)
+                        && profile.IsPhoneNumberVerified,
+                    PhoneContactPlatform = profile?.PendingPhoneContactPlatform ?? profile?.PhoneContactPlatform
                 });
             }
             catch (Exception ex)
@@ -51,13 +53,14 @@ public static class UserEndpoints
             }
         });
 
-        userGroup.MapPost("/phone-verification/request", async (ClaimsPrincipal userClaims, IUserService userService, HttpContext ctx) =>
+        userGroup.MapPost("/phone-verification/request", async (ClaimsPrincipal userClaims, [FromBody] RequestPhoneVerificationDto? request, IUserService userService, HttpContext ctx) =>
         {
             try
             {
                 var userId = Guid.Parse(userClaims.FindFirstValue(ClaimTypes.NameIdentifier)!);
                 var result = await userService.RequestPhoneNumberVerificationAsync(
                     userId,
+                    request,
                     ctx.Connection.RemoteIpAddress?.ToString(),
                     ctx.Request.Headers.UserAgent.ToString(),
                     ctx.RequestAborted);

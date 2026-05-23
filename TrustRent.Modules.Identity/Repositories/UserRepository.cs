@@ -43,7 +43,8 @@ public class UserRepository : IUserRepository
         if (string.IsNullOrWhiteSpace(phoneNumber))
             return false;
 
-        return !await _context.Users.AnyAsync(u => u.PhoneNumber == phoneNumber && u.Id != excludeUserId);
+        return !await _context.Users.AnyAsync(
+            u => (u.PhoneNumber == phoneNumber || u.PendingPhoneNumber == phoneNumber) && u.Id != excludeUserId);
     }
 
     public async Task AddAsync(User user)

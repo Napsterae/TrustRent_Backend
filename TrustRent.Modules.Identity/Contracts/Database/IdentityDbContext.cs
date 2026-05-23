@@ -37,6 +37,13 @@ public class IdentityDbContext : DbContext
             v => v == null ? null : EncryptionHelper.Decrypt(v)
         );
 
+        modelBuilder.Entity<User>()
+        .Property(u => u.PendingPhoneNumber)
+        .HasConversion(
+            v => v == null ? null : EncryptionHelper.Encrypt(v),
+            v => v == null ? null : EncryptionHelper.Decrypt(v)
+        );
+
         modelBuilder.Entity<EmailLoginCode>(b =>
         {
             b.ToTable("EmailLoginCodes", "identity");

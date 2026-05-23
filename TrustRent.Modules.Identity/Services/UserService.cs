@@ -69,6 +69,11 @@ public class UserService : IUserService
         var user = await _uow.Users.GetByIdAsync(userId);
         if (user == null) return null;
 
+        var normalizedPhoneContactPlatform = NormalizePhoneContactPlatform(user.PhoneContactPlatform, throwOnUnsupported: false);
+        var normalizedPendingPhoneContactPlatform = string.IsNullOrWhiteSpace(user.PendingPhoneContactPlatform)
+            ? null
+            : NormalizePhoneContactPlatform(user.PendingPhoneContactPlatform, normalizedPhoneContactPlatform, throwOnUnsupported: false);
+
         return new UserProfileDto(
             user.Id,
             user.Name,
@@ -81,7 +86,7 @@ public class UserService : IUserService
             user.PhoneNumber,
             user.IsPhoneNumberVerified,
             user.PhoneNumberVerifiedAt,
-            NormalizePhoneContactPlatform(user.PhoneContactPlatform, throwOnUnsupported: false),
+            normalizedPhoneContactPlatform,
             user.TelegramUsername,
             user.TelegramLinkedAt,
             user.ProfilePictureUrl,
@@ -93,7 +98,10 @@ public class UserService : IUserService
             user.NoDebtExpiryDate,
             user.IsAddressVerified,
             user.AddressVerifiedAt,
-            user.TrustScore
+            user.TrustScore,
+            user.PendingPhoneCountryCode,
+            user.PendingPhoneNumber,
+            normalizedPendingPhoneContactPlatform
         );
     }
 
@@ -128,7 +136,10 @@ public class UserService : IUserService
         var normalizedAddress = NormalizeOptionalValue(request.Address);
         var normalizedPostalCode = NormalizeOptionalValue(request.PostalCode);
         var (normalizedPhoneCountryCode, normalizedPhoneNumber) = NormalizePhone(request.PhoneCountryCode, request.PhoneNumber);
-        var normalizedPhoneContactPlatform = NormalizePhoneContactPlatform(request.PhoneContactPlatform, user.PhoneContactPlatform);
+        var activePhoneContactPlatform = NormalizePhoneContactPlatform(user.PhoneContactPlatform, throwOnUnsupported: false);
+        var normalizedPhoneContactPlatform = NormalizePhoneContactPlatform(
+            request.PhoneContactPlatform,
+            user.PendingPhoneContactPlatform ?? activePhoneContactPlatform);
 
         if (user.IsIdentityVerified)
         {
@@ -166,13 +177,14 @@ public class UserService : IUserService
 
         if (!string.IsNullOrWhiteSpace(normalizedPhoneNumber)
             && normalizedPhoneNumber != user.PhoneNumber
+            && normalizedPhoneNumber != user.PendingPhoneNumber
             && !await _uow.Users.IsPhoneNumberUniqueAsync(normalizedPhoneNumber, userId))
         {
             throw new Exception("Este número de telemóvel já está registado noutra conta.");
         }
 
-        var phoneChanged = normalizedPhoneCountryCode != user.PhoneCountryCode
-            || normalizedPhoneNumber != user.PhoneNumber;
+        var matchesActivePhone = MatchesActivePhone(user, normalizedPhoneCountryCode, normalizedPhoneNumber, normalizedPhoneContactPlatform, activePhoneContactPlatform);
+        var matchesPendingPhone = MatchesPendingPhone(user, normalizedPhoneCountryCode, normalizedPhoneNumber, normalizedPhoneContactPlatform, activePhoneContactPlatform);
 
         user.Name = normalizedName;
         user.Email = normalizedEmail;
@@ -180,43 +192,76 @@ public class UserService : IUserService
         user.CitizenCardNumber = normalizedCitizenCardNumber;
         user.Address = normalizedAddress;
         user.PostalCode = normalizedPostalCode;
-        user.PhoneCountryCode = normalizedPhoneCountryCode;
-        user.PhoneNumber = normalizedPhoneNumber;
-        user.PhoneContactPlatform = normalizedPhoneContactPlatform;
 
-        if (phoneChanged)
+        if (string.IsNullOrWhiteSpace(normalizedPhoneNumber))
         {
+            user.PhoneCountryCode = null;
+            user.PhoneNumber = null;
+            user.PhoneContactPlatform = normalizedPhoneContactPlatform;
             user.IsPhoneNumberVerified = false;
             user.PhoneNumberVerifiedAt = null;
-            user.TelegramPendingVerificationToken = null;
-            user.TelegramPendingExpectedPhoneNumber = null;
-            user.TelegramPendingVerificationExpiresAt = null;
-            user.TelegramPendingVerificationError = null;
-
-            if (string.IsNullOrWhiteSpace(normalizedPhoneNumber))
-                user.WhatsAppNotificationsEnabled = false;
+            user.WhatsAppNotificationsEnabled = false;
+            ClearPendingPhone(user);
+            ClearTelegramPendingVerification(user);
+        }
+        else if (matchesActivePhone)
+        {
+            user.PhoneContactPlatform = normalizedPhoneContactPlatform;
+            ClearPendingPhone(user);
+            ClearTelegramPendingVerification(user);
+        }
+        else if (!matchesPendingPhone)
+        {
+            StagePendingPhone(user, normalizedPhoneCountryCode, normalizedPhoneNumber, normalizedPhoneContactPlatform);
         }
 
         await _uow.SaveChangesAsync();
     }
 
-    public async Task<PhoneVerificationRequestResult> RequestPhoneNumberVerificationAsync(Guid userId, string? sourceIp, string? userAgent, CancellationToken ct = default)
+    public async Task<PhoneVerificationRequestResult> RequestPhoneNumberVerificationAsync(Guid userId, RequestPhoneVerificationDto? request, string? sourceIp, string? userAgent, CancellationToken ct = default)
     {
         var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
+        var activePhoneContactPlatform = NormalizePhoneContactPlatform(user.PhoneContactPlatform, throwOnUnsupported: false);
 
-        if (string.IsNullOrWhiteSpace(user.PhoneNumber))
+        var requestHasPhoneState = request is not null
+            && (!string.IsNullOrWhiteSpace(request.PhoneCountryCode)
+                || !string.IsNullOrWhiteSpace(request.PhoneNumber)
+                || !string.IsNullOrWhiteSpace(request.PhoneContactPlatform));
+
+        string? phoneCountryCode;
+        string? phoneNumber;
+        string platform;
+
+        if (requestHasPhoneState)
+        {
+            (phoneCountryCode, phoneNumber) = NormalizePhone(request!.PhoneCountryCode, request.PhoneNumber);
+            platform = NormalizePhoneContactPlatform(request.PhoneContactPlatform, user.PendingPhoneContactPlatform ?? activePhoneContactPlatform);
+            await PreparePhoneVerificationCandidateAsync(user, phoneCountryCode, phoneNumber, platform);
+            await _uow.SaveChangesAsync();
+        }
+        else
+        {
+            phoneCountryCode = GetVerificationCandidatePhoneCountryCode(user);
+            phoneNumber = GetVerificationCandidatePhoneNumber(user);
+            platform = GetVerificationCandidatePhoneContactPlatform(user, activePhoneContactPlatform);
+        }
+
+        if (string.IsNullOrWhiteSpace(phoneNumber))
             throw new Exception("Adiciona primeiro um número de telemóvel no teu perfil.");
 
-        if (user.IsPhoneNumberVerified)
+        if (!HasPendingPhone(user)
+            && MatchesActivePhone(user, phoneCountryCode, phoneNumber, platform, activePhoneContactPlatform)
+            && user.IsPhoneNumberVerified)
+        {
             throw new Exception("Este número de telemóvel já está validado.");
+        }
 
-        var platform = NormalizePhoneContactPlatform(user.PhoneContactPlatform, throwOnUnsupported: false);
         if (platform == PhoneContactPlatforms.Telegram)
         {
             if (_telegramMessagingPlatformService is null)
                 throw new InvalidOperationException("O serviço de validação por Telegram não está disponível.");
 
-            var result = await _telegramMessagingPlatformService.StartPhoneVerificationAsync(userId, user.PhoneNumber, ct);
+            var result = await _telegramMessagingPlatformService.StartPhoneVerificationAsync(userId, phoneNumber, ct);
             return new PhoneVerificationRequestResult(
                 PhoneContactPlatforms.Telegram,
                 result.Message,
@@ -229,7 +274,7 @@ public class UserService : IUserService
         if (_whatsAppCodeService is null)
             throw new InvalidOperationException("O serviço de validação por WhatsApp não está disponível.");
 
-        var dispatch = await _whatsAppCodeService.SendPhoneVerificationCodeAsync(userId, user.PhoneNumber, sourceIp, userAgent, ct);
+        var dispatch = await _whatsAppCodeService.SendPhoneVerificationCodeAsync(userId, phoneNumber, sourceIp, userAgent, ct);
         return new PhoneVerificationRequestResult(
             PhoneContactPlatforms.WhatsApp,
             "Enviámos um código de validação para o teu telemóvel via WhatsApp.",
@@ -242,16 +287,18 @@ public class UserService : IUserService
     public async Task<PhoneVerificationStatusDto> GetPhoneVerificationStatusAsync(Guid userId, CancellationToken ct = default)
     {
         var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
-        var platform = NormalizePhoneContactPlatform(user.PhoneContactPlatform, throwOnUnsupported: false);
+        var activePhoneContactPlatform = NormalizePhoneContactPlatform(user.PhoneContactPlatform, throwOnUnsupported: false);
+        var platform = GetVerificationCandidatePhoneContactPlatform(user, activePhoneContactPlatform);
 
         if (platform == PhoneContactPlatforms.Telegram)
         {
             if (_telegramMessagingPlatformService is null)
             {
+                var isCurrentPhoneVerified = !HasPendingPhone(user) && user.IsPhoneNumberVerified;
                 return new PhoneVerificationStatusDto(
                     PhoneContactPlatforms.Telegram,
                     false,
-                    user.IsPhoneNumberVerified,
+                    isCurrentPhoneVerified,
                     !string.IsNullOrWhiteSpace(user.TelegramChatId),
                     false,
                     "O Telegram da plataforma ainda não está configurado.",
@@ -273,14 +320,19 @@ public class UserService : IUserService
                 status.TelegramUsername);
         }
 
+        var hasPhoneNumber = !string.IsNullOrWhiteSpace(GetVerificationCandidatePhoneNumber(user));
+        var isPendingPhoneVerified = !HasPendingPhone(user) && user.IsPhoneNumberVerified;
+
         return new PhoneVerificationStatusDto(
             PhoneContactPlatforms.WhatsApp,
             true,
-            user.IsPhoneNumberVerified,
+            isPendingPhoneVerified,
             false,
             false,
-            user.IsPhoneNumberVerified
+            isPendingPhoneVerified
                 ? "Número validado com sucesso no WhatsApp."
+                : !hasPhoneNumber
+                    ? "Adiciona primeiro um número de telemóvel para pedir um código de validação."
                 : "Pede um código de validação por WhatsApp para ativar este número.",
             null,
             null,
@@ -290,11 +342,13 @@ public class UserService : IUserService
     public async Task VerifyPhoneNumberAsync(Guid userId, string code, CancellationToken ct = default)
     {
         var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
+        var platform = GetVerificationCandidatePhoneContactPlatform(user, NormalizePhoneContactPlatform(user.PhoneContactPlatform, throwOnUnsupported: false));
+        var phoneNumber = GetVerificationCandidatePhoneNumber(user);
 
-        if (string.IsNullOrWhiteSpace(user.PhoneNumber))
+        if (string.IsNullOrWhiteSpace(phoneNumber))
             throw new Exception("Adiciona primeiro um número de telemóvel no teu perfil.");
 
-        if (NormalizePhoneContactPlatform(user.PhoneContactPlatform, throwOnUnsupported: false) == PhoneContactPlatforms.Telegram)
+        if (platform == PhoneContactPlatforms.Telegram)
         {
             var status = await GetPhoneVerificationStatusAsync(userId, ct);
             if (status.IsPhoneNumberVerified)
@@ -306,10 +360,12 @@ public class UserService : IUserService
         if (_whatsAppCodeService is null)
             throw new InvalidOperationException("O serviço de validação por WhatsApp não está disponível.");
 
-        await _whatsAppCodeService.VerifyPhoneVerificationCodeAsync(userId, user.PhoneNumber, code, ct);
+        await _whatsAppCodeService.VerifyPhoneVerificationCodeAsync(userId, phoneNumber, code, ct);
 
+        PromotePendingPhone(user, platform);
         user.IsPhoneNumberVerified = true;
         user.PhoneNumberVerifiedAt = DateTime.UtcNow;
+        ClearTelegramPendingVerification(user);
         await _uow.SaveChangesAsync();
     }
 
@@ -670,6 +726,109 @@ public class UserService : IUserService
         }
 
         return normalized;
+    }
+
+    private async Task PreparePhoneVerificationCandidateAsync(User user, string? phoneCountryCode, string? phoneNumber, string phoneContactPlatform)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+            throw new Exception("Adiciona primeiro um número de telemóvel no teu perfil.");
+
+        var activePhoneContactPlatform = NormalizePhoneContactPlatform(user.PhoneContactPlatform, throwOnUnsupported: false);
+        var matchesActivePhone = MatchesActivePhone(user, phoneCountryCode, phoneNumber, phoneContactPlatform, activePhoneContactPlatform);
+        var matchesPendingPhone = MatchesPendingPhone(user, phoneCountryCode, phoneNumber, phoneContactPlatform, activePhoneContactPlatform);
+
+        if (phoneNumber != user.PhoneNumber
+            && phoneNumber != user.PendingPhoneNumber
+            && !await _uow.Users.IsPhoneNumberUniqueAsync(phoneNumber, user.Id))
+        {
+            throw new Exception("Este número de telemóvel já está registado noutra conta.");
+        }
+
+        if (matchesActivePhone)
+        {
+            if (user.IsPhoneNumberVerified)
+                throw new Exception("Este número de telemóvel já está validado.");
+
+            ClearPendingPhone(user);
+            ClearTelegramPendingVerification(user);
+            return;
+        }
+
+        if (!matchesPendingPhone)
+            StagePendingPhone(user, phoneCountryCode, phoneNumber, phoneContactPlatform);
+    }
+
+    private static bool HasPendingPhone(User user)
+        => !string.IsNullOrWhiteSpace(user.PendingPhoneNumber);
+
+    private static string GetVerificationCandidatePhoneContactPlatform(User user, string? fallback = null)
+    {
+        if (HasPendingPhone(user))
+            return NormalizePhoneContactPlatform(user.PendingPhoneContactPlatform, fallback ?? user.PhoneContactPlatform, throwOnUnsupported: false);
+
+        return NormalizePhoneContactPlatform(user.PhoneContactPlatform, fallback, throwOnUnsupported: false);
+    }
+
+    private static string? GetVerificationCandidatePhoneCountryCode(User user)
+        => HasPendingPhone(user) ? user.PendingPhoneCountryCode : user.PhoneCountryCode;
+
+    private static string? GetVerificationCandidatePhoneNumber(User user)
+        => HasPendingPhone(user) ? user.PendingPhoneNumber : user.PhoneNumber;
+
+    private static bool MatchesActivePhone(User user, string? phoneCountryCode, string? phoneNumber, string phoneContactPlatform, string? activePhoneContactPlatform = null)
+    {
+        var normalizedActivePhoneContactPlatform = NormalizePhoneContactPlatform(user.PhoneContactPlatform, activePhoneContactPlatform, throwOnUnsupported: false);
+        return phoneCountryCode == user.PhoneCountryCode
+            && phoneNumber == user.PhoneNumber
+            && phoneContactPlatform == normalizedActivePhoneContactPlatform;
+    }
+
+    private static bool MatchesPendingPhone(User user, string? phoneCountryCode, string? phoneNumber, string phoneContactPlatform, string? activePhoneContactPlatform = null)
+    {
+        if (!HasPendingPhone(user))
+            return false;
+
+        var normalizedPendingPhoneContactPlatform = NormalizePhoneContactPlatform(user.PendingPhoneContactPlatform, activePhoneContactPlatform ?? user.PhoneContactPlatform, throwOnUnsupported: false);
+        return phoneCountryCode == user.PendingPhoneCountryCode
+            && phoneNumber == user.PendingPhoneNumber
+            && phoneContactPlatform == normalizedPendingPhoneContactPlatform;
+    }
+
+    private static void StagePendingPhone(User user, string? phoneCountryCode, string? phoneNumber, string phoneContactPlatform)
+    {
+        user.PendingPhoneCountryCode = phoneCountryCode;
+        user.PendingPhoneNumber = phoneNumber;
+        user.PendingPhoneContactPlatform = phoneContactPlatform;
+        ClearTelegramPendingVerification(user);
+    }
+
+    private static void PromotePendingPhone(User user, string phoneContactPlatform)
+    {
+        if (HasPendingPhone(user))
+        {
+            user.PhoneCountryCode = user.PendingPhoneCountryCode;
+            user.PhoneNumber = user.PendingPhoneNumber;
+            user.PhoneContactPlatform = NormalizePhoneContactPlatform(user.PendingPhoneContactPlatform, phoneContactPlatform, throwOnUnsupported: false);
+            ClearPendingPhone(user);
+            return;
+        }
+
+        user.PhoneContactPlatform = NormalizePhoneContactPlatform(phoneContactPlatform, user.PhoneContactPlatform, throwOnUnsupported: false);
+    }
+
+    private static void ClearPendingPhone(User user)
+    {
+        user.PendingPhoneCountryCode = null;
+        user.PendingPhoneNumber = null;
+        user.PendingPhoneContactPlatform = null;
+    }
+
+    private static void ClearTelegramPendingVerification(User user)
+    {
+        user.TelegramPendingVerificationToken = null;
+        user.TelegramPendingExpectedPhoneNumber = null;
+        user.TelegramPendingVerificationExpiresAt = null;
+        user.TelegramPendingVerificationError = null;
     }
 
     private static (string? PhoneCountryCode, string? PhoneNumber) NormalizePhone(string? phoneCountryCode, string? phoneNumber)

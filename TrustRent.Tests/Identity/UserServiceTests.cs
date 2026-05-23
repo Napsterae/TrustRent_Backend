@@ -13,6 +13,7 @@ public class UserServiceTests
     private readonly Mock<IImageService> _imageServiceMock;
     private readonly Mock<IGeminiDocumentService> _geminiMock;
     private readonly Mock<IUserContactAccessService> _contactAccessMock;
+    private readonly Mock<IWhatsAppCodeService> _whatsAppCodeServiceMock;
     private readonly Mock<ITelegramMessagingPlatformService> _telegramMessagingMock;
     private readonly UserService _sut;
 
@@ -23,6 +24,7 @@ public class UserServiceTests
         _imageServiceMock = new Mock<IImageService>();
         _geminiMock = new Mock<IGeminiDocumentService>();
         _contactAccessMock = new Mock<IUserContactAccessService>();
+        _whatsAppCodeServiceMock = new Mock<IWhatsAppCodeService>();
         _telegramMessagingMock = new Mock<ITelegramMessagingPlatformService>();
 
         _uowMock.Setup(u => u.Users).Returns(_userRepoMock.Object);
@@ -185,7 +187,44 @@ public class UserServiceTests
 
         Assert.Equal("New Name", user.Name);
         Assert.Equal("new@example.com", user.Email);
+        Assert.Null(user.PhoneNumber);
+        Assert.Equal("+351912345678", user.PendingPhoneNumber);
+        Assert.Equal("PT", user.PendingPhoneCountryCode);
         _uowMock.Verify(u => u.SaveChangesAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_NewPhone_StoresPendingPhoneInsteadOfReplacingActivePhone()
+    {
+        var user = CreateTestUser();
+        user.PhoneCountryCode = "PT";
+        user.PhoneNumber = "+351911111111";
+        user.PhoneContactPlatform = PhoneContactPlatforms.Telegram;
+        user.IsPhoneNumberVerified = true;
+
+        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _userRepoMock.Setup(r => r.IsEmailUniqueAsync(It.IsAny<string>(), user.Id)).ReturnsAsync(true);
+        _userRepoMock.Setup(r => r.IsPhoneNumberUniqueAsync("+351922222222", user.Id)).ReturnsAsync(true);
+
+        var dto = new UpdateProfileDto(
+            user.Name,
+            user.Email,
+            user.Nif,
+            user.CitizenCardNumber,
+            user.Address,
+            user.PostalCode,
+            "PT",
+            "+351922222222",
+            PhoneContactPlatforms.Telegram);
+
+        await _sut.UpdateProfileAsync(user.Id, dto);
+
+        Assert.Equal("+351911111111", user.PhoneNumber);
+        Assert.Equal("PT", user.PhoneCountryCode);
+        Assert.True(user.IsPhoneNumberVerified);
+        Assert.Equal("+351922222222", user.PendingPhoneNumber);
+        Assert.Equal("PT", user.PendingPhoneCountryCode);
+        Assert.Equal(PhoneContactPlatforms.Telegram, user.PendingPhoneContactPlatform);
     }
 
     [Fact]
@@ -356,13 +395,12 @@ public class UserServiceTests
     public async Task RequestPhoneNumberVerificationAsync_TelegramPlatform_UsesTelegramService()
     {
         var user = CreateTestUser();
-        user.PhoneCountryCode = "PT";
-        user.PhoneNumber = "+351912345678";
         user.PhoneContactPlatform = PhoneContactPlatforms.Telegram;
 
         _userRepoMock.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _userRepoMock.Setup(r => r.IsPhoneNumberUniqueAsync("+351912345678", user.Id)).ReturnsAsync(true);
         _telegramMessagingMock
-            .Setup(service => service.StartPhoneVerificationAsync(user.Id, user.PhoneNumber, It.IsAny<CancellationToken>()))
+            .Setup(service => service.StartPhoneVerificationAsync(user.Id, "+351912345678", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TelegramPhoneVerificationStartResult(
                 "Abre o Telegram.",
                 DateTime.UtcNow.AddMinutes(10),
@@ -378,11 +416,58 @@ public class UserServiceTests
             whatsAppCodeService: null,
             telegramMessagingPlatformService: _telegramMessagingMock.Object);
 
-        var result = await sut.RequestPhoneNumberVerificationAsync(user.Id, null, null);
+        var result = await sut.RequestPhoneNumberVerificationAsync(
+            user.Id,
+            new RequestPhoneVerificationDto("PT", "+351912345678", PhoneContactPlatforms.Telegram),
+            null,
+            null);
 
         Assert.Equal(PhoneContactPlatforms.Telegram, result.Platform);
         Assert.Equal("test_bot", result.BotUsername);
         Assert.Equal("https://t.me/test_bot?start=abc", result.DeepLinkUrl);
-        _telegramMessagingMock.Verify(service => service.StartPhoneVerificationAsync(user.Id, user.PhoneNumber, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal("+351912345678", user.PendingPhoneNumber);
+        Assert.Equal("PT", user.PendingPhoneCountryCode);
+        Assert.Equal(PhoneContactPlatforms.Telegram, user.PendingPhoneContactPlatform);
+        _telegramMessagingMock.Verify(service => service.StartPhoneVerificationAsync(user.Id, "+351912345678", It.IsAny<CancellationToken>()), Times.Once);
+        _uowMock.Verify(u => u.SaveChangesAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task VerifyPhoneNumberAsync_WhatsAppPendingPhone_PromotesPendingPhone()
+    {
+        var user = CreateTestUser();
+        user.PhoneCountryCode = "PT";
+        user.PhoneNumber = "+351911111111";
+        user.PhoneContactPlatform = PhoneContactPlatforms.Telegram;
+        user.IsPhoneNumberVerified = true;
+        user.PendingPhoneCountryCode = "PT";
+        user.PendingPhoneNumber = "+351922222222";
+        user.PendingPhoneContactPlatform = PhoneContactPlatforms.WhatsApp;
+
+        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _whatsAppCodeServiceMock
+            .Setup(service => service.VerifyPhoneVerificationCodeAsync(user.Id, "+351922222222", "123456", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var sut = new UserService(
+            _uowMock.Object,
+            _imageServiceMock.Object,
+            _geminiMock.Object,
+            _contactAccessMock.Object,
+            whatsAppCodeService: _whatsAppCodeServiceMock.Object,
+            telegramMessagingPlatformService: null);
+
+        await sut.VerifyPhoneNumberAsync(user.Id, "123456");
+
+        Assert.Equal("+351922222222", user.PhoneNumber);
+        Assert.Equal("PT", user.PhoneCountryCode);
+        Assert.Equal(PhoneContactPlatforms.WhatsApp, user.PhoneContactPlatform);
+        Assert.True(user.IsPhoneNumberVerified);
+        Assert.Null(user.PendingPhoneNumber);
+        Assert.Null(user.PendingPhoneCountryCode);
+        Assert.Null(user.PendingPhoneContactPlatform);
+        _whatsAppCodeServiceMock.Verify(
+            service => service.VerifyPhoneVerificationCodeAsync(user.Id, "+351922222222", "123456", It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }
