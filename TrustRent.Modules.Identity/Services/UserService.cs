@@ -140,6 +140,12 @@ public class UserService : IUserService
         var normalizedPhoneContactPlatform = NormalizePhoneContactPlatform(
             request.PhoneContactPlatform,
             user.PendingPhoneContactPlatform ?? activePhoneContactPlatform);
+        EnsureVerifiedPhoneRemainsReadOnly(
+            user,
+            normalizedPhoneCountryCode,
+            normalizedPhoneNumber,
+            normalizedPhoneContactPlatform,
+            activePhoneContactPlatform);
 
         if (user.IsIdentityVerified)
         {
@@ -342,6 +348,15 @@ public class UserService : IUserService
     public async Task VerifyPhoneNumberAsync(Guid userId, string code, CancellationToken ct = default)
     {
         var user = await _uow.Users.GetByIdAsync(userId) ?? throw new Exception("Utilizador não encontrado.");
+
+        if (HasLockedVerifiedPhone(user))
+        {
+            if (!HasPendingPhone(user))
+                return;
+
+            throw new Exception("Não podes alterar o teu telemóvel depois da validação. Se precisares de trocar de número, contacta o suporte.");
+        }
+
         var platform = GetVerificationCandidatePhoneContactPlatform(user, NormalizePhoneContactPlatform(user.PhoneContactPlatform, throwOnUnsupported: false));
         var phoneNumber = GetVerificationCandidatePhoneNumber(user);
 
@@ -734,6 +749,7 @@ public class UserService : IUserService
             throw new Exception("Adiciona primeiro um número de telemóvel no teu perfil.");
 
         var activePhoneContactPlatform = NormalizePhoneContactPlatform(user.PhoneContactPlatform, throwOnUnsupported: false);
+        EnsureVerifiedPhoneRemainsReadOnly(user, phoneCountryCode, phoneNumber, phoneContactPlatform, activePhoneContactPlatform);
         var matchesActivePhone = MatchesActivePhone(user, phoneCountryCode, phoneNumber, phoneContactPlatform, activePhoneContactPlatform);
         var matchesPendingPhone = MatchesPendingPhone(user, phoneCountryCode, phoneNumber, phoneContactPlatform, activePhoneContactPlatform);
 
@@ -760,6 +776,20 @@ public class UserService : IUserService
 
     private static bool HasPendingPhone(User user)
         => !string.IsNullOrWhiteSpace(user.PendingPhoneNumber);
+
+    private static bool HasLockedVerifiedPhone(User user)
+        => user.IsPhoneNumberVerified && !string.IsNullOrWhiteSpace(user.PhoneNumber);
+
+    private static void EnsureVerifiedPhoneRemainsReadOnly(User user, string? phoneCountryCode, string? phoneNumber, string phoneContactPlatform, string? activePhoneContactPlatform = null)
+    {
+        if (!HasLockedVerifiedPhone(user))
+            return;
+
+        if (MatchesActivePhone(user, phoneCountryCode, phoneNumber, phoneContactPlatform, activePhoneContactPlatform))
+            return;
+
+        throw new Exception("Não podes alterar o teu telemóvel depois da validação. Se precisares de trocar de número, contacta o suporte.");
+    }
 
     private static string GetVerificationCandidatePhoneContactPlatform(User user, string? fallback = null)
     {

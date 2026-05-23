@@ -295,6 +295,21 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
             user.TelegramPendingVerificationError = null;
         }
 
+        if (HasLockedVerifiedPhone(user))
+        {
+            user.PendingPhoneCountryCode = null;
+            user.PendingPhoneNumber = null;
+            user.PendingPhoneContactPlatform = null;
+            ClearTelegramPendingVerification(user);
+            await _identityDb.SaveChangesAsync(ct);
+            await SendTextMessageAsync(
+                settings.BotToken,
+                chatId,
+                "Este contacto ja foi validado e ficou bloqueado na tua conta Wekaza. Se precisares de alterar o numero, contacta o suporte.",
+                ct);
+            return;
+        }
+
         var expectedDigits = DigitsOnly(user.TelegramPendingExpectedPhoneNumber);
 
         if (string.IsNullOrWhiteSpace(expectedDigits) || sharedDigits != expectedDigits)
@@ -412,6 +427,9 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
 
     private static bool HasPendingPhone(User user)
         => !string.IsNullOrWhiteSpace(user.PendingPhoneNumber);
+
+    private static bool HasLockedVerifiedPhone(User user)
+        => user.IsPhoneNumberVerified && !string.IsNullOrWhiteSpace(user.PhoneNumber);
 
     private static void PromotePendingPhone(User user)
     {
