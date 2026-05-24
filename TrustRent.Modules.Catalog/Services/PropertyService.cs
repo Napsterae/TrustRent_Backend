@@ -42,17 +42,21 @@ public class PropertyService : IPropertyService
         ValidateFinancialTerms(dto);
         ValidatePeriodicities(dto, acceptedPeriodicities);
 
+        var normalizedAmenityIds = AmenityCatalog.NormalizeForPropertyForm(amenityIds, dto);
+
         // 1. Mapear o DTO para o nosso Modelo da Base de Dados
         var property = dto.ToEntity(landlordId);
 
         // Adicionar comodidades selecionadas
-        if (amenityIds != null)
+        if (normalizedAmenityIds.Count > 0)
         {
-            foreach (var amenityId in amenityIds)
+            foreach (var amenityId in normalizedAmenityIds)
             {
                 property.Amenities.Add(new PropertyAmenity { PropertyId = property.Id, AmenityId = amenityId });
             }
         }
+
+        AmenityCatalog.ApplyPropertyFeatureFlags(property, normalizedAmenityIds);
 
         // Adicionar periodicidades selecionadas
         if (acceptedPeriodicities != null)
@@ -192,6 +196,8 @@ public class PropertyService : IPropertyService
         ValidateFinancialTerms(dto);
         ValidatePeriodicities(dto, acceptedPeriodicities);
 
+        var normalizedAmenityIds = AmenityCatalog.NormalizeForPropertyForm(amenityIds, dto);
+
         // 1. Carregar a entidade com todas as suas coleções
         var property = await _uow.Properties.GetByIdAndLandlordWithImagesAsync(propertyId, landlordId);
 
@@ -200,11 +206,12 @@ public class PropertyService : IPropertyService
         // 2. Atualizar campos de texto (Usando o Mapper)
         dto.UpdateEntity(property);
         property.UpdatedAt = DateTime.UtcNow;
+        AmenityCatalog.ApplyPropertyFeatureFlags(property, normalizedAmenityIds);
 
         // 3. Atualizar Comodidades (Amenities) de forma rastreada
         // Em vez de Clear(), removemos o que não está no DTO e adicionamos o novo
         var currentAmenityIds = property.Amenities.Select(a => a.AmenityId).ToList();
-        var newAmenityIds = amenityIds ?? new List<Guid>();
+        var newAmenityIds = normalizedAmenityIds;
 
         // Remover as que já não existem
         foreach (var existing in property.Amenities.Where(a => !newAmenityIds.Contains(a.AmenityId)).ToList())

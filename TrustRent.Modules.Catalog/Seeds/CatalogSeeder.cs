@@ -45,15 +45,18 @@ public static class CatalogSeeder
     private static readonly Guid Lease4Id = Guid.Parse("bbbb4444-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid Lease5Id = Guid.Parse("bbbb5555-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
-    private static readonly Guid WifiAmenityId = Guid.Parse("a0000000-0000-0000-0000-000000000001");
-    private static readonly Guid EquippedKitchenAmenityId = Guid.Parse("a0000000-0000-0000-0000-000000000002");
-    private static readonly Guid WashingMachineAmenityId = Guid.Parse("a0000000-0000-0000-0000-000000000003");
-    private static readonly Guid AirConditioningAmenityId = Guid.Parse("a0000000-0000-0000-0000-000000000005");
-    private static readonly Guid PoolAmenityId = Guid.Parse("a0000000-0000-0000-0000-000000000009");
-    private static readonly Guid AlarmAmenityId = Guid.Parse("a0000000-0000-0000-0000-00000000000f");
-    private static readonly Guid PetsAmenityId = Guid.Parse("a0000000-0000-0000-0000-000000000010");
-    private static readonly Guid SupermarketAmenityId = Guid.Parse("a0000000-0000-0000-0000-000000000011");
-    private static readonly Guid TransportAmenityId = Guid.Parse("a0000000-0000-0000-0000-000000000012");
+    private static readonly Guid WifiAmenityId = AmenityCatalog.WifiId;
+    private static readonly Guid EquippedKitchenAmenityId = AmenityCatalog.EquippedKitchenId;
+    private static readonly Guid WashingMachineAmenityId = AmenityCatalog.WashingMachineId;
+    private static readonly Guid AirConditioningAmenityId = AmenityCatalog.AirConditioningId;
+    private static readonly Guid PoolAmenityId = AmenityCatalog.PoolId;
+    private static readonly Guid AlarmAmenityId = AmenityCatalog.AlarmId;
+    private static readonly Guid PetsAmenityId = AmenityCatalog.PetsId;
+    private static readonly Guid SupermarketAmenityId = AmenityCatalog.SupermarketId;
+    private static readonly Guid TransportAmenityId = AmenityCatalog.TransportId;
+    private static readonly Guid ElevatorAmenityId = AmenityCatalog.ElevatorId;
+    private static readonly Guid GarageAmenityId = AmenityCatalog.GarageId;
+    private static readonly Guid FurnishedAmenityId = AmenityCatalog.FurnishedId;
 
     public static async Task SeedAsync(CatalogDbContext context)
     {
@@ -981,6 +984,20 @@ public static class CatalogSeeder
         string? usageLicenseDate = null,
         string? usageLicenseIssuer = null)
     {
+        var baseAmenityIds = amenityIds.Distinct().ToList();
+        var hasElevator = propertyType == "Apartamento" && floor != "0" && floor != "Moradia";
+        var hasAirConditioning = price >= 1000;
+        var hasGarage = propertyType != "Quarto" && price >= 900;
+        var allowsPets = baseAmenityIds.Contains(PetsAmenityId);
+        var isFurnished = true;
+        var normalizedAmenityIds = AmenityCatalog.MergeWithPropertyFeatureAmenities(
+            baseAmenityIds,
+            hasElevator,
+            hasAirConditioning,
+            hasGarage,
+            allowsPets,
+            isFurnished);
+
         var property = new Property
         {
             Id = id,
@@ -1005,11 +1022,11 @@ public static class CatalogSeeder
             Longitude = longitude,
             IsPublic = isPublic,
             IsUnderMaintenance = false,
-            HasElevator = propertyType == "Apartamento" && floor != "0" && floor != "Moradia",
-            HasAirConditioning = price >= 1000,
-            HasGarage = propertyType != "Quarto" && price >= 900,
-            AllowsPets = amenityIds.Contains(PetsAmenityId),
-            IsFurnished = true,
+            HasElevator = hasElevator,
+            HasAirConditioning = hasAirConditioning,
+            HasGarage = hasGarage,
+            AllowsPets = allowsPets,
+            IsFurnished = isFurnished,
             FurnishedDescription = propertyType == "Quarto" ? "Quarto mobilado com secretaria e roupeiro." : "Mobilado com eletrodomesticos essenciais e sofa.",
             CreatedAt = createdAt,
             UpdatedAt = createdAt.AddDays(1),
@@ -1041,6 +1058,8 @@ public static class CatalogSeeder
             NonPermanentReason = leaseRegime == LeaseRegime.NonPermanentHousing ? nonPermanentReason : null
         };
 
+        AmenityCatalog.ApplyPropertyFeatureFlags(property, normalizedAmenityIds);
+
         foreach (var months in acceptedPeriodicities.Distinct().OrderBy(months => months))
         {
             property.AcceptedPeriodicities.Add(new PropertyPeriodicity
@@ -1051,7 +1070,7 @@ public static class CatalogSeeder
             });
         }
 
-        foreach (var amenityId in amenityIds.Distinct())
+        foreach (var amenityId in normalizedAmenityIds)
         {
             property.Amenities.Add(new PropertyAmenity
             {
@@ -1155,6 +1174,9 @@ public static class CatalogSeeder
             EquippedKitchenAmenityId,
             WashingMachineAmenityId,
             AirConditioningAmenityId,
+            ElevatorAmenityId,
+            GarageAmenityId,
+            FurnishedAmenityId,
             PoolAmenityId,
             AlarmAmenityId,
             PetsAmenityId,
