@@ -10,6 +10,7 @@ using TrustRent.Modules.Admin.Authorization;
 using TrustRent.Modules.Admin.Contracts;
 using TrustRent.Modules.Admin.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Identity.Contracts.Database;
 
 namespace TrustRent.Modules.Admin.Endpoints;
 
@@ -19,6 +20,8 @@ public static class AdminPropertiesEndpoints
         Guid.Parse(ctx.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                 ?? ctx.User.FindFirst("sub")!.Value);
 
+    private static string NormalizeDigits(string? value) => new((value ?? string.Empty).Where(char.IsDigit).ToArray());
+
     public record ModerateRequest(string Status, string? Reason); // approved|rejected|pending
     public record BlockRequest(string Reason);
     public record FeatureRequest(bool Featured);
@@ -27,8 +30,8 @@ public static class AdminPropertiesEndpoints
     {
         var g = app.MapGroup("/api/admin/properties");
 
-        g.MapGet("/", async ([FromQuery] string? q, [FromQuery] string? status, [FromQuery] bool? blocked,
-                              [FromQuery] int page, [FromQuery] int pageSize, CatalogDbContext db) =>
+        g.MapGet("/", async ([FromQuery] string? q, [FromQuery] string? ownerQ, [FromQuery] string? status, [FromQuery] bool? blocked,
+                              [FromQuery] int page, [FromQuery] int pageSize, CatalogDbContext db, IdentityDbContext identityDb) =>
         {
             page = page < 1 ? 1 : page;
             pageSize = pageSize < 1 ? 25 : (pageSize > 200 ? 200 : pageSize);
@@ -37,6 +40,19 @@ public static class AdminPropertiesEndpoints
             {
                 var like = $"%{q.Trim().ToLower()}%";
                 query = query.Where(p => EF.Functions.ILike(p.Title, like) || EF.Functions.ILike(p.Municipality, like));
+            }
+            if (!string.IsNullOrWhiteSpace(ownerQ))
+            {
+                var ownerLike = $"%{ownerQ.Trim().ToLower()}%";
+                var ownerDigits = NormalizeDigits(ownerQ);
+                var matchingLandlordIds = await identityDb.Users
+                    .AsNoTracking()
+                    .Where(u => EF.Functions.ILike(u.Name, ownerLike)
+                        || (!string.IsNullOrWhiteSpace(ownerDigits) && (u.Nif == ownerDigits || u.CitizenCardNumber == ownerDigits)))
+                    .Select(u => u.Id)
+                    .ToListAsync();
+
+                query = query.Where(p => matchingLandlordIds.Contains(p.LandlordId));
             }
             if (!string.IsNullOrWhiteSpace(status)) query = query.Where(p => p.ModerationStatus == status);
             if (blocked.HasValue) query = query.Where(p => p.IsBlocked == blocked.Value);
@@ -50,7 +66,37 @@ public static class AdminPropertiesEndpoints
                     p.ModerationStatus, p.IsBlocked, p.IsPublic, p.IsFeatured, p.CreatedAt
                 })
                 .ToListAsync();
-            return Results.Ok(new { items, page, pageSize, totalCount = total });
+
+            var landlordIds = items.Select(p => p.LandlordId).Distinct().ToList();
+            var landlords = await identityDb.Users
+                .AsNoTracking()
+                .Where(u => landlordIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.Name, u.Nif })
+                .ToDictionaryAsync(u => u.Id);
+
+            return Results.Ok(new
+            {
+                items = items.Select(p => new
+                {
+                    p.Id,
+                    p.Title,
+                    p.LandlordId,
+                    p.Price,
+                    p.Municipality,
+                    p.District,
+                    p.ModerationStatus,
+                    p.IsBlocked,
+                    p.IsPublic,
+                    p.IsFeatured,
+                    p.CreatedAt,
+                    Landlord = landlords.TryGetValue(p.LandlordId, out var landlord)
+                        ? new { landlord.Id, landlord.Name, landlord.Nif }
+                        : null,
+                }),
+                page,
+                pageSize,
+                totalCount = total,
+            });
         }).RequireAuthorization(AdminAuthorizationExtensions.PolicyName(PermissionCodes.PropertiesRead));
 
         g.MapGet("/{id:guid}", async (Guid id, CatalogDbContext db) =>

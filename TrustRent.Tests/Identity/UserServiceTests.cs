@@ -181,15 +181,45 @@ public class UserServiceTests
         _userRepoMock.Setup(r => r.IsCcUniqueAsync(It.IsAny<string>(), user.Id)).ReturnsAsync(true);
         _userRepoMock.Setup(r => r.IsEmailUniqueAsync(It.IsAny<string>(), user.Id)).ReturnsAsync(true);
 
-        var dto = new UpdateProfileDto("New Name", "new@example.com", "123456789", "12345678", "Rua X", "1000-001", "PT", "+351912345678");
+        var dto = new UpdateProfileDto("New Name", "new@example.com", "123456789", "12345678", "Rua X", "1000-001", null, null);
 
         await _sut.UpdateProfileAsync(user.Id, dto);
 
         Assert.Equal("New Name", user.Name);
         Assert.Equal("new@example.com", user.Email);
         Assert.Null(user.PhoneNumber);
-        Assert.Equal("+351912345678", user.PendingPhoneNumber);
-        Assert.Equal("PT", user.PendingPhoneCountryCode);
+        Assert.Null(user.PendingPhoneNumber);
+        Assert.Null(user.PendingPhoneCountryCode);
+        _uowMock.Verify(u => u.SaveChangesAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_UnverifiedPhoneDraft_DoesNotPersistPendingPhone()
+    {
+        var user = CreateTestUser();
+        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _userRepoMock.Setup(r => r.IsNifUniqueAsync(It.IsAny<string>(), user.Id)).ReturnsAsync(true);
+        _userRepoMock.Setup(r => r.IsCcUniqueAsync(It.IsAny<string>(), user.Id)).ReturnsAsync(true);
+        _userRepoMock.Setup(r => r.IsEmailUniqueAsync(It.IsAny<string>(), user.Id)).ReturnsAsync(true);
+
+        var dto = new UpdateProfileDto(
+            "New Name",
+            "new@example.com",
+            null,
+            null,
+            null,
+            null,
+            "PT",
+            "+351912345678",
+            PhoneContactPlatforms.Telegram);
+
+        await _sut.UpdateProfileAsync(user.Id, dto);
+
+        Assert.Null(user.PhoneNumber);
+        Assert.Null(user.PhoneCountryCode);
+        Assert.Null(user.PendingPhoneNumber);
+        Assert.Null(user.PendingPhoneCountryCode);
+        Assert.Null(user.PendingPhoneContactPlatform);
         _uowMock.Verify(u => u.SaveChangesAsync(), Times.Once);
     }
 

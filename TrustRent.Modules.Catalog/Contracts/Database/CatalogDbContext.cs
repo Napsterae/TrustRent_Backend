@@ -268,28 +268,31 @@ public class CatalogDbContext : DbContext
         // Seed de Comodidades
         modelBuilder.Entity<Amenity>().HasData(
             // Básico
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000001"), Name = "Wifi", IconName = "Wifi", Category = "Básico" },
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000002"), Name = "Cozinha Equipada", IconName = "Utensils", Category = "Básico" },
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000003"), Name = "Máquina de Lavar", IconName = "WashingMachine", Category = "Básico" },
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000004"), Name = "Ferro de Engomar", IconName = "Iron", Category = "Básico" },
+            new Amenity { Id = AmenityCatalog.WifiId, Name = "Wifi", IconName = "Wifi", Category = "Básico" },
+            new Amenity { Id = AmenityCatalog.EquippedKitchenId, Name = "Cozinha Equipada", IconName = "Utensils", Category = "Básico" },
+            new Amenity { Id = AmenityCatalog.WashingMachineId, Name = "Máquina de Lavar", IconName = "WashingMachine", Category = "Básico" },
+            new Amenity { Id = AmenityCatalog.IronId, Name = "Ferro de Engomar", IconName = "Iron", Category = "Básico" },
+            new Amenity { Id = AmenityCatalog.FurnishedId, Name = "Mobilado / Equipado", IconName = "BedDouble", Category = "Básico" },
             // Conforto
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000005"), Name = "Ar Condicionado", IconName = "Wind", Category = "Conforto" },
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000006"), Name = "Aquecimento Central", IconName = "Thermometer", Category = "Conforto" },
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000007"), Name = "Televisão", IconName = "Tv", Category = "Conforto" },
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000008"), Name = "Berço", IconName = "Baby", Category = "Conforto" },
+            new Amenity { Id = AmenityCatalog.AirConditioningId, Name = "Ar Condicionado", IconName = "Wind", Category = "Conforto" },
+            new Amenity { Id = AmenityCatalog.CentralHeatingId, Name = "Aquecimento Central", IconName = "Thermometer", Category = "Conforto" },
+            new Amenity { Id = AmenityCatalog.TelevisionId, Name = "Televisão", IconName = "Tv", Category = "Conforto" },
+            new Amenity { Id = AmenityCatalog.CribId, Name = "Berço", IconName = "Baby", Category = "Conforto" },
+            new Amenity { Id = AmenityCatalog.ElevatorId, Name = "Elevador", IconName = "ArrowUpCircle", Category = "Conforto" },
             // Lazer
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000009"), Name = "Piscina", IconName = "Waves", Category = "Lazer" },
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000a"), Name = "Jacuzzi", IconName = "Bath", Category = "Lazer" },
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000b"), Name = "Ginásio", IconName = "Dumbbell", Category = "Lazer" },
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000c"), Name = "Churrasqueira", IconName = "Flame", Category = "Lazer" },
+            new Amenity { Id = AmenityCatalog.PoolId, Name = "Piscina", IconName = "Waves", Category = "Lazer" },
+            new Amenity { Id = AmenityCatalog.JacuzziId, Name = "Jacuzzi", IconName = "Bath", Category = "Lazer" },
+            new Amenity { Id = AmenityCatalog.GymId, Name = "Ginásio", IconName = "Dumbbell", Category = "Lazer" },
+            new Amenity { Id = AmenityCatalog.BarbecueId, Name = "Churrasqueira", IconName = "Flame", Category = "Lazer" },
             // Segurança
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000d"), Name = "Extintor", IconName = "FireExtinguisher", Category = "Segurança" },
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000e"), Name = "Detetor de Fumo", IconName = "Siren", Category = "Segurança" },
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000f"), Name = "Alarme", IconName = "ShieldAlert", Category = "Segurança" },
+            new Amenity { Id = AmenityCatalog.FireExtinguisherId, Name = "Extintor", IconName = "FireExtinguisher", Category = "Segurança" },
+            new Amenity { Id = AmenityCatalog.SmokeDetectorId, Name = "Detetor de Fumo", IconName = "Siren", Category = "Segurança" },
+            new Amenity { Id = AmenityCatalog.AlarmId, Name = "Alarme", IconName = "ShieldAlert", Category = "Segurança" },
             // Extra
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000010"), Name = "Aceita Animais", IconName = "Dog", Category = "Extra" },
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000011"), Name = "Próximo de Supermercado", IconName = "ShoppingCart", Category = "Extra" },
-            new Amenity { Id = Guid.Parse("a0000000-0000-0000-0000-000000000012"), Name = "Próximo de Transporte", IconName = "Bus", Category = "Extra" }
+            new Amenity { Id = AmenityCatalog.PetsId, Name = "Aceita Animais", IconName = "Dog", Category = "Extra" },
+            new Amenity { Id = AmenityCatalog.SupermarketId, Name = "Próximo de Supermercado", IconName = "ShoppingCart", Category = "Extra" },
+            new Amenity { Id = AmenityCatalog.TransportId, Name = "Próximo de Transporte", IconName = "Bus", Category = "Extra" },
+            new Amenity { Id = AmenityCatalog.GarageId, Name = "Garagem / Parqueamento", IconName = "Car", Category = "Extra" }
         );
 
         base.OnModelCreating(modelBuilder);

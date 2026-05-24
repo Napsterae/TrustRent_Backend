@@ -181,14 +181,6 @@ public class UserService : IUserService
         if (normalizedEmail != user.Email && !await _uow.Users.IsEmailUniqueAsync(normalizedEmail, userId))
             throw new Exception("Este email já está registado noutra conta.");
 
-        if (!string.IsNullOrWhiteSpace(normalizedPhoneNumber)
-            && normalizedPhoneNumber != user.PhoneNumber
-            && normalizedPhoneNumber != user.PendingPhoneNumber
-            && !await _uow.Users.IsPhoneNumberUniqueAsync(normalizedPhoneNumber, userId))
-        {
-            throw new Exception("Este número de telemóvel já está registado noutra conta.");
-        }
-
         var matchesActivePhone = MatchesActivePhone(user, normalizedPhoneCountryCode, normalizedPhoneNumber, normalizedPhoneContactPlatform, activePhoneContactPlatform);
         var matchesPendingPhone = MatchesPendingPhone(user, normalizedPhoneCountryCode, normalizedPhoneNumber, normalizedPhoneContactPlatform, activePhoneContactPlatform);
 
@@ -216,9 +208,9 @@ public class UserService : IUserService
             ClearPendingPhone(user);
             ClearTelegramPendingVerification(user);
         }
-        else if (!matchesPendingPhone)
+        else if (matchesPendingPhone)
         {
-            StagePendingPhone(user, normalizedPhoneCountryCode, normalizedPhoneNumber, normalizedPhoneContactPlatform);
+            // Keep an already-started verification candidate, but do not persist a new phone draft from a generic profile save.
         }
 
         await _uow.SaveChangesAsync();
