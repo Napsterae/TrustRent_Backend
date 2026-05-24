@@ -15,6 +15,7 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
     private const string BotTokenSettingKey = "telegram.bot_token";
     private const string BotUsernameSettingKey = "telegram.bot_username";
     private const string LastUpdateIdSettingKey = "telegram.last_update_id";
+    private static readonly SemaphoreSlim SyncSemaphore = new(1, 1);
 
     private readonly HttpClient _httpClient;
     private readonly AdminDbContext _adminDb;
@@ -31,6 +32,15 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         _adminDb = adminDb;
         _identityDb = identityDb;
         _logger = logger;
+    }
+
+    public async Task SyncPendingUpdatesAsync(CancellationToken ct = default)
+    {
+        var settings = await TryGetSettingsAsync(ct);
+        if (settings == null)
+            return;
+
+        await SyncUpdatesAsync(settings, ct);
     }
 
     public async Task<TelegramPhoneVerificationStartResult> StartPhoneVerificationAsync(Guid userId, string phoneNumber, CancellationToken ct = default)
@@ -164,52 +174,60 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
 
     private async Task<TelegramUpdateSyncResult> SyncUpdatesAsync(TelegramSettings settings, CancellationToken ct)
     {
-        TelegramUpdatesResponse? response;
+        await SyncSemaphore.WaitAsync(ct);
         try
         {
-            var offset = settings.LastUpdateId.HasValue ? settings.LastUpdateId.Value + 1 : (long?)null;
-            var path = offset.HasValue
-                ? $"/bot{settings.BotToken}/getUpdates?offset={offset.Value}&limit=100&timeout=0"
-                : $"/bot{settings.BotToken}/getUpdates?limit=100&timeout=0";
+            TelegramUpdatesResponse? response;
+            try
+            {
+                var offset = settings.LastUpdateId.HasValue ? settings.LastUpdateId.Value + 1 : (long?)null;
+                var path = offset.HasValue
+                    ? $"/bot{settings.BotToken}/getUpdates?offset={offset.Value}&limit=100&timeout=0"
+                    : $"/bot{settings.BotToken}/getUpdates?limit=100&timeout=0";
 
-            response = await _httpClient.GetFromJsonAsync<TelegramUpdatesResponse>(path, cancellationToken: ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Falha ao sincronizar updates do Telegram.");
-            return TelegramUpdateSyncResult.Transient("Não foi possível sincronizar o Telegram neste momento. Atualiza o estado novamente dentro de alguns segundos.");
-        }
+                response = await _httpClient.GetFromJsonAsync<TelegramUpdatesResponse>(path, cancellationToken: ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Falha ao sincronizar updates do Telegram.");
+                return TelegramUpdateSyncResult.Transient("Não foi possível sincronizar o Telegram neste momento. Atualiza o estado novamente dentro de alguns segundos.");
+            }
 
-        if (response == null)
-        {
-            _logger.LogWarning("O Telegram devolveu uma resposta vazia para getUpdates.");
-            return TelegramUpdateSyncResult.Transient("Não foi possível sincronizar o Telegram neste momento. Atualiza o estado novamente dentro de alguns segundos.");
-        }
+            if (response == null)
+            {
+                _logger.LogWarning("O Telegram devolveu uma resposta vazia para getUpdates.");
+                return TelegramUpdateSyncResult.Transient("Não foi possível sincronizar o Telegram neste momento. Atualiza o estado novamente dentro de alguns segundos.");
+            }
 
-        if (response.Ok != true)
-        {
-            _logger.LogWarning("Telegram getUpdates devolveu erro {ErrorCode}: {Description}", response.ErrorCode, response.Description);
-            return BuildSyncFailure(response.ErrorCode, response.Description);
-        }
+            if (response.Ok != true)
+            {
+                _logger.LogWarning("Telegram getUpdates devolveu erro {ErrorCode}: {Description}", response.ErrorCode, response.Description);
+                return BuildSyncFailure(response.ErrorCode, response.Description);
+            }
 
-        if (response.Result is null)
-        {
-            _logger.LogWarning("O Telegram devolveu uma resposta sem resultados para getUpdates.");
-            return TelegramUpdateSyncResult.Transient("Não foi possível sincronizar o Telegram neste momento. Atualiza o estado novamente dentro de alguns segundos.");
-        }
+            if (response.Result is null)
+            {
+                _logger.LogWarning("O Telegram devolveu uma resposta sem resultados para getUpdates.");
+                return TelegramUpdateSyncResult.Transient("Não foi possível sincronizar o Telegram neste momento. Atualiza o estado novamente dentro de alguns segundos.");
+            }
 
-        if (response.Result.Count == 0)
+            if (response.Result.Count == 0)
+                return TelegramUpdateSyncResult.Success;
+
+            long lastUpdateId = settings.LastUpdateId ?? 0;
+            foreach (var update in response.Result)
+            {
+                lastUpdateId = Math.Max(lastUpdateId, update.UpdateId);
+                await ProcessUpdateAsync(settings, update, ct);
+            }
+
+            await SaveLastUpdateIdAsync(lastUpdateId, ct);
             return TelegramUpdateSyncResult.Success;
-
-        long lastUpdateId = settings.LastUpdateId ?? 0;
-        foreach (var update in response.Result)
-        {
-            lastUpdateId = Math.Max(lastUpdateId, update.UpdateId);
-            await ProcessUpdateAsync(settings, update, ct);
         }
-
-        await SaveLastUpdateIdAsync(lastUpdateId, ct);
-        return TelegramUpdateSyncResult.Success;
+        finally
+        {
+            SyncSemaphore.Release();
+        }
     }
 
     private async Task ProcessUpdateAsync(TelegramSettings settings, TelegramUpdate update, CancellationToken ct)
@@ -234,7 +252,7 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
     private async Task ProcessStartCommandAsync(TelegramSettings settings, string payload, TelegramMessage message, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
-        var chatId = message.Chat?.Id;
+        var chatId = message.Chat?.Id?.ToString();
         if (string.IsNullOrWhiteSpace(chatId))
             return;
 
@@ -267,6 +285,14 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
                     "Se tens um pedido de validacao ativo na Wekaza, partilha o teu contacto aqui para eu tentar associar o numero automaticamente. Se ainda nao pediste a validacao no perfil, faz isso primeiro e depois volta a esta conversa.",
                     ct);
             }
+            else
+            {
+                await SendTextMessageAsync(
+                    settings.BotToken,
+                    chatId,
+                    "Validação indisponível: este link já expirou ou deixou de ser válido. Volta ao perfil da Wekaza e pede uma nova validação.",
+                    ct);
+            }
 
             return;
         }
@@ -283,22 +309,69 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
     private async Task ProcessContactShareAsync(TelegramSettings settings, TelegramMessage message, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
-        var chatId = message.Chat?.Id;
+        var chatId = message.Chat?.Id?.ToString();
         if (string.IsNullOrWhiteSpace(chatId))
             return;
 
+        var linkedUser = await _identityDb.Users.SingleOrDefaultAsync(x => x.TelegramChatId == chatId, ct);
+
+        if (linkedUser != null && HasLockedVerifiedPhone(linkedUser))
+        {
+            linkedUser.PendingPhoneCountryCode = null;
+            linkedUser.PendingPhoneNumber = null;
+            linkedUser.PendingPhoneContactPlatform = null;
+            ClearTelegramPendingVerification(linkedUser);
+            await _identityDb.SaveChangesAsync(ct);
+            await SendTextMessageAsync(
+                settings.BotToken,
+                chatId,
+                "Validação não necessária: este número já está validado e associado à tua conta Wekaza.",
+                ct);
+            return;
+        }
+
+        var sharedContactUserId = message.Contact?.UserId;
+        var senderUserId = message.From?.Id;
+        if (sharedContactUserId.HasValue && senderUserId.HasValue && sharedContactUserId.Value != senderUserId.Value)
+        {
+            await NotifyValidationFailureAsync(
+                settings,
+                chatId,
+                linkedUser,
+                "Validação falhada: tens de partilhar o teu próprio contacto no Telegram para concluir este pedido.",
+                ct);
+            return;
+        }
+
         var sharedDigits = DigitsOnly(message.Contact!.PhoneNumber);
         if (string.IsNullOrWhiteSpace(sharedDigits))
+        {
+            await NotifyValidationFailureAsync(
+                settings,
+                chatId,
+                linkedUser,
+                "Validação falhada: não recebi um número de contacto válido. Usa o botão Partilhar contacto do Telegram e tenta novamente.",
+                ct);
             return;
+        }
 
-        var user = await _identityDb.Users.SingleOrDefaultAsync(
-            x => x.TelegramChatId == chatId
-                 && x.TelegramPendingVerificationExpiresAt.HasValue
-                 && x.TelegramPendingVerificationExpiresAt > now,
-            ct);
+        var user = linkedUser != null && HasActiveTelegramPendingVerification(linkedUser, now)
+            ? linkedUser
+            : null;
 
         if (user == null)
         {
+            if (linkedUser != null && HasExpiredTelegramPendingVerification(linkedUser, now))
+            {
+                await NotifyValidationFailureAsync(
+                    settings,
+                    chatId,
+                    linkedUser,
+                    "Validação falhada: o pedido de validação já expirou. Volta ao perfil da Wekaza, pede uma nova validação e partilha novamente o contacto.",
+                    ct);
+                return;
+            }
+
             var matchingUsers = await _identityDb.Users
                 .Where(x => x.TelegramPendingVerificationExpiresAt.HasValue
                             && x.TelegramPendingVerificationExpiresAt > now
@@ -310,12 +383,22 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
                 .Take(2)
                 .ToList();
 
-            if (matchedUsers.Count != 1)
+            if (matchedUsers.Count == 0)
             {
                 await SendTextMessageAsync(
                     settings.BotToken,
                     chatId,
-                    "Nao consegui associar este contacto a um pedido ativo de validacao. Volta ao perfil, pede uma nova validacao e abre o bot pelo link ou QR code antes de partilhar o contacto.",
+                    "Validação falhada: não encontrei nenhum pedido ativo para este número. Volta ao perfil, pede uma nova validação e abre o bot pelo link ou QR code antes de partilhares o contacto.",
+                    ct);
+                return;
+            }
+
+            if (matchedUsers.Count > 1)
+            {
+                await SendTextMessageAsync(
+                    settings.BotToken,
+                    chatId,
+                    "Validação falhada: encontrei mais do que um pedido possível para este número. Volta ao perfil da Wekaza e reinicia a validação.",
                     ct);
                 return;
             }
@@ -327,31 +410,15 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
             user.TelegramPendingVerificationError = null;
         }
 
-        if (HasLockedVerifiedPhone(user))
-        {
-            user.PendingPhoneCountryCode = null;
-            user.PendingPhoneNumber = null;
-            user.PendingPhoneContactPlatform = null;
-            ClearTelegramPendingVerification(user);
-            await _identityDb.SaveChangesAsync(ct);
-            await SendTextMessageAsync(
-                settings.BotToken,
-                chatId,
-                "Este contacto ja foi validado e ficou bloqueado na tua conta Wekaza. Se precisares de alterar o numero, contacta o suporte.",
-                ct);
-            return;
-        }
-
         var expectedDigits = DigitsOnly(user.TelegramPendingExpectedPhoneNumber);
 
         if (string.IsNullOrWhiteSpace(expectedDigits) || sharedDigits != expectedDigits)
         {
-            user.TelegramPendingVerificationError = "O contacto partilhado no Telegram nao coincide com o numero configurado no perfil. Atualiza o numero ou partilha o contacto correto para continuar.";
-            await _identityDb.SaveChangesAsync(ct);
-            await SendTextMessageAsync(
-                settings.BotToken,
+            await NotifyValidationFailureAsync(
+                settings,
                 chatId,
-                "O contacto partilhado nao coincide com o numero guardado no teu perfil Wekaza. Atualiza o numero no perfil e tenta novamente.",
+                user,
+                "Validação falhada: o contacto partilhado não coincide com o número pendente no teu perfil. Confirma o número na Wekaza e tenta novamente.",
                 ct);
             return;
         }
@@ -367,8 +434,19 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         await SendTextMessageAsync(
             settings.BotToken,
             chatId,
-            "Numero validado com sucesso. Ja podes usar este contacto para login e notificacoes na Wekaza.",
+            "Validação concluída com sucesso. Este número já pode ser usado para login e notificações na Wekaza.",
             ct);
+    }
+
+    private async Task NotifyValidationFailureAsync(TelegramSettings settings, string chatId, User? user, string message, CancellationToken ct)
+    {
+        if (user != null)
+        {
+            user.TelegramPendingVerificationError = message;
+            await _identityDb.SaveChangesAsync(ct);
+        }
+
+        await SendTextMessageAsync(settings.BotToken, chatId, message, ct);
     }
 
     private async Task SendContactRequestAsync(string botToken, string chatId, string? phoneNumber, CancellationToken ct)
@@ -471,6 +549,16 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
             || (!string.IsNullOrWhiteSpace(description)
                 && description.Contains("webhook", StringComparison.OrdinalIgnoreCase));
 
+    private static bool HasActiveTelegramPendingVerification(User user, DateTime now)
+        => !string.IsNullOrWhiteSpace(user.TelegramPendingExpectedPhoneNumber)
+            && user.TelegramPendingVerificationExpiresAt.HasValue
+            && user.TelegramPendingVerificationExpiresAt > now;
+
+    private static bool HasExpiredTelegramPendingVerification(User user, DateTime now)
+        => !string.IsNullOrWhiteSpace(user.TelegramPendingExpectedPhoneNumber)
+            && user.TelegramPendingVerificationExpiresAt.HasValue
+            && user.TelegramPendingVerificationExpiresAt <= now;
+
     private static string BuildDeepLink(string botUsername, string payload)
         => $"https://t.me/{botUsername}?start={payload}";
 
@@ -568,17 +656,23 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
     private sealed class TelegramChat
     {
         [JsonPropertyName("id")]
-        public string Id { get; set; } = string.Empty;
+        public long? Id { get; set; }
     }
 
     private sealed class TelegramUser
     {
+        [JsonPropertyName("id")]
+        public long? Id { get; set; }
+
         [JsonPropertyName("username")]
         public string? Username { get; set; }
     }
 
     private sealed class TelegramContact
     {
+        [JsonPropertyName("user_id")]
+        public long? UserId { get; set; }
+
         [JsonPropertyName("phone_number")]
         public string PhoneNumber { get; set; } = string.Empty;
     }

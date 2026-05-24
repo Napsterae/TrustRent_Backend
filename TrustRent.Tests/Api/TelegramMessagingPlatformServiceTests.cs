@@ -66,6 +66,66 @@ public class TelegramMessagingPlatformServiceTests
         Assert.True(result.Message.Contains("webhook", StringComparison.OrdinalIgnoreCase));
     }
 
+        [Fact]
+        public async Task GetPhoneVerificationStatusAsync_NumericChatIdUpdate_LinksConversation()
+        {
+                await using var adminDb = CreateAdminDbContext();
+                await using var identityDb = CreateIdentityDbContext();
+                await SeedTelegramSettingsAsync(adminDb);
+
+                var user = CreateUser();
+                user.PendingPhoneCountryCode = "PT";
+                user.PendingPhoneNumber = "+351912345678";
+                user.PendingPhoneContactPlatform = PhoneContactPlatforms.Telegram;
+                user.TelegramPendingVerificationToken = "token123";
+                user.TelegramPendingExpectedPhoneNumber = "+351912345678";
+                user.TelegramPendingVerificationExpiresAt = DateTime.UtcNow.AddMinutes(10);
+
+                identityDb.Users.Add(user);
+                await identityDb.SaveChangesAsync();
+
+                using var httpClient = CreateHttpClient((request, _) =>
+                {
+                        if (request.RequestUri?.AbsolutePath.EndsWith("/getUpdates", StringComparison.Ordinal) == true)
+                        {
+                                return Task.FromResult(CreateJsonResponse(
+                                        """
+                                        {
+                                            "ok": true,
+                                            "result": [
+                                                {
+                                                    "update_id": 1,
+                                                    "message": {
+                                                        "message_id": 10,
+                                                        "text": "/start token123",
+                                                        "chat": { "id": 123456789 },
+                                                        "from": {
+                                                            "id": 123456789,
+                                                            "username": "testuser"
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                        """));
+                        }
+
+                        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+                });
+
+                var sut = new TelegramMessagingPlatformService(httpClient, adminDb, identityDb, NullLogger<TelegramMessagingPlatformService>.Instance);
+
+                var result = await sut.GetPhoneVerificationStatusAsync(user.Id);
+
+                var reloadedUser = await identityDb.Users.SingleAsync(x => x.Id == user.Id);
+                Assert.True(result.IsConfigured);
+                Assert.True(result.HasStartedConversation);
+                Assert.True(result.AwaitingContactShare);
+                Assert.True(result.Message.Contains("Partilha o teu contacto", StringComparison.OrdinalIgnoreCase));
+                Assert.Equal("123456789", reloadedUser.TelegramChatId);
+                Assert.Equal("testuser", reloadedUser.TelegramUsername);
+        }
+
     private static AdminDbContext CreateAdminDbContext()
         => new(new DbContextOptionsBuilder<AdminDbContext>()
             .UseInMemoryDatabase($"telegram-admin-{Guid.NewGuid():N}")

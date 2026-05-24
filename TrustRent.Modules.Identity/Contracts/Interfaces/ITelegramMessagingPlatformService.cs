@@ -4,6 +4,7 @@ namespace TrustRent.Modules.Identity.Contracts.Interfaces;
 
 public interface ITelegramMessagingPlatformService
 {
+    Task SyncPendingUpdatesAsync(CancellationToken ct = default);
     Task<TelegramPhoneVerificationStartResult> StartPhoneVerificationAsync(Guid userId, string phoneNumber, CancellationToken ct = default);
     Task<TelegramPhoneVerificationStatusResult> GetPhoneVerificationStatusAsync(Guid userId, CancellationToken ct = default);
     Task SendLoginCodeAsync(User user, string code, CancellationToken ct = default);
