@@ -156,6 +156,7 @@ builder.Services.AddHttpClient<ITelegramMessagingPlatformService, TelegramMessag
 {
     client.BaseAddress = new Uri("https://api.telegram.org");
 });
+builder.Services.AddHostedService<TelegramUpdatesPollingService>();
 builder.Services.AddHttpClient<TrustRent.Modules.Communications.Services.IExpoPushService, TrustRent.Modules.Communications.Services.ExpoPushService>(client =>
 {
     client.BaseAddress = new Uri("https://exp.host/--/api/v2/");
