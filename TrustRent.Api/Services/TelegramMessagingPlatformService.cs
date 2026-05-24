@@ -36,7 +36,9 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
     public async Task<TelegramPhoneVerificationStartResult> StartPhoneVerificationAsync(Guid userId, string phoneNumber, CancellationToken ct = default)
     {
         var settings = await GetConfiguredSettingsAsync(ct);
-        await SyncUpdatesAsync(settings, ct);
+        var syncResult = await SyncUpdatesAsync(settings, ct);
+        if (syncResult.IsFatal)
+            throw new InvalidOperationException(syncResult.UserMessage);
 
         var user = await _identityDb.Users.SingleOrDefaultAsync(x => x.Id == userId, ct)
             ?? throw new InvalidOperationException("Utilizador não encontrado.");
@@ -89,7 +91,7 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
                 user.TelegramUsername);
         }
 
-        await SyncUpdatesAsync(settings, ct);
+        var syncResult = await SyncUpdatesAsync(settings, ct);
         user = await _identityDb.Users.SingleOrDefaultAsync(x => x.Id == userId, ct)
             ?? throw new InvalidOperationException("Utilizador não encontrado.");
 
@@ -103,13 +105,24 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         var deepLinkUrl = hasPendingVerification && !hasStartedConversation && !string.IsNullOrWhiteSpace(user.TelegramPendingVerificationToken)
             ? BuildDeepLink(settings.BotUsername, user.TelegramPendingVerificationToken)
             : null;
+        if (syncResult.IsFatal)
+        {
+            awaitingContactShare = false;
+            deepLinkUrl = null;
+        }
+
+        var hasSyncWarning = !string.IsNullOrWhiteSpace(syncResult.UserMessage) && (hasPendingVerification || hasStartedConversation);
 
         var message = isCurrentPhoneVerified
             ? "Número validado com sucesso através do Telegram."
-            : !string.IsNullOrWhiteSpace(user.TelegramPendingVerificationError)
-                ? user.TelegramPendingVerificationError
+            : syncResult.IsFatal
+                ? syncResult.UserMessage ?? "A validação do Telegram está temporariamente indisponível."
+                : !string.IsNullOrWhiteSpace(user.TelegramPendingVerificationError)
+                ? user.TelegramPendingVerificationError!
+                : hasSyncWarning
+                    ? syncResult.UserMessage!
                 : awaitingContactShare
-                    ? "Partilha o teu contacto no bot Telegram para concluir a validação."
+                        ? "Partilha o teu contacto no bot Telegram para concluir a validação."
                     : deepLinkUrl is not null
                         ? "Abre o bot com o link de validação e partilha o teu contacto. Se já tens a conversa aberta, partilha o contacto no bot para concluir."
                         : hasStartedConversation
@@ -149,7 +162,7 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         await SendTextMessageAsync(settings.BotToken, user.TelegramChatId, message, ct);
     }
 
-    private async Task SyncUpdatesAsync(TelegramSettings settings, CancellationToken ct)
+    private async Task<TelegramUpdateSyncResult> SyncUpdatesAsync(TelegramSettings settings, CancellationToken ct)
     {
         TelegramUpdatesResponse? response;
         try
@@ -164,11 +177,29 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Falha ao sincronizar updates do Telegram.");
-            return;
+            return TelegramUpdateSyncResult.Transient("Não foi possível sincronizar o Telegram neste momento. Atualiza o estado novamente dentro de alguns segundos.");
         }
 
-        if (response?.Ok != true || response.Result is null || response.Result.Count == 0)
-            return;
+        if (response == null)
+        {
+            _logger.LogWarning("O Telegram devolveu uma resposta vazia para getUpdates.");
+            return TelegramUpdateSyncResult.Transient("Não foi possível sincronizar o Telegram neste momento. Atualiza o estado novamente dentro de alguns segundos.");
+        }
+
+        if (response.Ok != true)
+        {
+            _logger.LogWarning("Telegram getUpdates devolveu erro {ErrorCode}: {Description}", response.ErrorCode, response.Description);
+            return BuildSyncFailure(response.ErrorCode, response.Description);
+        }
+
+        if (response.Result is null)
+        {
+            _logger.LogWarning("O Telegram devolveu uma resposta sem resultados para getUpdates.");
+            return TelegramUpdateSyncResult.Transient("Não foi possível sincronizar o Telegram neste momento. Atualiza o estado novamente dentro de alguns segundos.");
+        }
+
+        if (response.Result.Count == 0)
+            return TelegramUpdateSyncResult.Success;
 
         long lastUpdateId = settings.LastUpdateId ?? 0;
         foreach (var update in response.Result)
@@ -178,6 +209,7 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         }
 
         await SaveLastUpdateIdAsync(lastUpdateId, ct);
+        return TelegramUpdateSyncResult.Success;
     }
 
     private async Task ProcessUpdateAsync(TelegramSettings settings, TelegramUpdate update, CancellationToken ct)
@@ -422,6 +454,23 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         await _adminDb.SaveChangesAsync(ct);
     }
 
+    private static TelegramUpdateSyncResult BuildSyncFailure(int? errorCode, string? description)
+    {
+        if (IsWebhookConflict(errorCode, description))
+        {
+            return TelegramUpdateSyncResult.Fatal(
+                "Este bot Telegram tem um webhook ativo noutra integração. A validação desta plataforma usa getUpdates e só funciona depois de remover esse webhook do bot.");
+        }
+
+        return TelegramUpdateSyncResult.Transient(
+            "O Telegram não respondeu corretamente ao pedido de validação. Atualiza o estado novamente dentro de alguns segundos.");
+    }
+
+    private static bool IsWebhookConflict(int? errorCode, string? description)
+        => errorCode == 409
+            || (!string.IsNullOrWhiteSpace(description)
+                && description.Contains("webhook", StringComparison.OrdinalIgnoreCase));
+
     private static string BuildDeepLink(string botUsername, string payload)
         => $"https://t.me/{botUsername}?start={payload}";
 
@@ -466,10 +515,27 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
 
     private sealed record TelegramSettings(string BotToken, string BotUsername, long? LastUpdateId);
 
+    private sealed record TelegramUpdateSyncResult(bool IsFatal, string? UserMessage)
+    {
+        public static TelegramUpdateSyncResult Success { get; } = new(false, null);
+
+        public static TelegramUpdateSyncResult Transient(string userMessage)
+            => new(false, userMessage);
+
+        public static TelegramUpdateSyncResult Fatal(string userMessage)
+            => new(true, userMessage);
+    }
+
     private sealed class TelegramUpdatesResponse
     {
         [JsonPropertyName("ok")]
         public bool Ok { get; set; }
+
+        [JsonPropertyName("error_code")]
+        public int? ErrorCode { get; set; }
+
+        [JsonPropertyName("description")]
+        public string? Description { get; set; }
 
         [JsonPropertyName("result")]
         public List<TelegramUpdate> Result { get; set; } = [];
