@@ -8,6 +8,7 @@ using System.Text.Json;
 using TrustRent.Modules.Admin;
 using TrustRent.Modules.Admin.Authorization;
 using TrustRent.Modules.Admin.Contracts;
+using TrustRent.Modules.Admin.Contracts.Database;
 using TrustRent.Modules.Admin.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Database;
@@ -99,7 +100,7 @@ public static class AdminPropertiesEndpoints
             });
         }).RequireAuthorization(AdminAuthorizationExtensions.PolicyName(PermissionCodes.PropertiesRead));
 
-        g.MapGet("/{id:guid}", async (Guid id, CatalogDbContext db) =>
+        g.MapGet("/{id:guid}", async (Guid id, CatalogDbContext db, IdentityDbContext identityDb, AdminDbContext adminDb) =>
         {
             var p = await db.Properties
                 .AsNoTracking()
@@ -108,27 +109,82 @@ public static class AdminPropertiesEndpoints
                 {
                     x.Id,
                     x.LandlordId,
+                    x.TenantId,
                     x.Title,
+                    x.Description,
                     x.Price,
                     x.PropertyType,
                     x.Typology,
                     x.Area,
                     x.Rooms,
                     x.Bathrooms,
+                    x.Floor,
+                    x.HasElevator,
+                    x.HasAirConditioning,
+                    x.HasGarage,
+                    x.AllowsPets,
+                    x.IsFurnished,
+                    x.FurnishedDescription,
                     x.District,
                     x.Municipality,
                     x.Parish,
                     x.DoorNumber,
                     x.Street,
                     x.PostalCode,
+                    x.Latitude,
+                    x.Longitude,
                     x.IsPublic,
                     x.IsUnderMaintenance,
                     x.CreatedAt,
+                    x.UpdatedAt,
                     x.ModerationStatus,
+                    x.ModerationReason,
+                    x.ModeratedAt,
+                    x.ModeratedByAdminId,
                     x.IsBlocked,
+                    x.BlockedAt,
+                    x.BlockedByAdminId,
+                    x.BlockReason,
                     x.IsFeatured,
+                    x.MatrixArticle,
+                    x.PropertyFraction,
+                    x.EnergyClass,
+                    x.EnergyCertificateNumber,
+                    x.EnergyCertificateExpiryDate,
+                    x.AtRegistrationNumber,
+                    x.ParishConcelho,
+                    x.PermanentCertNumber,
+                    x.PermanentCertOffice,
+                    x.UsageLicenseNumber,
+                    x.UsageLicenseDate,
+                    x.UsageLicenseIssuer,
                     x.Deposit,
+                    x.AdvanceRentMonths,
+                    x.CondominiumFeesPaidBy,
+                    x.WaterPaidBy,
+                    x.ElectricityPaidBy,
+                    x.GasPaidBy,
                     x.HasOfficialContract,
+                    x.AcceptsGuarantor,
+                    x.GuarantorPolicyNote,
+                    x.LeaseRegime,
+                    x.AllowsRenewal,
+                    x.NonPermanentReason,
+                    AcceptedPeriodicities = x.AcceptedPeriodicities
+                        .Select(periodicity => periodicity.DurationMonths)
+                        .OrderBy(months => months)
+                        .ToList(),
+                    Images = x.Images
+                        .OrderByDescending(image => image.IsMain)
+                        .ThenBy(image => image.Id)
+                        .Select(image => new
+                        {
+                            image.Id,
+                            image.Url,
+                            image.Category,
+                            image.IsMain,
+                        })
+                        .ToList(),
                     Amenities = x.Amenities
                         .Select(a => new
                         {
@@ -146,9 +202,146 @@ public static class AdminPropertiesEndpoints
                 })
                 .FirstOrDefaultAsync();
 
-            return p is null
-                ? Results.NotFound(new { error = "Imóvel não encontrado." })
-                : Results.Ok(p);
+            if (p is null)
+            {
+                return Results.NotFound(new { error = "Imóvel não encontrado." });
+            }
+
+            var landlord = await identityDb.Users
+                .AsNoTracking()
+                .Where(u => u.Id == p.LandlordId)
+                .Select(u => new
+                {
+                    u.Id,
+                    u.Name,
+                    u.Email,
+                    u.Nif,
+                    u.PhoneCountryCode,
+                    u.PhoneNumber,
+                    u.PhoneContactPlatform,
+                    u.IsSuspended,
+                })
+                .FirstOrDefaultAsync();
+
+            var tenant = p.TenantId.HasValue
+                ? await identityDb.Users
+                    .AsNoTracking()
+                    .Where(u => u.Id == p.TenantId.Value)
+                    .Select(u => new
+                    {
+                        u.Id,
+                        u.Name,
+                        u.Email,
+                        u.Nif,
+                        u.PhoneCountryCode,
+                        u.PhoneNumber,
+                        u.PhoneContactPlatform,
+                        u.IsSuspended,
+                    })
+                    .FirstOrDefaultAsync()
+                : null;
+
+            var moderatedByAdmin = p.ModeratedByAdminId.HasValue
+                ? await adminDb.AdminUsers
+                    .AsNoTracking()
+                    .Where(admin => admin.Id == p.ModeratedByAdminId.Value)
+                    .Select(admin => new
+                    {
+                        admin.Id,
+                        admin.Name,
+                        admin.Email,
+                        admin.IsActive,
+                    })
+                    .FirstOrDefaultAsync()
+                : null;
+
+            var blockedByAdmin = p.BlockedByAdminId.HasValue
+                ? await adminDb.AdminUsers
+                    .AsNoTracking()
+                    .Where(admin => admin.Id == p.BlockedByAdminId.Value)
+                    .Select(admin => new
+                    {
+                        admin.Id,
+                        admin.Name,
+                        admin.Email,
+                        admin.IsActive,
+                    })
+                    .FirstOrDefaultAsync()
+                : null;
+
+            return Results.Ok(new
+            {
+                p.Id,
+                p.LandlordId,
+                p.TenantId,
+                p.Title,
+                p.Description,
+                p.Price,
+                p.PropertyType,
+                p.Typology,
+                p.Area,
+                p.Rooms,
+                p.Bathrooms,
+                p.Floor,
+                p.HasElevator,
+                p.HasAirConditioning,
+                p.HasGarage,
+                p.AllowsPets,
+                p.IsFurnished,
+                p.FurnishedDescription,
+                p.District,
+                p.Municipality,
+                p.Parish,
+                p.DoorNumber,
+                p.Street,
+                p.PostalCode,
+                p.Latitude,
+                p.Longitude,
+                p.IsPublic,
+                p.IsUnderMaintenance,
+                p.CreatedAt,
+                p.UpdatedAt,
+                p.ModerationStatus,
+                p.ModerationReason,
+                p.ModeratedAt,
+                p.ModeratedByAdminId,
+                p.IsBlocked,
+                p.BlockedAt,
+                p.BlockedByAdminId,
+                p.BlockReason,
+                p.IsFeatured,
+                p.MatrixArticle,
+                p.PropertyFraction,
+                p.EnergyClass,
+                p.EnergyCertificateNumber,
+                p.EnergyCertificateExpiryDate,
+                p.AtRegistrationNumber,
+                p.ParishConcelho,
+                p.PermanentCertNumber,
+                p.PermanentCertOffice,
+                p.UsageLicenseNumber,
+                p.UsageLicenseDate,
+                p.UsageLicenseIssuer,
+                p.Deposit,
+                p.AdvanceRentMonths,
+                p.CondominiumFeesPaidBy,
+                p.WaterPaidBy,
+                p.ElectricityPaidBy,
+                p.GasPaidBy,
+                p.HasOfficialContract,
+                p.AcceptsGuarantor,
+                p.GuarantorPolicyNote,
+                p.LeaseRegime,
+                p.AllowsRenewal,
+                p.NonPermanentReason,
+                p.AcceptedPeriodicities,
+                p.Images,
+                p.Amenities,
+                Landlord = landlord,
+                Tenant = tenant,
+                ModeratedByAdmin = moderatedByAdmin,
+                BlockedByAdmin = blockedByAdmin,
+            });
         }).RequireAuthorization(AdminAuthorizationExtensions.PolicyName(PermissionCodes.PropertiesRead));
 
         g.MapPost("/{id:guid}/moderate", async (Guid id, [FromBody] ModerateRequest req, CatalogDbContext db, IAuditLogService audit, IPermissionService permissions, HttpContext ctx) =>
