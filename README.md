@@ -146,6 +146,7 @@ Cria o ficheiro `TrustRent.Api/appsettings.Development.json` (não versionado) c
 
 ```bash
 cd TrustRent_Backend
+dotnet ef database update --project TrustRent.Modules.Admin --startup-project TrustRent.Api
 dotnet ef database update --project TrustRent.Modules.Identity --startup-project TrustRent.Api
 dotnet ef database update --project TrustRent.Modules.Catalog --startup-project TrustRent.Api
 dotnet ef database update --project TrustRent.Modules.Leasing --startup-project TrustRent.Api

@@ -132,8 +132,17 @@ public class AdminDbContext : DbContext
             b.HasKey(x => x.Id);
             b.Property(x => x.Subject).IsRequired().HasMaxLength(300);
             b.Property(x => x.Category).HasMaxLength(80);
+            b.Property(x => x.SourceChannel).IsRequired().HasMaxLength(80);
+            b.Property(x => x.PagePath).HasMaxLength(500);
+            b.Property(x => x.PageUrl).HasMaxLength(1200);
+            b.Property(x => x.ClientBrowser).HasMaxLength(160);
+            b.Property(x => x.ClientOs).HasMaxLength(160);
+            b.Property(x => x.ClientDevice).HasMaxLength(160);
+            b.Property(x => x.MetadataJson).HasColumnType("jsonb");
             b.HasIndex(x => x.OpenedByUserId);
             b.HasIndex(x => x.AssignedAdminId);
+            b.HasIndex(x => x.Kind);
+            b.HasIndex(x => x.PagePath);
             b.HasIndex(x => x.State);
         });
 

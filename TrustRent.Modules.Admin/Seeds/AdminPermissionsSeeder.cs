@@ -39,12 +39,14 @@ public static class AdminPermissionsSeeder
             PermissionCodes.ApplicationsRead, PermissionCodes.ApplicationsChangeState, PermissionCodes.ApplicationsCancel,
             PermissionCodes.ReviewsRead, PermissionCodes.ReviewsModerate,
             PermissionCodes.TicketsMaintenanceRead, PermissionCodes.TicketsSupportRead,
+            PermissionCodes.ReportsRead,
             PermissionCodes.AuditRead
         });
 
         await UpsertSystemRoleAsync(db, "Support", "Equipa de suporte ao utilizador.", new[]
         {
             PermissionCodes.TicketsSupportRead, PermissionCodes.TicketsSupportRespond, PermissionCodes.TicketsSupportAssign, PermissionCodes.TicketsSupportClose,
+            PermissionCodes.ReportsRead, PermissionCodes.ReportsManage,
             PermissionCodes.UsersRead, PermissionCodes.LeasesRead, PermissionCodes.PaymentsRead,
             PermissionCodes.ApplicationsRead, PermissionCodes.PropertiesRead
         });

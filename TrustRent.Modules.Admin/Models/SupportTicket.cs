@@ -17,15 +17,31 @@ public enum SupportTicketPriority
     Urgent = 3
 }
 
+public enum SupportTicketKind
+{
+    Support = 0,
+    ErrorReport = 1,
+    Feedback = 2
+}
+
 public class SupportTicket
 {
     public Guid Id { get; set; }
-    public Guid OpenedByUserId { get; set; } // public user (identity.Users.Id)
+    public Guid? OpenedByUserId { get; set; } // public user (identity.Users.Id)
     public string Subject { get; set; } = string.Empty;
     public string Category { get; set; } = "general";
+    public SupportTicketKind Kind { get; set; } = SupportTicketKind.Support;
     public SupportTicketState State { get; set; } = SupportTicketState.Open;
     public SupportTicketPriority Priority { get; set; } = SupportTicketPriority.Normal;
     public Guid? AssignedAdminId { get; set; }
+    public string SourceChannel { get; set; } = "support-center";
+    public string? PagePath { get; set; }
+    public string? PageUrl { get; set; }
+    public string? ClientBrowser { get; set; }
+    public string? ClientOs { get; set; }
+    public string? ClientDevice { get; set; }
+    public bool DiagnosticsConsent { get; set; }
+    public string? MetadataJson { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public DateTime? ClosedAt { get; set; }
@@ -38,7 +54,7 @@ public class SupportTicketMessage
     public Guid Id { get; set; }
     public Guid TicketId { get; set; }
     public SupportTicket? Ticket { get; set; }
-    public Guid AuthorId { get; set; } // user OR admin
+    public Guid? AuthorId { get; set; } // user OR admin
     public bool IsAdmin { get; set; }
     public bool IsInternalNote { get; set; } = false;
     public string Body { get; set; } = string.Empty;
