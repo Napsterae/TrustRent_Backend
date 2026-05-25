@@ -1,4 +1,6 @@
 using Hangfire;
+using Hangfire.Common;
+using Hangfire.States;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using TrustRent.Modules.Catalog.Contracts.Database;
@@ -8,6 +10,7 @@ using TrustRent.Modules.Catalog.Models;
 using TrustRent.Modules.Catalog.Services;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Shared.Models;
 
 namespace TrustRent.Tests.Catalog;
 
@@ -162,6 +165,33 @@ public class PropertyServiceTests
     }
 
     // --- ValidateFinancialTerms (tested through CreatePropertyAsync) ---
+
+    [Fact]
+    public async Task CreatePropertyAsync_PersistsPropertyBeforeEnqueueingUploadJob()
+    {
+        var service = CreateService();
+        var landlordId = Guid.NewGuid();
+        var dto = new CreatePropertyDto
+        {
+            Title = "Test",
+            Description = "Descricao",
+            Price = 500m,
+            AdvanceRentMonths = 0
+        };
+
+        var propertyId = await service.CreatePropertyAsync(
+            landlordId,
+            dto,
+            Enumerable.Empty<FileDto>(),
+            new List<string>(),
+            0,
+            Enumerable.Empty<FileDto>());
+
+        Assert.NotEqual(Guid.Empty, propertyId);
+        _propertyRepoMock.Verify(r => r.AddAsync(It.Is<Property>(p => p.Id == propertyId && p.LandlordId == landlordId && p.IsUnderMaintenance)), Times.Once);
+        _uowMock.Verify(u => u.SaveChangesAsync(), Times.Once);
+        _bgJobsMock.Verify(bg => bg.Create(It.IsAny<Job>(), It.IsAny<IState>()), Times.Once);
+    }
 
     [Fact]
     public async Task CreatePropertyAsync_AdvanceRentTooHigh_ThrowsException()

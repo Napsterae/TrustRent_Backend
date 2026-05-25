@@ -502,8 +502,8 @@ public class GuarantorService : IGuarantorService
 
     private static void EnsureGuarantorAllowed(Property property)
     {
-        if (!property.HasOfficialContract || !property.AcceptsGuarantor)
-            throw new InvalidOperationException("Este imóvel não aceita fiador (requer contrato oficial e configuração explícita).");
+        if (!property.HasOfficialContract)
+            throw new InvalidOperationException("Só é possível exigir fiador em imóveis com contrato oficial.");
     }
 
     private static void EnsurePending(Guarantor guarantor)

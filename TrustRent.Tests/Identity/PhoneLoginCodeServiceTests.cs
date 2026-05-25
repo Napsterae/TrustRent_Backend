@@ -58,7 +58,7 @@ public class PhoneLoginCodeServiceTests
         var result = await sut.SendLoginCodeAsync(user.PhoneNumber, null, null);
 
         Assert.Equal(PhoneContactPlatforms.Telegram, result.Platform);
-        Assert.Equal("+351******78", result.MaskedPhoneNumber);
+        Assert.Equal("+351*******78", result.MaskedPhoneNumber);
         Assert.Single(db.WhatsAppOneTimeCodes);
         Assert.Equal("telegram_login", db.WhatsAppOneTimeCodes.Single().Purpose);
         telegramService.Verify(service => service.SendLoginCodeAsync(user, It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);

@@ -28,6 +28,7 @@ public class LoginCodeServiceTests
             })
             .Build();
 
+        var sentCode = string.Empty;
         var communicationContentService = new Mock<ICommunicationContentService>();
         communicationContentService
             .Setup(service => service.RenderEmailTemplateAsync(
@@ -35,6 +36,8 @@ public class LoginCodeServiceTests
                 It.IsAny<IReadOnlyDictionary<string, string?>>(),
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
+            .Callback<string, IReadOnlyDictionary<string, string?>, string, CancellationToken>((_, variables, _, _) =>
+                sentCode = variables["LoginCode"] ?? string.Empty)
             .ReturnsAsync(new RenderedEmailTemplateContent(
                 CommunicationEmailTemplateKeys.AuthLoginCode,
                 "Código de login",
@@ -61,8 +64,9 @@ public class LoginCodeServiceTests
 
         var loginCode = await db.EmailLoginCodes.SingleAsync();
         Assert.NotNull(loginCode);
+        Assert.False(string.IsNullOrWhiteSpace(sentCode));
 
-        var verifiedEmail = await sut.VerifyLoginCodeAsync("test@example.com", "123 456");
+        var verifiedEmail = await sut.VerifyLoginCodeAsync("test@example.com", $"{sentCode[..3]} {sentCode[3..]}");
 
         Assert.Equal("test@example.com", verifiedEmail);
         Assert.NotNull(loginCode.VerifiedAt);

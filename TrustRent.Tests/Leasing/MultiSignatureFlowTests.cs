@@ -28,6 +28,7 @@ public class MultiSignatureFlowTests
             Mock.Of<IDigitalSignatureService>(),
             Mock.Of<ISignedPdfVerificationService>(),
             Mock.Of<IUserService>(),
+            Mock.Of<ICommunicationContentService>(),
             Mock.Of<IEmailService>(),
             Mock.Of<IBackgroundJobClient>());
         return (service, db, catalog);

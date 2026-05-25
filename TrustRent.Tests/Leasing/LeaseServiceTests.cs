@@ -20,6 +20,7 @@ public class LeaseServiceTests
     private readonly Mock<IDigitalSignatureService> _digitalSigMock;
     private readonly Mock<ISignedPdfVerificationService> _pdfVerifyMock;
     private readonly Mock<IUserService> _userServiceMock;
+    private readonly Mock<ICommunicationContentService> _communicationContentMock;
     private readonly Mock<IEmailService> _emailMock;
     private readonly Mock<IBackgroundJobClient> _bgJobsMock;
 
@@ -31,6 +32,7 @@ public class LeaseServiceTests
         _digitalSigMock = new Mock<IDigitalSignatureService>();
         _pdfVerifyMock = new Mock<ISignedPdfVerificationService>();
         _userServiceMock = new Mock<IUserService>();
+        _communicationContentMock = new Mock<ICommunicationContentService>();
         _emailMock = new Mock<IEmailService>();
         _bgJobsMock = new Mock<IBackgroundJobClient>();
     }
@@ -50,6 +52,7 @@ public class LeaseServiceTests
             _digitalSigMock.Object,
             _pdfVerifyMock.Object,
             _userServiceMock.Object,
+            _communicationContentMock.Object,
             _emailMock.Object,
             _bgJobsMock.Object);
 

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Mail;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
@@ -176,7 +177,7 @@ public class EmailServiceTests
         handler.LastUserAgent.Should().Contain("TrustRent.Backend/EmailService");
 
         using var payload = JsonDocument.Parse(handler.LastContent!);
-        payload.RootElement.GetProperty("from").GetString().Should().Be("TrustRent <noreply@example.com>");
+        payload.RootElement.GetProperty("from").GetString().Should().Be(new MailAddress("noreply@example.com", "TrustRent").ToString());
         payload.RootElement.GetProperty("subject").GetString().Should().Be("Subject");
         payload.RootElement.GetProperty("html").GetString().Should().Be("<p>Hello</p>");
         payload.RootElement.GetProperty("text").GetString().Should().Be("Hello");

@@ -17,6 +17,7 @@ public class GuarantorServiceTests
     private readonly Mock<IUserRepository> _userRepoMock = new();
     private readonly Mock<IUserService> _userServiceMock = new();
     private readonly Mock<INotificationService> _notificationMock = new();
+    private readonly Mock<ICommunicationContentService> _communicationContentMock = new();
     private readonly Mock<IEmailService> _emailMock = new();
 
     private (GuarantorService Service, CatalogDbContext Db, Application App, Property Prop) Setup(bool acceptsGuarantor = true, bool officialContract = true)
@@ -52,7 +53,7 @@ public class GuarantorServiceTests
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Frontend:BaseUrl"] = "http://localhost:5173" })
             .Build();
-        var svc = new GuarantorService(db, _userRepoMock.Object, _userServiceMock.Object, _notificationMock.Object, _emailMock.Object, config);
+        var svc = new GuarantorService(db, _userRepoMock.Object, _userServiceMock.Object, _notificationMock.Object, _communicationContentMock.Object, _emailMock.Object, config);
         return (svc, db, app, prop);
     }
 
@@ -61,7 +62,7 @@ public class GuarantorServiceTests
     {
         var (svc, db, app, prop) = Setup();
 
-        var result = await svc.RequestGuarantorAsync(app.Id, prop.LandlordId, new RequestGuarantorDto("Necessário fiador."));
+        await svc.RequestGuarantorAsync(app.Id, prop.LandlordId, new RequestGuarantorDto("Necessário fiador."));
 
         var refreshed = await db.Applications.FirstAsync(a => a.Id == app.Id);
         Assert.True(refreshed.IsGuarantorRequired);
@@ -78,9 +79,21 @@ public class GuarantorServiceTests
     }
 
     [Fact]
-    public async Task RequestGuarantor_PropertyDoesNotAcceptGuarantor_Throws()
+    public async Task RequestGuarantor_WithOfficialContract_IgnoresLegacyPropertyFlag()
     {
-        var (svc, _, app, prop) = Setup(acceptsGuarantor: false);
+        var (svc, db, app, prop) = Setup(acceptsGuarantor: false, officialContract: true);
+
+        await svc.RequestGuarantorAsync(app.Id, prop.LandlordId, new RequestGuarantorDto(null));
+
+        var refreshed = await db.Applications.FirstAsync(a => a.Id == app.Id);
+        Assert.True(refreshed.IsGuarantorRequired);
+        Assert.Equal(GuarantorRequirementStatus.Requested, refreshed.GuarantorRequirementStatus);
+    }
+
+    [Fact]
+    public async Task RequestGuarantor_WithoutOfficialContract_Throws()
+    {
+        var (svc, _, app, prop) = Setup(acceptsGuarantor: true, officialContract: false);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             svc.RequestGuarantorAsync(app.Id, prop.LandlordId, new RequestGuarantorDto(null)));
     }
