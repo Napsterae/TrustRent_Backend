@@ -44,6 +44,29 @@ public class PropertyServiceTests
 
     private PropertyService CreateService() => CreateServiceWithContext().Service;
 
+    private static CreatePropertyDto CreateValidPropertyDto() => new()
+    {
+        Title = "Test",
+        Description = "Descricao",
+        Price = 500m,
+        PropertyType = "Apartamento",
+        Typology = "T1",
+        Area = 50m,
+        Rooms = 1,
+        Bathrooms = 1,
+        Floor = "1",
+        District = "Lisboa",
+        Municipality = "Lisboa",
+        Parish = "Arroios",
+        DoorNumber = "1",
+        Street = "Rua Teste",
+        PostalCode = "1000-001",
+        AdvanceRentMonths = 0,
+        LeaseRegime = "PermanentHousing"
+    };
+
+    private static List<int> CreateValidAcceptedPeriodicities() => new() { 36 };
+
     // --- GetPropertyByIdAsync ---
 
     [Fact]
@@ -171,13 +194,7 @@ public class PropertyServiceTests
     {
         var service = CreateService();
         var landlordId = Guid.NewGuid();
-        var dto = new CreatePropertyDto
-        {
-            Title = "Test",
-            Description = "Descricao",
-            Price = 500m,
-            AdvanceRentMonths = 0
-        };
+        var dto = CreateValidPropertyDto();
 
         var propertyId = await service.CreatePropertyAsync(
             landlordId,
@@ -185,7 +202,8 @@ public class PropertyServiceTests
             Enumerable.Empty<FileDto>(),
             new List<string>(),
             0,
-            Enumerable.Empty<FileDto>());
+            Enumerable.Empty<FileDto>(),
+            acceptedPeriodicities: CreateValidAcceptedPeriodicities());
 
         Assert.NotEqual(Guid.Empty, propertyId);
         _propertyRepoMock.Verify(r => r.AddAsync(It.Is<Property>(p => p.Id == propertyId && p.LandlordId == landlordId && p.IsUnderMaintenance)), Times.Once);
@@ -194,77 +212,202 @@ public class PropertyServiceTests
     }
 
     [Fact]
-    public async Task CreatePropertyAsync_AdvanceRentTooHigh_ThrowsException()
+    public async Task CreatePropertyAsync_WithAcceptedPeriodicities_AddsThemToProperty()
     {
         var service = CreateService();
+        var landlordId = Guid.NewGuid();
+        Property? capturedProperty = null;
+
+        _propertyRepoMock
+            .Setup(r => r.AddAsync(It.IsAny<Property>()))
+            .Callback<Property>(property => capturedProperty = property)
+            .Returns(Task.CompletedTask);
+
         var dto = new CreatePropertyDto
         {
             Title = "Test",
-            Price = 500m,
-            AdvanceRentMonths = 3 // Max is 2
+            Description = "Descricao",
+            Price = 850m,
+            AdvanceRentMonths = 0,
+            LeaseRegime = "PermanentHousing"
         };
+
+        await service.CreatePropertyAsync(
+            landlordId,
+            dto,
+            Enumerable.Empty<FileDto>(),
+            new List<string>(),
+            0,
+            Enumerable.Empty<FileDto>(),
+            acceptedPeriodicities: new List<int> { 36, 48, 60 });
+
+        Assert.NotNull(capturedProperty);
+        Assert.Equal(new[] { 36, 48, 60 }, capturedProperty!.AcceptedPeriodicities.Select(p => p.DurationMonths).OrderBy(months => months));
+    }
+
+    [Fact]
+    public async Task CreatePropertyAsync_WithoutLeaseRegime_ThrowsException()
+    {
+        var service = CreateService();
+        var dto = CreateValidPropertyDto();
+        dto.LeaseRegime = string.Empty;
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CreatePropertyAsync(Guid.NewGuid(), dto,
+                Enumerable.Empty<FileDto>(),
+                new List<string>(), 0,
+                Enumerable.Empty<FileDto>(),
+                acceptedPeriodicities: CreateValidAcceptedPeriodicities()));
+
+        Assert.Contains("habitacao permanente", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreatePropertyAsync_WithoutAcceptedPeriodicities_ThrowsException()
+    {
+        var service = CreateService();
+        var dto = CreateValidPropertyDto();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CreatePropertyAsync(Guid.NewGuid(), dto,
+                Enumerable.Empty<FileDto>(),
+                new List<string>(), 0,
+                Enumerable.Empty<FileDto>(),
+                acceptedPeriodicities: new List<int>()));
+
+        Assert.Contains("periodicidade", ex.Message);
+    }
+
+    [Fact]
+    public async Task UpdatePropertyAsync_UpdatesAcceptedPeriodicitiesCollection()
+    {
+        var service = CreateService();
+        var propertyId = Guid.NewGuid();
+        var landlordId = Guid.NewGuid();
+        var property = new Property
+        {
+            Id = propertyId,
+            LandlordId = landlordId,
+            Title = "Original",
+            Description = "Descricao original",
+            Price = 900m,
+            PropertyType = "Apartamento",
+            Typology = "T2",
+            Area = 75m,
+            Rooms = 2,
+            Bathrooms = 1,
+            Floor = "2",
+            District = "Lisboa",
+            Municipality = "Lisboa",
+            Parish = "Arroios",
+            Street = "Rua do Teste",
+            DoorNumber = "10",
+            PostalCode = "1000-001",
+            AcceptedPeriodicities = new List<PropertyPeriodicity>
+            {
+                new() { Id = Guid.NewGuid(), PropertyId = propertyId, DurationMonths = 36 },
+                new() { Id = Guid.NewGuid(), PropertyId = propertyId, DurationMonths = 48 }
+            }
+        };
+
+        _propertyRepoMock
+            .Setup(r => r.GetByIdAndLandlordWithImagesAsync(propertyId, landlordId))
+            .ReturnsAsync(property);
+
+        var dto = new CreatePropertyDto
+        {
+            Title = "Atualizado",
+            Description = "Descricao atualizada",
+            Price = 950m,
+            PropertyType = "Apartamento",
+            Typology = "T2",
+            Area = 80m,
+            Rooms = 2,
+            Bathrooms = 1,
+            Floor = "3",
+            Street = "Rua do Teste",
+            District = "Lisboa",
+            Municipality = "Lisboa",
+            Parish = "Arroios",
+            DoorNumber = "10",
+            PostalCode = "1000-001",
+            AdvanceRentMonths = 0,
+            LeaseRegime = "PermanentHousing"
+        };
+
+        await service.UpdatePropertyAsync(
+            propertyId,
+            landlordId,
+            dto,
+            Enumerable.Empty<FileDto>(),
+            new List<string>(),
+            new List<Guid>(),
+            -1,
+            null,
+            acceptedPeriodicities: new List<int> { 36, 60 });
+
+        Assert.Equal(new[] { 36, 60 }, property.AcceptedPeriodicities.Select(p => p.DurationMonths).OrderBy(months => months));
+        _uowMock.Verify(u => u.SaveChangesAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreatePropertyAsync_AdvanceRentTooHigh_ThrowsException()
+    {
+        var service = CreateService();
+        var dto = CreateValidPropertyDto();
+        dto.AdvanceRentMonths = 3; // Max is 2
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.CreatePropertyAsync(Guid.NewGuid(), dto,
                 Enumerable.Empty<FileDto>(),
                 new List<string>(), 0,
-                Enumerable.Empty<FileDto>()));
+                Enumerable.Empty<FileDto>(),
+                acceptedPeriodicities: CreateValidAcceptedPeriodicities()));
     }
 
     [Fact]
     public async Task CreatePropertyAsync_NegativeDeposit_ThrowsException()
     {
         var service = CreateService();
-        var dto = new CreatePropertyDto
-        {
-            Title = "Test",
-            Price = 500m,
-            AdvanceRentMonths = 0,
-            Deposit = -100m
-        };
+        var dto = CreateValidPropertyDto();
+        dto.Deposit = -100m;
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.CreatePropertyAsync(Guid.NewGuid(), dto,
                 Enumerable.Empty<FileDto>(),
                 new List<string>(), 0,
-                Enumerable.Empty<FileDto>()));
+                Enumerable.Empty<FileDto>(),
+                acceptedPeriodicities: CreateValidAcceptedPeriodicities()));
     }
 
     [Fact]
     public async Task CreatePropertyAsync_DepositExceedsTwoMonthsRent_ThrowsException()
     {
         var service = CreateService();
-        var dto = new CreatePropertyDto
-        {
-            Title = "Test",
-            Price = 500m,
-            AdvanceRentMonths = 0,
-            Deposit = 1100m // Max = 500 * 2 = 1000
-        };
+        var dto = CreateValidPropertyDto();
+        dto.Deposit = 1100m; // Max = 500 * 2 = 1000
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.CreatePropertyAsync(Guid.NewGuid(), dto,
                 Enumerable.Empty<FileDto>(),
                 new List<string>(), 0,
-                Enumerable.Empty<FileDto>()));
+                Enumerable.Empty<FileDto>(),
+                acceptedPeriodicities: CreateValidAcceptedPeriodicities()));
     }
 
     [Fact]
     public async Task CreatePropertyAsync_ZeroPriceWithDeposit_ThrowsException()
     {
         var service = CreateService();
-        var dto = new CreatePropertyDto
-        {
-            Title = "Test",
-            Price = 0m,
-            AdvanceRentMonths = 0,
-            Deposit = 500m
-        };
+        var dto = CreateValidPropertyDto();
+        dto.Price = 0m;
+        dto.Deposit = 500m;
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.CreatePropertyAsync(Guid.NewGuid(), dto,
                 Enumerable.Empty<FileDto>(),
                 new List<string>(), 0,
-                Enumerable.Empty<FileDto>()));
+                Enumerable.Empty<FileDto>(),
+                acceptedPeriodicities: CreateValidAcceptedPeriodicities()));
     }
 }

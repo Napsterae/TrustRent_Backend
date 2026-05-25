@@ -40,7 +40,7 @@ public class PropertyService : IPropertyService
         IList<int>? acceptedPeriodicities = null)
     {
         ValidateFinancialTerms(dto);
-        ValidatePeriodicities(dto, acceptedPeriodicities);
+        ValidateLeaseTerms(dto, acceptedPeriodicities);
 
         var normalizedAmenityIds = AmenityCatalog.NormalizeForPropertyForm(amenityIds, dto);
 
@@ -196,7 +196,7 @@ public class PropertyService : IPropertyService
         IList<int>? acceptedPeriodicities = null)
     {
         ValidateFinancialTerms(dto);
-        ValidatePeriodicities(dto, acceptedPeriodicities);
+        ValidateLeaseTerms(dto, acceptedPeriodicities);
 
         var normalizedAmenityIds = AmenityCatalog.NormalizeForPropertyForm(amenityIds, dto);
 
@@ -377,15 +377,23 @@ public class PropertyService : IPropertyService
             throw new InvalidOperationException($"A caução não pode ultrapassar {maxDeposit:0.##}€, o equivalente a 2 meses de renda.");
     }
 
-    /// <summary>
-    /// Lei do Arrendamento 2026: Habitação Permanente requer duração mínima de 36 meses.
-    /// </summary>
-    private static void ValidatePeriodicities(CreatePropertyDto dto, IList<int>? acceptedPeriodicities)
+    private static void ValidateLeaseTerms(CreatePropertyDto dto, IList<int>? acceptedPeriodicities)
     {
-        if (acceptedPeriodicities == null || acceptedPeriodicities.Count == 0)
-            return;
+        if (string.IsNullOrWhiteSpace(dto.LeaseRegime))
+            throw new InvalidOperationException("Seleciona se o imovel e habitacao permanente ou habitacao nao permanente.");
 
-        if (Enum.TryParse<LeaseRegime>(dto.LeaseRegime, out var regime) && regime == LeaseRegime.PermanentHousing)
+        if (!Enum.TryParse<LeaseRegime>(dto.LeaseRegime, out var regime))
+            throw new InvalidOperationException("O regime de arrendamento indicado e invalido.");
+
+        if (acceptedPeriodicities == null || acceptedPeriodicities.Count == 0)
+            throw new InvalidOperationException("Seleciona pelo menos uma periodicidade de arrendamento.");
+
+        var nonPositivePeriods = acceptedPeriodicities.Where(p => p <= 0).Distinct().ToList();
+        if (nonPositivePeriods.Count > 0)
+            throw new InvalidOperationException("As periodicidades de arrendamento tem de ser superiores a 0 meses.");
+
+        // Lei do Arrendamento 2026: Habitacao Permanente requer duracao minima de 36 meses.
+        if (regime == LeaseRegime.PermanentHousing)
         {
             var invalidPeriods = acceptedPeriodicities.Where(p => p < 36).ToList();
             if (invalidPeriods.Count > 0)
