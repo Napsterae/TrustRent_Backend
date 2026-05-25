@@ -123,6 +123,7 @@ public class UserServiceTests
         var userId = Guid.NewGuid();
         var user = CreateTestUser(userId);
         user.Email = "visible@example.com";
+        user.IsPhoneNumberVerified = true;
         user.PhoneCountryCode = "PT";
         user.PhoneNumber = "+351912345678";
         _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
@@ -487,7 +488,7 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task VerifyPhoneNumberAsync_WhatsAppPendingPhone_PromotesPendingPhone()
+    public async Task VerifyPhoneNumberAsync_VerifiedPhoneWithPendingReplacement_Throws()
     {
         var user = CreateTestUser();
         user.PhoneCountryCode = "PT";
@@ -511,17 +512,17 @@ public class UserServiceTests
             whatsAppCodeService: _whatsAppCodeServiceMock.Object,
             telegramMessagingPlatformService: null);
 
-        await sut.VerifyPhoneNumberAsync(user.Id, "123456");
+        var ex = await Assert.ThrowsAsync<Exception>(() => sut.VerifyPhoneNumberAsync(user.Id, "123456"));
 
-        Assert.Equal("+351922222222", user.PhoneNumber);
-        Assert.Equal("PT", user.PhoneCountryCode);
-        Assert.Equal(PhoneContactPlatforms.WhatsApp, user.PhoneContactPlatform);
+        Assert.Contains("telemóvel", ex.Message);
+        Assert.Equal("+351911111111", user.PhoneNumber);
+        Assert.Equal(PhoneContactPlatforms.Telegram, user.PhoneContactPlatform);
         Assert.True(user.IsPhoneNumberVerified);
-        Assert.Null(user.PendingPhoneNumber);
-        Assert.Null(user.PendingPhoneCountryCode);
-        Assert.Null(user.PendingPhoneContactPlatform);
+        Assert.Equal("+351922222222", user.PendingPhoneNumber);
+        Assert.Equal("PT", user.PendingPhoneCountryCode);
+        Assert.Equal(PhoneContactPlatforms.WhatsApp, user.PendingPhoneContactPlatform);
         _whatsAppCodeServiceMock.Verify(
-            service => service.VerifyPhoneVerificationCodeAsync(user.Id, "+351922222222", "123456", It.IsAny<CancellationToken>()),
-            Times.Once);
+            service => service.VerifyPhoneVerificationCodeAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

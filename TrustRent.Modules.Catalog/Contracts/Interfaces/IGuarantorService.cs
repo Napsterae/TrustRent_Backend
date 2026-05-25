@@ -6,7 +6,7 @@ public interface IGuarantorService
 {
     /// <summary>
     /// Senhorio solicita formalmente que a candidatura tenha fiador.
-    /// Requer Property.HasOfficialContract && Property.AcceptsGuarantor.
+    /// Requer Property.HasOfficialContract.
     /// </summary>
     Task<ApplicationDto> RequestGuarantorAsync(Guid applicationId, Guid landlordId, RequestGuarantorDto dto);
 

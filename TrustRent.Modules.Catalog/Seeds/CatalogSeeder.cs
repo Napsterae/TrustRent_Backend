@@ -1050,9 +1050,7 @@ public static class CatalogSeeder
             GasPaidBy = gasPaidBy,
             HasOfficialContract = hasOfficialContract,
             AcceptsGuarantor = hasOfficialContract,
-            GuarantorPolicyNote = hasOfficialContract
-                ? "Aceita-se fiador com rendimento líquido mensal igual ou superior a 3x o valor da renda."
-                : null,
+            GuarantorPolicyNote = null,
             LeaseRegime = leaseRegime,
             AllowsRenewal = true,
             NonPermanentReason = leaseRegime == LeaseRegime.NonPermanentHousing ? nonPermanentReason : null

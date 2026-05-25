@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Moq;
+using TrustRent.Shared.Communications;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Models;
@@ -16,6 +17,7 @@ public class CoTenantInviteServiceTests
     private readonly Mock<IUserRepository> _userRepoMock = new();
     private readonly Mock<IUserService> _userServiceMock = new();
     private readonly Mock<INotificationService> _notificationMock = new();
+    private readonly Mock<ICommunicationContentService> _communicationContentMock = new();
     private readonly Mock<IEmailService> _emailMock = new();
 
     private (CoTenantInviteService Service, CatalogDbContext Db, Application App) Setup(string? coTenantEmail = "co@test.pt", Guid? coTenantUserId = null)
@@ -58,7 +60,23 @@ public class CoTenantInviteServiceTests
         _userServiceMock.Setup(s => s.GetPublicProfileAsync(It.IsAny<Guid>(), It.IsAny<Guid>()))
             .ReturnsAsync(new PublicUserProfileDto(tenantId, "Inviter", null, null, 0, false, false, null, null));
 
-        var svc = new CoTenantInviteService(db, _userRepoMock.Object, _userServiceMock.Object, _notificationMock.Object, _emailMock.Object);
+        _communicationContentMock
+            .Setup(service => service.RenderEmailTemplateAsync(
+                CommunicationEmailTemplateKeys.ApplicationCoTenantInvite,
+                It.IsAny<IReadOnlyDictionary<string, string?>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new RenderedEmailTemplateContent(
+                CommunicationEmailTemplateKeys.ApplicationCoTenantInvite,
+                "Convite de co-candidato",
+                "v1",
+                "subject",
+                "body",
+                "body",
+                false,
+                new Dictionary<string, string>()));
+
+        var svc = new CoTenantInviteService(db, _userRepoMock.Object, _userServiceMock.Object, _notificationMock.Object, _communicationContentMock.Object, _emailMock.Object);
         return (svc, db, app);
     }
 
