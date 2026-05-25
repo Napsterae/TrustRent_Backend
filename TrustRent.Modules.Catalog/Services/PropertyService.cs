@@ -91,6 +91,8 @@ public class PropertyService : IPropertyService
         }
 
         property.IsUnderMaintenance = true;
+        await _uow.Properties.AddAsync(property);
+        await _uow.SaveChangesAsync();
 
         _backgroundJobs.Enqueue<Jobs.IPropertyUploadJob>(job =>
             job.ProcessCreationAsync(property.Id, landlordId, savedFilePaths, imageCategories.ToList(), mainImageIndex)
