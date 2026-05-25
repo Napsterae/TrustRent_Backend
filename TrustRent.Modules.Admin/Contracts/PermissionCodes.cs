@@ -64,6 +64,10 @@ public static class PermissionCodes
     public const string TicketsSupportAssign = "tickets.support.assign";
     public const string TicketsSupportClose = "tickets.support.close";
 
+    // Reports
+    public const string ReportsRead = "reports.read";
+    public const string ReportsManage = "reports.manage";
+
     // Reviews
     public const string ReviewsRead = "reviews.read";
     public const string ReviewsModerate = "reviews.moderate";
@@ -150,6 +154,9 @@ public static class PermissionCodes
         (TicketsSupportRespond, "Responder a tickets de suporte", "Tickets"),
         (TicketsSupportAssign, "Atribuir tickets de suporte", "Tickets"),
         (TicketsSupportClose, "Fechar tickets de suporte", "Tickets"),
+
+        (ReportsRead, "Ler reports técnicos e feedback público", "Reports"),
+        (ReportsManage, "Gerir estado, prioridade e notas de reports", "Reports"),
 
         (ReviewsRead, "Ler reviews", "Reviews"),
         (ReviewsModerate, "Moderar reviews", "Reviews"),
