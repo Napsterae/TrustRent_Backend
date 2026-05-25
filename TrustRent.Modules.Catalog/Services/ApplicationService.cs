@@ -43,8 +43,13 @@ public class ApplicationService : IApplicationService
 
     public async Task<ApplicationDto> SubmitApplicationAsync(Guid propertyId, Guid tenantId, SubmitApplicationDto dto)
     {
-        var property = await _context.Properties.FindAsync(propertyId);
+        var property = await _context.Properties
+            .Include(p => p.AcceptedPeriodicities)
+            .FirstOrDefaultAsync(p => p.Id == propertyId);
         if (property == null) throw new Exception("Property not found");
+
+        if (dto.DurationMonths <= 0)
+            throw new Exception("Indica uma duração válida para o contrato.");
 
         if (!property.IsPublic)
             throw new Exception("Este imóvel já não está disponível para novas candidaturas.");
@@ -58,6 +63,15 @@ public class ApplicationService : IApplicationService
         // Validação: o proprietário não se pode candidatar ao seu próprio imóvel
         if (property.LandlordId == tenantId)
             throw new Exception("Não te podes candidatar a um imóvel do qual és proprietário.");
+
+        var acceptedPeriodicities = property.AcceptedPeriodicities
+            .Select(periodicity => periodicity.DurationMonths)
+            .Distinct()
+            .OrderBy(months => months)
+            .ToList();
+
+        if (acceptedPeriodicities.Count > 0 && !acceptedPeriodicities.Contains(dto.DurationMonths))
+            throw new Exception($"A duração selecionada não corresponde a uma periodicidade aceite para este imóvel. Opções disponíveis: {string.Join(", ", acceptedPeriodicities)} meses.");
 
         // Lei do Arrendamento 2026: Habitação Permanente requer duração mínima de 3 anos (36 meses)
         if (property.LeaseRegime == LeaseRegime.PermanentHousing && dto.DurationMonths < 36)

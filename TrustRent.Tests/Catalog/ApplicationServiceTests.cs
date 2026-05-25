@@ -98,6 +98,68 @@ public class ApplicationServiceTests
     }
 
     [Fact]
+    public async Task SubmitApplicationAsync_WhenDurationIsNotAccepted_ThrowsException()
+    {
+        var (service, context) = CreateService();
+        var property = CreateTestProperty();
+        property.AcceptedPeriodicities.Add(new PropertyPeriodicity { Id = Guid.NewGuid(), PropertyId = property.Id, DurationMonths = 36 });
+        property.AcceptedPeriodicities.Add(new PropertyPeriodicity { Id = Guid.NewGuid(), PropertyId = property.Id, DurationMonths = 48 });
+        context.Properties.Add(property);
+        await context.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<Exception>(() => service.SubmitApplicationAsync(property.Id, Guid.NewGuid(), new SubmitApplicationDto
+        {
+            Message = "I'm interested in this property",
+            DurationMonths = 60
+        }));
+
+        Assert.Contains("periodicidade aceite", ex.Message);
+
+        context.Dispose();
+    }
+
+    [Fact]
+    public async Task SubmitApplicationAsync_WhenPropertyHasNoAcceptedPeriodicities_AllowsManualDuration()
+    {
+        var (service, context) = CreateService();
+        var property = CreateTestProperty();
+        property.LeaseRegime = LeaseRegime.NonPermanentHousing;
+        context.Properties.Add(property);
+        await context.SaveChangesAsync();
+
+        var result = await service.SubmitApplicationAsync(property.Id, Guid.NewGuid(), new SubmitApplicationDto
+        {
+            Message = "I'm interested in this property",
+            DurationMonths = 9
+        });
+
+        Assert.NotNull(result);
+        Assert.Equal(9, result.DurationMonths);
+
+        context.Dispose();
+    }
+
+    [Fact]
+    public async Task SubmitApplicationAsync_PermanentHousingWithoutAcceptedPeriodicities_StillRequiresMinimumDuration()
+    {
+        var (service, context) = CreateService();
+        var property = CreateTestProperty();
+        property.LeaseRegime = LeaseRegime.PermanentHousing;
+        context.Properties.Add(property);
+        await context.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<Exception>(() => service.SubmitApplicationAsync(property.Id, Guid.NewGuid(), new SubmitApplicationDto
+        {
+            Message = "I'm interested in this property",
+            DurationMonths = 12
+        }));
+
+        Assert.Contains("36 meses", ex.Message);
+
+        context.Dispose();
+    }
+
+    [Fact]
     public async Task SubmitApplicationAsync_PropertyNotFound_ThrowsException()
     {
         var (service, context) = CreateService();

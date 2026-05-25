@@ -95,6 +95,9 @@ public static class PropertyEndpoints
                     NonPermanentReason = form["nonPermanentReason"].ToString(),
                 };
 
+                if (string.IsNullOrWhiteSpace(dto.LeaseRegime))
+                    return Results.BadRequest(new { Error = "Seleciona se o imóvel é habitacao permanente ou habitacao nao permanente." });
+
                 // Validação de publicação
                 if (dto.IsPublic)
                 {
@@ -102,9 +105,6 @@ public static class PropertyEndpoints
                     var stripeAccount = await stripeAccountService.GetDefaultAccountAsync(userId);
                     if (stripeAccount == null || !stripeAccount.ChargesEnabled || !stripeAccount.PayoutsEnabled)
                         return Results.BadRequest(new { Error = "É necessário configurar um meio de recebimento de pagamentos antes de publicar o imóvel." });
-
-                    if (string.IsNullOrEmpty(dto.LeaseRegime))
-                        return Results.BadRequest(new { Error = "O regime jurídico é obrigatório para publicar o anúncio." });
 
                     if (dto.LeaseRegime == "NonPermanentHousing" && string.IsNullOrEmpty(dto.NonPermanentReason))
                         return Results.BadRequest(new { Error = "O motivo é obrigatório para regime não permanente." });
@@ -144,8 +144,8 @@ public static class PropertyEndpoints
                         .ToList();
                 }
 
-                if (dto.IsPublic && !acceptedPeriodicities.Any())
-                    return Results.BadRequest(new { Error = "Deve selecionar pelo menos uma periodicidade para publicar." });
+                if (!acceptedPeriodicities.Any())
+                    return Results.BadRequest(new { Error = "Seleciona pelo menos uma periodicidade de arrendamento." });
 
                 // 5. Chamar a nossa lógica de negócio (O motor que criámos no Passo 2)
                 var propertyId = await propertyService.CreatePropertyAsync(userId, dto, imageFiles, imageCategories, mainImageIndex, documentFiles, amenityIds, acceptedPeriodicities);
@@ -352,6 +352,9 @@ public static class PropertyEndpoints
                     NonPermanentReason = form["nonPermanentReason"].ToString(),
                 };
 
+                if (string.IsNullOrWhiteSpace(dto.LeaseRegime))
+                    return Results.BadRequest(new { Error = "Seleciona se o imóvel é habitacao permanente ou habitacao nao permanente." });
+
                 // Validação de publicação
                 if (dto.IsPublic)
                 {
@@ -364,9 +367,6 @@ public static class PropertyEndpoints
 
                     if (stripeAccount == null || !stripeAccount.ChargesEnabled || !stripeAccount.PayoutsEnabled)
                         return Results.BadRequest(new { Error = "É necessário configurar um meio de recebimento de pagamentos antes de publicar o imóvel." });
-
-                    if (string.IsNullOrEmpty(dto.LeaseRegime))
-                        return Results.BadRequest(new { Error = "O regime jurídico é obrigatório para publicar o anúncio." });
 
                     if (dto.LeaseRegime == "NonPermanentHousing" && string.IsNullOrEmpty(dto.NonPermanentReason))
                         return Results.BadRequest(new { Error = "O motivo é obrigatório para regime não permanente." });
@@ -423,8 +423,8 @@ public static class PropertyEndpoints
                         .ToList();
                 }
 
-                if (dto.IsPublic && !acceptedPeriodicities.Any())
-                    return Results.BadRequest(new { Error = "Deve selecionar pelo menos uma periodicidade para publicar." });
+                if (!acceptedPeriodicities.Any())
+                    return Results.BadRequest(new { Error = "Seleciona pelo menos uma periodicidade de arrendamento." });
 
                 await propertyService.UpdatePropertyAsync(id, userId, dto, newImageFiles, imageCategories, retainedImageIds, mainImageIndex, mainRetainedImageId, amenityIds, acceptedPeriodicities);
 
