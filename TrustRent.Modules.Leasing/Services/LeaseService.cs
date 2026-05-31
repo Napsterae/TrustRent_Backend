@@ -511,43 +511,35 @@ public class LeaseService : ILeaseService
         if (!IsLeaseParty(lease, userId))
             throw new UnauthorizedAccessException("Sem permissão para aceder a este arrendamento.");
 
-        var signatories = new List<LeaseSignatoryDto>();
         var appContext = lease.GuarantorRecordId.HasValue && !lease.GuarantorUserId.HasValue
             ? await _catalogAccess.GetApplicationContextAsync(lease.ApplicationId)
             : null;
-        foreach (var s in lease.Signatures.OrderBy(s => s.SequenceOrder))
-        {
-            var isGuestGuarantor = s.Role == LeaseSignatoryRole.Guarantor
-                && lease.GuarantorRecordId.HasValue
-                && lease.GuarantorRecordId.Value == s.UserId
-                && !lease.GuarantorUserId.HasValue;
-            var profile = isGuestGuarantor ? null : await _userService.GetPublicProfileAsync(s.UserId, userId);
-            signatories.Add(new LeaseSignatoryDto
-            {
-                UserId = s.UserId,
-                Name = isGuestGuarantor ? appContext?.GuarantorGuestName ?? "Fiador" : profile?.Name ?? s.Role.ToString(),
-                AvatarUrl = profile?.ProfilePictureUrl,
-                Role = s.Role.ToString(),
-                SequenceOrder = s.SequenceOrder,
-                Signed = s.Signed,
-                SignedAt = s.SignedAt,
-                SignatureVerified = s.SignatureVerified,
-                SignatureCertSubject = s.SignatureCertSubject,
-                AcceptedTermsAt = lease.TermAcceptances.FirstOrDefault(t => t.UserId == s.UserId)?.AcceptedAt
-            });
-        }
+        var signatories = lease.Signatures.Count > 0
+            ? await BuildSignatureStatusSignatoriesAsync(lease, userId, appContext)
+            : await BuildLegacySignatureStatusSignatoriesAsync(lease, userId, appContext);
+        var landlordSignatory = signatories.FirstOrDefault(s => s.Role == LeaseSignatoryRole.Landlord.ToString());
+        var tenantSignatory = signatories.FirstOrDefault(s => s.Role == LeaseSignatoryRole.Tenant.ToString());
+        var requiredSignaturesCount = signatories.Count > 0
+            ? signatories.Count
+            : lease.RequiredSignaturesCount > 0
+                ? lease.RequiredSignaturesCount
+                : 2;
 
         return new LeaseSignatureStatusDto
         {
             LeaseId = lease.Id,
-            LandlordSigned = lease.LandlordSigned,
-            LandlordSignedAt = lease.LandlordSignedAt,
-            TenantSigned = lease.TenantSigned,
-            TenantSignedAt = lease.TenantSignedAt,
+            LandlordSigned = landlordSignatory?.Signed ?? lease.LandlordSigned,
+            LandlordSignedAt = landlordSignatory?.SignedAt ?? lease.LandlordSignedAt,
+            LandlordSignatureVerified = landlordSignatory?.SignatureVerified ?? lease.LandlordSignatureVerified,
+            LandlordSignatureCertSubject = landlordSignatory?.SignatureCertSubject ?? lease.LandlordSignatureCertSubject,
+            TenantSigned = tenantSignatory?.Signed ?? lease.TenantSigned,
+            TenantSignedAt = tenantSignatory?.SignedAt ?? lease.TenantSignedAt,
+            TenantSignatureVerified = tenantSignatory?.SignatureVerified ?? lease.TenantSignatureVerified,
+            TenantSignatureCertSubject = tenantSignatory?.SignatureCertSubject ?? lease.TenantSignatureCertSubject,
             ContractType = lease.ContractType,
             LeaseStatus = lease.Status.ToString(),
-            RequiredSignaturesCount = lease.RequiredSignaturesCount,
-            SignedCount = lease.Signatures.Count(s => s.Signed),
+            RequiredSignaturesCount = requiredSignaturesCount,
+            SignedCount = signatories.Count(s => s.Signed),
             Signatories = signatories
         };
     }
@@ -810,6 +802,134 @@ public class LeaseService : ILeaseService
            || (lease.CoTenantId.HasValue && lease.CoTenantId.Value == userId)
            || (lease.GuarantorUserId.HasValue && lease.GuarantorUserId.Value == userId)
            || (lease.GuarantorRecordId.HasValue && lease.GuarantorRecordId.Value == userId);
+
+    private async Task<List<LeaseSignatoryDto>> BuildSignatureStatusSignatoriesAsync(Lease lease, Guid userId, ApplicationContext? appContext)
+    {
+        var signatories = new List<LeaseSignatoryDto>();
+
+        foreach (var signature in lease.Signatures.OrderBy(s => s.SequenceOrder))
+        {
+            signatories.Add(await BuildSignatoryDtoAsync(
+                lease,
+                signature.UserId,
+                signature.Role,
+                signature.SequenceOrder,
+                signature.Signed,
+                signature.SignedAt,
+                signature.SignatureVerified,
+                signature.SignatureCertSubject,
+                userId,
+                appContext,
+                useAcceptedTermsAsSignatureFallback: false));
+        }
+
+        return signatories;
+    }
+
+    private async Task<List<LeaseSignatoryDto>> BuildLegacySignatureStatusSignatoriesAsync(Lease lease, Guid userId, ApplicationContext? appContext)
+    {
+        var signatories = new List<LeaseSignatoryDto>();
+        var sequence = 1;
+
+        signatories.Add(await BuildSignatoryDtoAsync(
+            lease,
+            lease.LandlordId,
+            LeaseSignatoryRole.Landlord,
+            sequence++,
+            lease.LandlordSigned,
+            lease.LandlordSignedAt,
+            lease.LandlordSignatureVerified,
+            lease.LandlordSignatureCertSubject,
+            userId,
+            appContext,
+            useAcceptedTermsAsSignatureFallback: true));
+
+        signatories.Add(await BuildSignatoryDtoAsync(
+            lease,
+            lease.TenantId,
+            LeaseSignatoryRole.Tenant,
+            sequence++,
+            lease.TenantSigned,
+            lease.TenantSignedAt,
+            lease.TenantSignatureVerified,
+            lease.TenantSignatureCertSubject,
+            userId,
+            appContext,
+            useAcceptedTermsAsSignatureFallback: true));
+
+        if (lease.CoTenantId.HasValue)
+        {
+            signatories.Add(await BuildSignatoryDtoAsync(
+                lease,
+                lease.CoTenantId.Value,
+                LeaseSignatoryRole.CoTenant,
+                sequence++,
+                false,
+                null,
+                false,
+                null,
+                userId,
+                appContext,
+                useAcceptedTermsAsSignatureFallback: true));
+        }
+
+        var guarantorId = lease.GuarantorUserId ?? lease.GuarantorRecordId;
+        if (guarantorId.HasValue)
+        {
+            signatories.Add(await BuildSignatoryDtoAsync(
+                lease,
+                guarantorId.Value,
+                LeaseSignatoryRole.Guarantor,
+                sequence,
+                false,
+                null,
+                false,
+                null,
+                userId,
+                appContext,
+                useAcceptedTermsAsSignatureFallback: true));
+        }
+
+        return signatories;
+    }
+
+    private async Task<LeaseSignatoryDto> BuildSignatoryDtoAsync(
+        Lease lease,
+        Guid signatoryUserId,
+        LeaseSignatoryRole role,
+        int sequenceOrder,
+        bool signed,
+        DateTime? signedAt,
+        bool signatureVerified,
+        string? signatureCertSubject,
+        Guid userId,
+        ApplicationContext? appContext,
+        bool useAcceptedTermsAsSignatureFallback = false)
+    {
+        var acceptedTermsAt = lease.TermAcceptances.FirstOrDefault(t => t.UserId == signatoryUserId)?.AcceptedAt;
+        var isGuestGuarantor = role == LeaseSignatoryRole.Guarantor
+            && lease.GuarantorRecordId.HasValue
+            && lease.GuarantorRecordId.Value == signatoryUserId
+            && !lease.GuarantorUserId.HasValue;
+        var profile = isGuestGuarantor ? null : await _userService.GetPublicProfileAsync(signatoryUserId, userId);
+        var effectiveSigned = signed || (useAcceptedTermsAsSignatureFallback && acceptedTermsAt.HasValue);
+        var effectiveSignedAt = effectiveSigned ? signedAt ?? acceptedTermsAt : null;
+        var effectiveSignatureVerified = signatureVerified || (useAcceptedTermsAsSignatureFallback && acceptedTermsAt.HasValue);
+
+        return new LeaseSignatoryDto
+        {
+            UserId = signatoryUserId,
+            Name = isGuestGuarantor ? appContext?.GuarantorGuestName ?? "Fiador" : profile?.Name ?? role.ToString(),
+            AvatarUrl = profile?.ProfilePictureUrl,
+            Role = role.ToString(),
+            SequenceOrder = sequenceOrder,
+            Signed = effectiveSigned,
+            SignedAt = effectiveSignedAt,
+            SignatureVerified = effectiveSignatureVerified,
+            SignatureCertSubject = signatureCertSubject,
+            AcceptedTermsAt = acceptedTermsAt
+        };
+    }
 
     /// <summary>
     /// Notifica co-candidato e fiador (se existirem) com uma mensagem comum.

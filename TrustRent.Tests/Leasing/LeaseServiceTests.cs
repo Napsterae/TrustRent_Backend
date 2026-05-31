@@ -158,13 +158,35 @@ public class LeaseServiceTests
     // --- GetSignatureStatusAsync ---
 
     [Fact]
-    public async Task GetSignatureStatusAsync_ExistingLease_ReturnsStatus()
+    public async Task GetSignatureStatusAsync_LeaseWithSignatureRows_ReturnsStatusAndSynthesizesTopLevelSummary()
     {
         var (service, context) = CreateService();
         var tenantId = Guid.NewGuid();
-        var lease = CreateTestLease(tenantId: tenantId, status: LeaseStatus.AwaitingSignatures);
-        lease.LandlordSigned = true;
-        lease.LandlordSignedAt = DateTime.UtcNow.AddHours(-1);
+        var landlordId = Guid.NewGuid();
+        var landlordSignedAt = DateTime.UtcNow.AddHours(-1);
+        var lease = CreateTestLease(tenantId: tenantId, landlordId: landlordId, status: LeaseStatus.AwaitingSignatures);
+        lease.RequiredSignaturesCount = 0;
+        lease.Signatures.Add(new LeaseSignature
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = landlordId,
+            Role = LeaseSignatoryRole.Landlord,
+            SequenceOrder = 1,
+            Signed = true,
+            SignedAt = landlordSignedAt,
+            SignatureVerified = true,
+            SignatureCertSubject = "CMD - Senhorio"
+        });
+        lease.Signatures.Add(new LeaseSignature
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = tenantId,
+            Role = LeaseSignatoryRole.Tenant,
+            SequenceOrder = 2,
+            Signed = false,
+        });
         context.Leases.Add(lease);
         await context.SaveChangesAsync();
 
@@ -172,8 +194,108 @@ public class LeaseServiceTests
 
         Assert.NotNull(result);
         Assert.True(result!.LandlordSigned);
+        Assert.True(result.LandlordSignatureVerified);
+        Assert.Equal(landlordSignedAt, result.LandlordSignedAt);
+        Assert.Equal("CMD - Senhorio", result.LandlordSignatureCertSubject);
         Assert.False(result.TenantSigned);
         Assert.Equal("AwaitingSignatures", result.LeaseStatus);
+        Assert.Equal(2, result.RequiredSignaturesCount);
+        Assert.Equal(1, result.SignedCount);
+        Assert.Equal(2, result.Signatories.Count);
+        Assert.Equal(new[] { "Landlord", "Tenant" }, result.Signatories.Select(s => s.Role).ToArray());
+        Assert.True(result.Signatories[0].Signed);
+        Assert.False(result.Signatories[1].Signed);
+
+        context.Dispose();
+    }
+
+    [Fact]
+    public async Task GetSignatureStatusAsync_LegacyLeaseWithoutSignatureRows_UsesAcceptedTermsForExtraPartiesAndSynthesizesRequiredCount()
+    {
+        var (service, context) = CreateService();
+        var tenantId = Guid.NewGuid();
+        var landlordId = Guid.NewGuid();
+        var coTenantId = Guid.NewGuid();
+
+        var lease = CreateTestLease(tenantId: tenantId, landlordId: landlordId, status: LeaseStatus.AwaitingSignatures);
+        lease.CoTenantId = coTenantId;
+        lease.RequiredSignaturesCount = 0;
+        lease.TermAcceptances.Add(new LeaseTermAcceptance
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = coTenantId,
+            Role = LeaseSignatoryRole.CoTenant,
+            AcceptedAt = DateTime.UtcNow.AddMinutes(-10),
+        });
+
+        context.Leases.Add(lease);
+        await context.SaveChangesAsync();
+
+        var result = await service.GetSignatureStatusAsync(lease.Id, tenantId);
+
+        Assert.NotNull(result);
+        Assert.Equal(3, result!.RequiredSignaturesCount);
+        Assert.Equal(1, result.SignedCount);
+        Assert.Equal(new[] { "Landlord", "Tenant", "CoTenant" }, result.Signatories.Select(s => s.Role).ToArray());
+        Assert.True(result.Signatories[2].Signed);
+        Assert.NotNull(result.Signatories[2].AcceptedTermsAt);
+
+        context.Dispose();
+    }
+
+    [Fact]
+    public async Task GetSignatureStatusAsync_LeaseWithSignatureRows_DoesNotPromoteAcceptedTermsToSigned()
+    {
+        var (service, context) = CreateService();
+        var tenantId = Guid.NewGuid();
+        var landlordId = Guid.NewGuid();
+
+        var lease = CreateTestLease(tenantId: tenantId, landlordId: landlordId, status: LeaseStatus.AwaitingSignatures);
+        lease.RequiredSignaturesCount = 2;
+        lease.Signatures.Add(new LeaseSignature
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = landlordId,
+            Role = LeaseSignatoryRole.Landlord,
+            SequenceOrder = 1,
+            Signed = true,
+            SignedAt = DateTime.UtcNow.AddHours(-1),
+            SignatureVerified = true,
+        });
+        lease.Signatures.Add(new LeaseSignature
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = tenantId,
+            Role = LeaseSignatoryRole.Tenant,
+            SequenceOrder = 2,
+            Signed = false,
+            SignatureVerified = false,
+        });
+        lease.TermAcceptances.Add(new LeaseTermAcceptance
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = tenantId,
+            Role = LeaseSignatoryRole.Tenant,
+            AcceptedAt = DateTime.UtcNow.AddMinutes(-5),
+        });
+        context.Leases.Add(lease);
+        await context.SaveChangesAsync();
+
+        var result = await service.GetSignatureStatusAsync(lease.Id, tenantId);
+
+        Assert.NotNull(result);
+        Assert.False(result!.TenantSigned);
+        Assert.Equal(1, result.SignedCount);
+
+        var tenantSignatory = result.Signatories.Single(s => s.Role == "Tenant");
+        Assert.False(tenantSignatory.Signed);
+        Assert.Null(tenantSignatory.SignedAt);
+        Assert.False(tenantSignatory.SignatureVerified);
+        Assert.NotNull(tenantSignatory.AcceptedTermsAt);
 
         context.Dispose();
     }
