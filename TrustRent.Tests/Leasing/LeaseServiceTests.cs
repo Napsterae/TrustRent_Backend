@@ -3,6 +3,7 @@ using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Modules.Leasing.Contracts.DTOs;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Models;
@@ -310,6 +311,150 @@ public class LeaseServiceTests
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
             () => service.GetSignatureStatusAsync(lease.Id, Guid.NewGuid()));
+
+        context.Dispose();
+    }
+
+    [Fact]
+    public async Task ConfirmLeaseStartDateAsync_InformalLease_NotifiesCurrentSignerWhenAcceptanceFlowStarts()
+    {
+        var (service, context) = CreateService();
+        var landlordId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+        var lease = CreateTestLease(tenantId: tenantId, landlordId: landlordId, status: LeaseStatus.Pending);
+        lease.ContractType = "Informal";
+        lease.Signatures.Add(new LeaseSignature
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = landlordId,
+            Role = LeaseSignatoryRole.Landlord,
+            SequenceOrder = 1,
+        });
+        lease.Signatures.Add(new LeaseSignature
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = tenantId,
+            Role = LeaseSignatoryRole.Tenant,
+            SequenceOrder = 2,
+        });
+        context.Leases.Add(lease);
+        await context.SaveChangesAsync();
+
+        _catalogAccessMock.Setup(c => c.GetApplicationContextAsync(lease.ApplicationId)).ReturnsAsync(new ApplicationContext
+        {
+            Id = lease.ApplicationId,
+            PropertyId = lease.PropertyId,
+            TenantId = tenantId,
+            LandlordId = landlordId,
+            DurationMonths = lease.DurationMonths,
+        });
+        _catalogAccessMock.Setup(c => c.UpdateApplicationStatusAsync(
+            lease.ApplicationId,
+            (int)ApplicationStatus.ContractPendingSignature,
+            landlordId,
+            It.IsAny<string>(),
+            It.IsAny<string>())).Returns(Task.CompletedTask);
+
+        var result = await service.ConfirmLeaseStartDateAsync(lease.Id, landlordId, new ConfirmLeaseStartDateDto
+        {
+            StartDate = DateTime.UtcNow.AddDays(15)
+        });
+
+        Assert.Equal(LeaseStatus.AwaitingSignatures.ToString(), result.Status);
+        _notificationMock.Verify(n => n.SendNotificationAsync(
+            landlordId,
+            "lease",
+            It.Is<string>(message => message.Contains("É a tua vez de aceitar")),
+            lease.Id), Times.Once);
+        _notificationMock.Verify(n => n.SendNotificationAsync(
+            landlordId,
+            "lease",
+            It.IsAny<string>(),
+            lease.Id), Times.Once);
+        _notificationMock.Verify(n => n.SendNotificationAsync(
+            tenantId,
+            "lease",
+            It.IsAny<string>(),
+            lease.Id), Times.Once);
+
+        context.Dispose();
+    }
+
+    [Fact]
+    public async Task ConfirmSignatureAsync_NotifiesOnlyNextPendingSigner()
+    {
+        var (service, context) = CreateService();
+        var landlordId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+        var coTenantId = Guid.NewGuid();
+        var guarantorId = Guid.NewGuid();
+
+        var lease = CreateTestLease(tenantId: tenantId, landlordId: landlordId, status: LeaseStatus.AwaitingSignatures);
+        lease.ContractType = "Official";
+        lease.CoTenantId = coTenantId;
+        lease.GuarantorUserId = guarantorId;
+        lease.LandlordSigned = true;
+        lease.LandlordSignedAt = DateTime.UtcNow.AddMinutes(-30);
+        lease.Signatures.Add(new LeaseSignature
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = landlordId,
+            Role = LeaseSignatoryRole.Landlord,
+            SequenceOrder = 1,
+            Signed = true,
+            SignedAt = DateTime.UtcNow.AddMinutes(-30),
+            SignatureVerified = true,
+        });
+        lease.Signatures.Add(new LeaseSignature
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = tenantId,
+            Role = LeaseSignatoryRole.Tenant,
+            SequenceOrder = 2,
+        });
+        lease.Signatures.Add(new LeaseSignature
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = coTenantId,
+            Role = LeaseSignatoryRole.CoTenant,
+            SequenceOrder = 3,
+        });
+        lease.Signatures.Add(new LeaseSignature
+        {
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = guarantorId,
+            Role = LeaseSignatoryRole.Guarantor,
+            SequenceOrder = 4,
+        });
+        context.Leases.Add(lease);
+        await context.SaveChangesAsync();
+
+        _digitalSigMock.Setup(d => d.VerifyCmdSignatureAsync("tx-1", "123456"))
+            .ReturnsAsync(new CmdSignatureConfirmResult(true, "sig-ref"));
+
+        var result = await service.ConfirmSignatureAsync(lease.Id, tenantId, new ConfirmLeaseSignatureDto
+        {
+            TransactionId = "tx-1",
+            OtpCode = "123456"
+        });
+
+        Assert.Equal(LeaseStatus.AwaitingSignatures.ToString(), result.Status);
+        _notificationMock.Verify(n => n.SendNotificationAsync(
+            coTenantId,
+            "lease",
+            It.Is<string>(message => message.Contains("É a tua vez de assinar")),
+            lease.Id), Times.Once);
+        _notificationMock.Verify(n => n.SendNotificationAsync(
+            guarantorId,
+            "lease",
+            It.IsAny<string>(),
+            lease.Id), Times.Never);
 
         context.Dispose();
     }
