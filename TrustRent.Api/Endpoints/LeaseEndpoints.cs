@@ -1358,7 +1358,95 @@ public static class LeaseEndpoints
                     reference = fakeReference
                 });
             }).RequireAuthorization();
+
+        // ── EMBEDDED SIGNING (Phase 1) ──
+
+        // Step 1: Request PIN code (authenticated)
+        group.MapPost("/{leaseId:guid}/request-signing-pin",
+            async (Guid leaseId, HttpContext ctx,
+                   DocumentSigningPinService pinSvc) =>
+            {
+                if (!TryGetUserId(ctx.User, out var userId))
+                    return Results.Unauthorized();
+                try
+                {
+                    var result = await pinSvc.RequestPinAsync(userId, leaseId);
+                    return Results.Ok(result);
+                }
+                catch (KeyNotFoundException e) { return Results.NotFound(e.Message); }
+                catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
+            }).RequireAuthorization();
+
+        // Step 2: Verify PIN + get embedded signing URL (authenticated)
+        group.MapPost("/{leaseId:guid}/verify-signing-pin",
+            async (Guid leaseId, VerifyPinRequest body, HttpContext ctx,
+                   DocumentSigningPinService pinSvc, ISigningProviderService svc) =>
+            {
+                if (!TryGetUserId(ctx.User, out var userId))
+                    return Results.Unauthorized();
+                try
+                {
+                    var valid = await pinSvc.VerifyPinAsync(userId, leaseId, body.Code);
+                    if (!valid)
+                        return Results.BadRequest(new { error = "Código inválido ou expirado." });
+                    var result = await svc.InitiateEmbeddedSigningAsync(leaseId, userId);
+                    return Results.Ok(result);
+                }
+                catch (KeyNotFoundException e) { return Results.NotFound(e.Message); }
+                catch (UnauthorizedAccessException e) { return Results.Forbid(); }
+                catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
+            }).RequireAuthorization();
+
+        // Guest guarantor: request PIN (token-based, unauthenticated)
+        guest.MapPost("/request-signing-pin",
+            async (string token, DocumentSigningPinService pinSvc) =>
+            {
+                try
+                {
+                    var result = await pinSvc.RequestPinForGuestAsync(token);
+                    return Results.Ok(result);
+                }
+                catch (NotImplementedException) { return Results.StatusCode(501); }
+            });
+
+        // Guest guarantor: verify PIN + get embedded signing URL (token-based)
+        guest.MapPost("/verify-signing-pin",
+            async (string token, VerifyPinRequest body,
+                   DocumentSigningPinService pinSvc, ISigningProviderService svc) =>
+            {
+                try
+                {
+                    var valid = await pinSvc.VerifyPinForGuestAsync(token, body.Code);
+                    if (!valid)
+                        return Results.BadRequest(new { error = "Código inválido ou expirado." });
+                    var result = await svc.InitiateEmbeddedSigningForGuestAsync(token);
+                    return Results.Ok(result);
+                }
+                catch (NotImplementedException) { return Results.StatusCode(501); }
+            });
+
+        // Webhook: Documenso (no auth — HMAC verified in handler)
+        app.MapPost("/api/leases/signature-webhook/documenso",
+            async (HttpContext ctx, ISigningProviderService svc) =>
+            {
+                var body = await new StreamReader(ctx.Request.Body).ReadToEndAsync();
+                var sig = ctx.Request.Headers["Documenso-Signature"].ToString();
+                await svc.HandleWebhookAsync("Documenso", body, sig);
+                return Results.Ok();
+            });
+
+        // Webhook: DocuSeal (no auth — HMAC verified in handler)
+        app.MapPost("/api/leases/signature-webhook/docuseal",
+            async (HttpContext ctx, ISigningProviderService svc) =>
+            {
+                var body = await new StreamReader(ctx.Request.Body).ReadToEndAsync();
+                var sig = ctx.Request.Headers["DocuSeal-Signature"].ToString();
+                await svc.HandleWebhookAsync("DocuSeal", body, sig);
+                return Results.Ok();
+            });
     }
+
+    public record VerifyPinRequest(string Code);
 
     private static bool TryGetUserId(ClaimsPrincipal user, out Guid userId)
     {

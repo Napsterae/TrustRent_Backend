@@ -232,8 +232,29 @@ public class LeaseService : ILeaseService
                 $"Data: {dto.StartDate:dd/MM/yyyy}, Fim: {lease.EndDate:dd/MM/yyyy}");
 
             var recipientId = userId == lease.LandlordId ? lease.TenantId : lease.LandlordId;
-            await _notificationService.SendNotificationAsync(recipientId, "lease",
-                "A data de início foi confirmada. Aguarda a aceitação dos termos do arrendamento.", lease.Id);
+            var nextSignature = GetNextPendingSignature(lease);
+
+            if (nextSignature == null)
+            {
+                await _notificationService.SendNotificationAsync(recipientId, "lease",
+                    "A data de início foi confirmada. Aguarda a aceitação dos termos do arrendamento.", lease.Id);
+            }
+            else
+            {
+                if (recipientId != nextSignature.UserId)
+                {
+                    await _notificationService.SendNotificationAsync(recipientId, "lease",
+                        "A data de início foi confirmada. O contrato entrou em fase de aceitação.", lease.Id);
+                }
+
+                await NotifySignaturePendingAsync(lease, nextSignature,
+                    "A data de início foi confirmada. É a tua vez de aceitar os termos do arrendamento.");
+            }
+
+            await NotifyExtraPartiesAsync(lease, nextSignature?.UserId ?? userId, "lease",
+                "O contrato avançou. Verifica o teu painel para o próximo passo.");
+
+            return lease.ToDto();
         }
 
         // Notificar co-candidato e fiador (se existirem) da transi\u00e7\u00e3o
@@ -381,12 +402,11 @@ public class LeaseService : ILeaseService
 
         if (lease.Status != LeaseStatus.AwaitingPayment)
         {
-            // Notificar restantes partes ainda por assinar
-            var pending = lease.Signatures.Where(s => !s.Signed && s.UserId != userId).ToList();
-            foreach (var pendingSignature in pending)
+            var nextSignature = GetNextPendingSignature(lease);
+            if (nextSignature != null)
             {
-                await NotifySignaturePendingAsync(lease, pendingSignature,
-                    "Uma das partes assinou o contrato. Aguarda a tua assinatura.");
+                await NotifySignaturePendingAsync(lease, nextSignature,
+                    "Uma das partes assinou o contrato. É a tua vez de assinar.");
             }
         }
 
@@ -429,8 +449,11 @@ public class LeaseService : ILeaseService
 
         lease.TermAcceptances.Add(new LeaseTermAcceptance
         {
-            Id = Guid.NewGuid(), LeaseId = lease.Id, UserId = userId,
-            Role = role, AcceptedAt = now,
+            Id = Guid.NewGuid(),
+            LeaseId = lease.Id,
+            UserId = userId,
+            Role = role,
+            AcceptedAt = now,
             AcceptedDocumentHash = string.IsNullOrWhiteSpace(dto.AcceptedDocumentHash) ? null : dto.AcceptedDocumentHash.Trim()
         });
 
@@ -464,11 +487,11 @@ public class LeaseService : ILeaseService
 
         if (lease.Status != LeaseStatus.AwaitingPayment)
         {
-            var pending = lease.Signatures.Where(s => !s.Signed && s.UserId != userId).ToList();
-            foreach (var pendingSignature in pending)
+            var nextSignature = GetNextPendingSignature(lease);
+            if (nextSignature != null)
             {
-                await NotifySignaturePendingAsync(lease, pendingSignature,
-                    "Uma das partes aceitou os termos. Aguarda a tua aceitação.");
+                await NotifySignaturePendingAsync(lease, nextSignature,
+                    "Uma das partes aceitou os termos. É a tua vez de aceitar o contrato.");
             }
         }
 
@@ -689,10 +712,7 @@ public class LeaseService : ILeaseService
             Message = $"{signature.Role} fez upload do contrato assinado. Cert: {certSubject}"
         });
 
-        var nextSignature = lease.Signatures
-            .Where(s => !s.Signed)
-            .OrderBy(s => s.SequenceOrder)
-            .FirstOrDefault();
+        var nextSignature = GetNextPendingSignature(lease);
         if (nextSignature == null)
         {
             await ActivateLeaseAsync(lease);
@@ -752,6 +772,12 @@ public class LeaseService : ILeaseService
             LeaseSignatoryRole.Guarantor => LeaseStatus.PendingGuarantorSignature,
             _ => LeaseStatus.PendingTenantSignature
         };
+
+    private static LeaseSignature? GetNextPendingSignature(Lease lease)
+        => lease.Signatures
+            .Where(s => !s.Signed)
+            .OrderBy(s => s.SequenceOrder)
+            .FirstOrDefault();
 
     private async Task ActivateLeaseAsync(Lease lease)
     {

@@ -43,6 +43,7 @@ public static class LeaseMappers
             LandlordSignatureVerified = lease.LandlordSignatureVerified,
             TenantSignatureCertSubject = lease.TenantSignatureCertSubject,
             TenantSignatureVerified = lease.TenantSignatureVerified,
+            SignatureProvider = lease.SignatureProvider,
             IsRegisteredWithTaxAuthority = lease.IsRegisteredWithTaxAuthority,
             TaxRegistrationDate = lease.TaxRegistrationDate,
             TaxRegistrationReference = lease.TaxRegistrationReference,
