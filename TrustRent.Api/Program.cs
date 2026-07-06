@@ -200,6 +200,38 @@ builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.IRevie
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Jobs.IContractGenerationJob, TrustRent.Modules.Leasing.Jobs.ContractGenerationJob>();
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Jobs.IDailyMaintenanceJob, TrustRent.Modules.Leasing.Jobs.DailyMaintenanceJob>();
 
+/* ELECTRONIC SIGNATURE PROVIDER */
+var esigProvider = builder.Configuration["ElectronicSignature:Provider"] ?? "Documenso";
+builder.Services.AddSingleton<TrustRent.Modules.Leasing.Contracts.Interfaces.ISigningProvider>(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+
+    if (esigProvider == "Documenso")
+    {
+        var documensoLogger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<TrustRent.Modules.Leasing.Services.DocumensoSigningProvider>>();
+        return new TrustRent.Modules.Leasing.Services.DocumensoSigningProvider(
+            config["ElectronicSignature:Documenso:BaseUrl"]!,
+            config["ElectronicSignature:Documenso:ApiKey"]!,
+            documensoLogger);
+    }
+
+    if (esigProvider == "DocuSeal")
+    {
+        var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+        var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<TrustRent.Modules.Leasing.Services.DocuSealSigningProvider>>();
+        return new TrustRent.Modules.Leasing.Services.DocuSealSigningProvider(
+            config["ElectronicSignature:DocuSeal:BaseUrl"]!,
+            config["ElectronicSignature:DocuSeal:ApiKey"]!,
+            config.GetValue<bool>("ElectronicSignature:DocuSeal:QesEnabled"),
+            httpClientFactory.CreateClient(),
+            logger);
+    }
+
+    throw new InvalidOperationException($"Unknown signing provider: {esigProvider}");
+});
+builder.Services.AddScoped<TrustRent.Modules.Leasing.Services.ISigningProviderService, TrustRent.Modules.Leasing.Services.SigningProviderService>();
+builder.Services.AddScoped<TrustRent.Modules.Leasing.Services.DocumentSigningPinService>();
+
 /* STRIPE / PAYMENTS */
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.IStripeAccountService, TrustRent.Modules.Leasing.Services.StripeAccountService>();
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.IStripePaymentService, TrustRent.Modules.Leasing.Services.StripePaymentService>();

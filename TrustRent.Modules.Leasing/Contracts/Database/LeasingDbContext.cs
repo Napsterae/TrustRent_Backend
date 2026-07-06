@@ -164,6 +164,8 @@ public class LeasingDbContext : DbContext
             builder.Property(l => l.ContractFilePath).HasMaxLength(500);
             builder.Property(l => l.LandlordSignatureRef).HasMaxLength(200);
             builder.Property(l => l.TenantSignatureRef).HasMaxLength(200);
+            builder.Property(l => l.SignatureProvider).HasMaxLength(50);
+            builder.Property(l => l.ExternalSigningRequestId).HasMaxLength(200);
 
             builder.HasIndex(l => l.ApplicationId);
             builder.HasIndex(l => l.PropertyId);
@@ -242,6 +244,7 @@ public class LeasingDbContext : DbContext
             builder.Property(s => s.SigningUserAgent).HasMaxLength(500);
             builder.Property(s => s.ChallengeId).HasMaxLength(100);
             builder.Property(s => s.VerificationError).HasMaxLength(500);
+            builder.Property(s => s.ExternalSignerId).HasMaxLength(200);
 
             builder.HasOne(s => s.Lease)
                    .WithMany(l => l.Signatures)

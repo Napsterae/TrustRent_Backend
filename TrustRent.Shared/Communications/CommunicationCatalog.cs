@@ -58,6 +58,7 @@ public static class CommunicationEmailTemplateKeys
     public const string LeaseRentIncreaseNotice = "leases.rent_increase_notice";
     public const string LeaseRentIncreaseContestation = "leases.rent_increase_contestation";
     public const string LegalDocumentUpdated = "legal.document_updated";
+    public const string DocumentSigningCode = "leases.document_signing_code";
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -82,7 +83,8 @@ public static class CommunicationEmailTemplateKeys
         LeaseEarlyTerminationNotice,
         LeaseRentIncreaseNotice,
         LeaseRentIncreaseContestation,
-        LegalDocumentUpdated
+        LegalDocumentUpdated,
+        DocumentSigningCode
     ];
 }
 
@@ -139,7 +141,9 @@ public static class CommunicationCatalog
         new("DocumentTitle", "Título do documento", "Nome do documento legal alterado.", "legal", false, null, "Política de privacidade", [CommunicationEmailTemplateKeys.LegalDocumentUpdated]),
         new("DocumentTypeLabel", "Tipo do documento", "Tipo legível do documento legal.", "legal", false, null, "Política de privacidade", [CommunicationEmailTemplateKeys.LegalDocumentUpdated]),
         new("DocumentVersion", "Versão do documento", "Versão publicada do documento legal.", "legal", false, null, "1.0.1", [CommunicationEmailTemplateKeys.LegalDocumentUpdated]),
-        new("DocumentUrl", "URL do documento", "Link público para a versão publicada.", "legal", false, null, "https://app.wekaza.pt/politica-de-privacidade?version=1.0.1", [CommunicationEmailTemplateKeys.LegalDocumentUpdated])
+        new("DocumentUrl", "URL do documento", "Link público para a versão publicada.", "legal", false, null, "https://app.wekaza.pt/politica-de-privacidade?version=1.0.1", [CommunicationEmailTemplateKeys.LegalDocumentUpdated]),
+        new("SigningCode", "Código de assinatura", "O código de 6 dígitos para confirmar a assinatura do documento.", "Contratos", false, null, "482915", [CommunicationEmailTemplateKeys.DocumentSigningCode]),
+        new("SigningCodeExpiresMinutes", "Minutos de validade do código", "Tempo até o código de assinatura expirar.", "Contratos", false, null, "10", [CommunicationEmailTemplateKeys.DocumentSigningCode])
     ];
 
     public static readonly IReadOnlyList<EmailTemplateSeedDefinition> EmailTemplates =
@@ -172,6 +176,35 @@ public static class CommunicationCatalog
             """,
             $"Usa o código {Token("LoginCode")} para entrar em {Token("AppName")}. Seleciona e copia o código manualmente se precisares. Expira em {Token("LoginCodeExpiresMinutes")} minutos.",
             ["AppName", "LoginCode", "LoginCodeExpiresMinutes"]),
+        new(
+            CommunicationEmailTemplateKeys.DocumentSigningCode,
+            "Código de assinatura de documento",
+            "Contratos",
+            "Enviado quando um utilizador precisa de confirmar a sua identidade para assinar um contrato digitalmente.",
+            "1.0.0",
+            "Código de assinatura — Predefinição",
+            $"Código para assinar o teu contrato — {Token("AppName")}",
+            $"""
+            <p style="margin:0 0 6px;font-size:12px;line-height:1.4;letter-spacing:1.8px;text-transform:uppercase;font-weight:700;color:#047857">Assina o teu contrato</p>
+            <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#374151">Estás a assinar um contrato na plataforma {Token("AppName")}. Usa o código abaixo para confirmar a tua identidade.</p>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin:0 0 24px;mso-table-lspace:0pt;mso-table-rspace:0pt">
+                <tr>
+                    <td align="center" bgcolor="#047857" style="padding:20px 16px;background-color:#047857;background-image:linear-gradient(135deg,#064e3b 0%,#047857 35%,#10b981 70%,#6ee7b7 100%);border-radius:22px">
+                        <p style="margin:0 0 10px;font-size:12px;line-height:1.4;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:#d1fae5">Código de assinatura</p>
+                        <p style="margin:0;font-family:'Courier New',Courier,monospace;font-size:34px;line-height:1.1;font-weight:700;letter-spacing:6px;color:#ffffff;white-space:nowrap;-webkit-user-select:all;user-select:all">{Token("SigningCode")}</p>
+                    </td>
+                </tr>
+            </table>
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin:0 0 18px;mso-table-lspace:0pt;mso-table-rspace:0pt">
+                <tr>
+                    <td style="padding:12px 18px;border:1px solid #a7f3d0;border-radius:999px;background-color:#ecfdf5;font-size:13px;line-height:1.5;font-weight:600;color:#047857">Para copiar rapidamente, seleciona o código acima. A maioria dos clientes de email não suporta cópia com um clique.</td>
+                </tr>
+            </table>
+            <p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#475569">Este código expira em <strong>{Token("SigningCodeExpiresMinutes")} minutos</strong> e só pode ser usado uma vez.</p>
+            <p style="margin:0;font-size:14px;line-height:1.6;color:#64748b">Se não pediste este código, podes ignorar este email.</p>
+            """,
+            $"Usa o código {Token("SigningCode")} para confirmar a tua identidade e assinar o contrato em {Token("AppName")}. Seleciona e copia o código manualmente se precisares. Expira em {Token("SigningCodeExpiresMinutes")} minutos.",
+            ["AppName", "SigningCode", "SigningCodeExpiresMinutes"]),
         new(
             CommunicationEmailTemplateKeys.ApplicationSubmitted,
             "Nova candidatura",

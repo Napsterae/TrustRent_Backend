@@ -68,6 +68,10 @@ public class Lease
     public string? ContractFileHash { get; set; }
     public string? LandlordSignedFileHash { get; set; }
 
+    // Embedded signing (Documenso / DocuSeal)
+    public string? SignatureProvider { get; set; }        // "Documenso" | "DocuSeal" | null (legacy)
+    public string? ExternalSigningRequestId { get; set; }  // provider's document/submission ID
+
     // Estado
     public LeaseStatus Status { get; set; } = LeaseStatus.Pending;
 

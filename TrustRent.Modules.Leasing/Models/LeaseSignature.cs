@@ -30,6 +30,9 @@ public class LeaseSignature
     public string? ChallengeId { get; set; }
     public string? VerificationError { get; set; }
 
+    // Embedded signing provider's recipient/submitter ID for this signer
+    public string? ExternalSignerId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 }

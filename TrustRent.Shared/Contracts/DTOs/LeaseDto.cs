@@ -39,6 +39,7 @@ public class LeaseDto
     public bool IsRegisteredWithTaxAuthority { get; set; }
     public DateTime? TaxRegistrationDate { get; set; }
     public string? TaxRegistrationReference { get; set; }
+    public string? SignatureProvider { get; set; }  // "Documenso" | "DocuSeal" | null (legacy upload)
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
