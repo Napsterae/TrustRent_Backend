@@ -58,12 +58,29 @@ public static class PropertyMappers
             Latitude = dto.Latitude,
             Longitude = dto.Longitude,
             IsPublic = dto.IsPublic,
+
+            // Caderneta Predial
+            MatrixArticle = dto.MatrixArticle,
+            PropertyFraction = dto.PropertyFraction,
             ParishConcelho = dto.ParishConcelho,
+
+            // Certificado Energético
+            EnergyClass = dto.EnergyClass,
+            EnergyCertificateNumber = dto.EnergyCertificateNumber,
+            EnergyCertificateExpiryDate = DateTime.TryParse(dto.EnergyCertificateExpiryDate, out var certExpiry) ? certExpiry : null,
+
+            // Registo AT
+            AtRegistrationNumber = dto.AtRegistrationNumber,
+
+            // Certidão Permanente
             PermanentCertNumber = dto.PermanentCertNumber,
             PermanentCertOffice = dto.PermanentCertOffice,
+
+            // Licença de Utilização
             UsageLicenseNumber = dto.UsageLicenseNumber,
             UsageLicenseDate = dto.UsageLicenseDate,
             UsageLicenseIssuer = dto.UsageLicenseIssuer,
+
             Deposit = dto.Deposit,
             AdvanceRentMonths = dto.AdvanceRentMonths,
             CondominiumFeesPaidBy = dto.CondominiumFeesPaidBy,
@@ -106,12 +123,29 @@ public static class PropertyMappers
         property.Latitude = dto.Latitude;
         property.Longitude = dto.Longitude;
         property.IsPublic = dto.IsPublic;
+
+        // Caderneta Predial
+        property.MatrixArticle = dto.MatrixArticle;
+        property.PropertyFraction = dto.PropertyFraction;
         property.ParishConcelho = dto.ParishConcelho;
+
+        // Certificado Energético
+        property.EnergyClass = dto.EnergyClass;
+        property.EnergyCertificateNumber = dto.EnergyCertificateNumber;
+        property.EnergyCertificateExpiryDate = DateTime.TryParse(dto.EnergyCertificateExpiryDate, out var certExpiry2) ? certExpiry2 : null;
+
+        // Registo AT
+        property.AtRegistrationNumber = dto.AtRegistrationNumber;
+
+        // Certidão Permanente
         property.PermanentCertNumber = dto.PermanentCertNumber;
         property.PermanentCertOffice = dto.PermanentCertOffice;
+
+        // Licença de Utilização
         property.UsageLicenseNumber = dto.UsageLicenseNumber;
         property.UsageLicenseDate = dto.UsageLicenseDate;
         property.UsageLicenseIssuer = dto.UsageLicenseIssuer;
+
         property.Deposit = dto.Deposit;
         property.AdvanceRentMonths = dto.AdvanceRentMonths;
         property.CondominiumFeesPaidBy = dto.CondominiumFeesPaidBy;
