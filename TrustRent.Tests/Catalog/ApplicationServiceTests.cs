@@ -151,10 +151,10 @@ public class ApplicationServiceTests
         var ex = await Assert.ThrowsAsync<Exception>(() => service.SubmitApplicationAsync(property.Id, Guid.NewGuid(), new SubmitApplicationDto
         {
             Message = "I'm interested in this property",
-            DurationMonths = 12
+            DurationMonths = 6
         }));
 
-        Assert.Contains("36 meses", ex.Message);
+        Assert.Contains("12 meses", ex.Message);
 
         context.Dispose();
     }

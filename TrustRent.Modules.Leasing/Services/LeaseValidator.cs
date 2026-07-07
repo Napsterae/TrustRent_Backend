@@ -13,9 +13,9 @@ public static class LeaseValidator
         if (proposedStartDate.Date <= DateTime.UtcNow.Date)
             throw new ArgumentException("A data de início deve ser no futuro.");
 
-        // Lei do Arrendamento 2026: Habitação Permanente requer duração mínima de 3 anos
-        if (leaseRegime == "PermanentHousing" && durationMonths > 0 && durationMonths < 36)
-            throw new ArgumentException("Nos termos da Lei do Arrendamento, contratos de Habitação Permanente têm uma duração mínima obrigatória de 3 anos (36 meses).");
+        // Lei do Arrendamento (Art. 1095.º/2 CC): Habitação Permanente requer duração mínima de 1 ano (12 meses)
+        if (leaseRegime == "PermanentHousing" && durationMonths > 0 && durationMonths < 12)
+            throw new ArgumentException("Nos termos da Lei do Arrendamento (Art. 1095.º do Código Civil), contratos de Habitação Permanente têm uma duração mínima obrigatória de 1 ano (12 meses).");
     }
 
     public static void ValidateConfirmStartDate(Lease lease, Guid userId, DateTime startDate)

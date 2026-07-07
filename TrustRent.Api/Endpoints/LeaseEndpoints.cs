@@ -378,18 +378,18 @@ public static class LeaseEndpoints
                 var lease = await db.Leases.FindAsync(leaseId);
                 if (lease == null) return Results.NotFound("Arrendamento não encontrado.");
 
-                // Proteção dos 3 anos — Art. 1096.º CC
-                // Contratos de habitação permanente com duração < 3 anos não podem ser opostos à renovação
-                // antes de perfazer um total de 3 anos de vigência.
-                if (dto.Response == "Cancel" && lease.LeaseRegime == "PermanentHousing")
+                // Proteção dos 3 anos — Art. 1097.º/3 CC
+                // O senhorio não se pode opor à renovação antes de perfazer 3 anos de vigência.
+                // O inquilino pode sempre opor-se à renovação (Art. 1098.º CC).
+                if (dto.Response == "Cancel" && lease.LeaseRegime == "PermanentHousing" && userId == lease.LandlordId)
                 {
                     var totalMonthsOccupied = (int)((lease.EndDate - lease.CreatedAt).TotalDays / 30.44);
                     if (totalMonthsOccupied < 36)
                     {
                         return Results.BadRequest(
-                            "Nos termos do Art. 1096.º do Código Civil, contratos de habitação permanente " +
-                            "com duração total inferior a 3 anos não podem ser opostos à renovação antes de " +
-                            $"perfazer um total de 3 anos de vigência. O contrato atual terá {totalMonthsOccupied} meses.");
+                            "Nos termos do Art. 1097.º/3 do Código Civil, o senhorio não se pode opor à renovação " +
+                            "de contratos de habitação permanente antes de perfazer um total de 3 anos de vigência. " +
+                            $"O contrato atual terá {totalMonthsOccupied} meses.");
                     }
                 }
 
