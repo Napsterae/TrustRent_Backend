@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TrustRent.Modules.Admin.Models;
 
 public enum SupportTicketState
@@ -53,6 +55,7 @@ public class SupportTicketMessage
 {
     public Guid Id { get; set; }
     public Guid TicketId { get; set; }
+    [JsonIgnore]
     public SupportTicket? Ticket { get; set; }
     public Guid? AuthorId { get; set; } // user OR admin
     public bool IsAdmin { get; set; }
