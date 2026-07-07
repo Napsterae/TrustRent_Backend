@@ -258,11 +258,18 @@ public class DailyMaintenanceJob : IDailyMaintenanceJob
             else
             {
                 // At least one party wants to cancel
-                // Proteção dos 3 anos (Art. 1096.º CC): ignorar cancelamento se < 3 anos em habitação permanente
+                // Proteção dos 3 anos (Art. 1097.º/3 CC): apenas o senhorio está bloqueado.
+                // O inquilino pode sempre opor-se à renovação (Art. 1098.º CC).
                 var totalMonths = (int)((lease.EndDate - lease.CreatedAt).TotalDays / 30.44);
-                if (lease.LeaseRegime == "PermanentHousing" && totalMonths < 36)
+                var tenantCancelled = notification.TenantResponse == "Cancel";
+                var landlordCancelledWithinProtection = lease.LeaseRegime == "PermanentHousing"
+                    && notification.LandlordResponse == "Cancel"
+                    && !tenantCancelled
+                    && totalMonths < 36;
+
+                if (landlordCancelledWithinProtection)
                 {
-                    // Forçar renovação até perfazer 3 anos
+                    // Forçar renovação até perfazer 3 anos — senhorio não se pode opor
                     var renewalMonths = Math.Max(lease.DurationMonths, 36 - totalMonths);
                     lease.StartDate = lease.EndDate;
                     lease.EndDate = lease.EndDate.AddMonths(renewalMonths);
@@ -271,16 +278,16 @@ public class DailyMaintenanceJob : IDailyMaintenanceJob
 
                     await _notificationService.SendNotificationAsync(
                         lease.LandlordId, "LeaseAutoRenewed",
-                        $"O contrato foi renovado automaticamente até {lease.EndDate:dd/MM/yyyy} (proteção de 3 anos, Art. 1096.º CC).", lease.Id);
+                        $"O contrato foi renovado automaticamente até {lease.EndDate:dd/MM/yyyy} (proteção de 3 anos, Art. 1097.º/3 CC).", lease.Id);
                     await _notificationService.SendNotificationAsync(
                         lease.TenantId, "LeaseAutoRenewed",
-                        $"O contrato foi renovado automaticamente até {lease.EndDate:dd/MM/yyyy} (proteção de 3 anos, Art. 1096.º CC).", lease.Id);
+                        $"O contrato foi renovado automaticamente até {lease.EndDate:dd/MM/yyyy} (proteção de 3 anos, Art. 1097.º/3 CC).", lease.Id);
 
-                    _logger.LogInformation("Lease {LeaseId} auto-renewed due to 3-year protection until {EndDate}", lease.Id, lease.EndDate);
+                    _logger.LogInformation("Lease {LeaseId} auto-renewed due to 3-year landlord protection until {EndDate}", lease.Id, lease.EndDate);
                 }
                 else
                 {
-                    // lease will expire naturally
+                    // lease will expire naturally — tenant cancelled, or landlord cancelled after 3 years
                     lease.AllowsRenewal = false;
                     lease.UpdatedAt = DateTime.UtcNow;
 
@@ -330,12 +337,42 @@ public class DailyMaintenanceJob : IDailyMaintenanceJob
             }
             else
             {
-                // One responded, one didn't — whoever responded with Cancel wins, otherwise auto-renew
+                // One responded, one didn't
                 var anyCancel = notification.LandlordResponse == "Cancel" || notification.TenantResponse == "Cancel";
                 if (anyCancel)
                 {
-                    lease.AllowsRenewal = false;
-                    lease.UpdatedAt = DateTime.UtcNow;
+                    // Proteção dos 3 anos (Art. 1097.º/3 CC): senhorio não se pode opor antes de 3 anos
+                    var totalMonths = (int)((lease.EndDate - lease.CreatedAt).TotalDays / 30.44);
+                    var tenantCancelled = notification.TenantResponse == "Cancel";
+                    var landlordCancelledWithinProtection = lease.LeaseRegime == "PermanentHousing"
+                        && notification.LandlordResponse == "Cancel"
+                        && !tenantCancelled
+                        && totalMonths < 36;
+
+                    if (landlordCancelledWithinProtection)
+                    {
+                        // Forçar renovação — senhorio não se pode opor durante 3 anos
+                        var renewalMonths = Math.Max(lease.DurationMonths, 36 - totalMonths);
+                        lease.StartDate = lease.EndDate;
+                        lease.EndDate = lease.EndDate.AddMonths(renewalMonths);
+                        lease.RenewalDate = DateTime.UtcNow;
+                        lease.UpdatedAt = DateTime.UtcNow;
+
+                        await _notificationService.SendNotificationAsync(
+                            lease.LandlordId, "LeaseAutoRenewed",
+                            $"O contrato foi renovado automaticamente até {lease.EndDate:dd/MM/yyyy} (proteção de 3 anos, Art. 1097.º/3 CC).", lease.Id);
+                        await _notificationService.SendNotificationAsync(
+                            lease.TenantId, "LeaseAutoRenewed",
+                            $"O contrato foi renovado automaticamente até {lease.EndDate:dd/MM/yyyy} (proteção de 3 anos, Art. 1097.º/3 CC).", lease.Id);
+
+                        _logger.LogInformation("Lease {LeaseId} auto-renewed due to 3-year landlord protection (overdue) until {EndDate}", lease.Id, lease.EndDate);
+                    }
+                    else
+                    {
+                        // Tenant cancelled, or landlord cancelled after 3 years — lease expires
+                        lease.AllowsRenewal = false;
+                        lease.UpdatedAt = DateTime.UtcNow;
+                    }
                 }
                 else if (lease.AllowsRenewal)
                 {

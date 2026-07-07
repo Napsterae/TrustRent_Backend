@@ -392,13 +392,13 @@ public class PropertyService : IPropertyService
         if (nonPositivePeriods.Count > 0)
             throw new InvalidOperationException("As periodicidades de arrendamento tem de ser superiores a 0 meses.");
 
-        // Lei do Arrendamento 2026: Habitacao Permanente requer duracao minima de 36 meses.
+        // Lei do Arrendamento (Art. 1095.º/2 CC): Habitacao Permanente requer duracao minima de 12 meses (1 ano).
         if (regime == LeaseRegime.PermanentHousing)
         {
-            var invalidPeriods = acceptedPeriodicities.Where(p => p < 36).ToList();
+            var invalidPeriods = acceptedPeriodicities.Where(p => p < 12).ToList();
             if (invalidPeriods.Count > 0)
                 throw new InvalidOperationException(
-                    "Nos termos da Lei do Arrendamento 2026, contratos de Habitação Permanente têm uma duração mínima obrigatória de 3 anos (36 meses). " +
+                    "Nos termos da Lei do Arrendamento (Art. 1095.º do Código Civil), contratos de Habitação Permanente têm uma duração mínima obrigatória de 1 ano (12 meses). " +
                     $"As seguintes durações são inválidas: {string.Join(", ", invalidPeriods.Select(p => $"{p} meses"))}.");
         }
     }

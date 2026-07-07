@@ -73,9 +73,9 @@ public class ApplicationService : IApplicationService
         if (acceptedPeriodicities.Count > 0 && !acceptedPeriodicities.Contains(dto.DurationMonths))
             throw new Exception($"A duração selecionada não corresponde a uma periodicidade aceite para este imóvel. Opções disponíveis: {string.Join(", ", acceptedPeriodicities)} meses.");
 
-        // Lei do Arrendamento 2026: Habitação Permanente requer duração mínima de 3 anos (36 meses)
-        if (property.LeaseRegime == LeaseRegime.PermanentHousing && dto.DurationMonths < 36)
-            throw new Exception("Nos termos da Lei do Arrendamento, contratos de Habitação Permanente têm uma duração mínima obrigatória de 3 anos (36 meses).");
+        // Lei do Arrendamento (Art. 1095.º/2 CC): Habitação Permanente requer duração mínima de 1 ano (12 meses)
+        if (property.LeaseRegime == LeaseRegime.PermanentHousing && dto.DurationMonths < 12)
+            throw new Exception("Nos termos da Lei do Arrendamento (Art. 1095.º do Código Civil), contratos de Habitação Permanente têm uma duração mínima obrigatória de 1 ano (12 meses).");
 
         await ValidateInitialCoTenantInviteAsync(property, tenantId, dto.CoTenantEmail);
 

@@ -1157,7 +1157,7 @@ public static class CatalogSeeder
 
     private static int[] GetAcceptedPeriodicitiesFor(LeaseRegime regime, Random random)
     {
-        var permanentOptions = new[] { 36, 48, 60, 120 };
+        var permanentOptions = new[] { 12, 36, 48, 60, 120 };
         var temporaryOptions = new[] { 3, 6, 9, 12 };
         var source = regime == LeaseRegime.PermanentHousing ? permanentOptions : temporaryOptions;
         var count = regime == LeaseRegime.PermanentHousing ? random.Next(1, 4) : random.Next(1, 3);
