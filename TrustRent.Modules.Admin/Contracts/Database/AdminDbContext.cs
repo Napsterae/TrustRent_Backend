@@ -138,7 +138,9 @@ public class AdminDbContext : DbContext
             b.Property(x => x.ClientBrowser).HasMaxLength(160);
             b.Property(x => x.ClientOs).HasMaxLength(160);
             b.Property(x => x.ClientDevice).HasMaxLength(160);
+            b.Property(x => x.ArchivedByAdminId);
             b.Property(x => x.MetadataJson).HasColumnType("jsonb");
+            b.HasIndex(x => x.IsArchived);
             b.HasIndex(x => x.OpenedByUserId);
             b.HasIndex(x => x.AssignedAdminId);
             b.HasIndex(x => x.Kind);
