@@ -43,6 +43,9 @@ public class SupportTicket
     public string? ClientOs { get; set; }
     public string? ClientDevice { get; set; }
     public bool DiagnosticsConsent { get; set; }
+    public bool IsArchived { get; set; } = false;
+    public DateTime? ArchivedAt { get; set; }
+    public Guid? ArchivedByAdminId { get; set; }
     public string? MetadataJson { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }

@@ -279,7 +279,7 @@ public static class SupportTicketsEndpoints
 
         var admReports = app.MapGroup("/api/admin/reports");
 
-        admReports.MapGet("/", async ([FromQuery] string? type, [FromQuery] string? state, [FromQuery] string? search, [FromQuery] int page, [FromQuery] int pageSize, AdminDbContext db) =>
+        admReports.MapGet("/", async ([FromQuery] string? type, [FromQuery] string? state, [FromQuery] string? search, [FromQuery] bool? archived, [FromQuery] int page, [FromQuery] int pageSize, AdminDbContext db) =>
         {
             page = page < 1 ? 1 : page;
             pageSize = pageSize < 1 ? 25 : (pageSize > 200 ? 200 : pageSize);
@@ -293,6 +293,8 @@ public static class SupportTicketsEndpoints
 
             if (!string.IsNullOrWhiteSpace(state) && Enum.TryParse<SupportTicketState>(state, true, out var parsedState))
                 q = q.Where(t => t.State == parsedState);
+
+            q = archived.HasValue ? q.Where(t => t.IsArchived == archived.Value) : q.Where(t => !t.IsArchived);
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -325,6 +327,9 @@ public static class SupportTicketsEndpoints
                     t.ClientOs,
                     t.ClientDevice,
                     t.DiagnosticsConsent,
+                    t.IsArchived,
+                    t.ArchivedAt,
+                    t.ArchivedByAdminId,
                     t.CreatedAt,
                     t.UpdatedAt
                 })
@@ -409,6 +414,40 @@ public static class SupportTicketsEndpoints
             await audit.WriteAsync(GetUserId(ctx), "report.priority", "SupportTicket", id.ToString(), before, JsonSerializer.Serialize(new { t.Priority }), null, ctx);
             return Results.NoContent();
         }).RequireAuthorization(AdminAuthorizationExtensions.PolicyName(PermissionCodes.ReportsManage));
+
+        admReports.MapPost("/{id:guid}/archive", async (Guid id, HttpContext ctx, AdminDbContext db, IAuditLogService audit) =>
+        {
+            var t = await db.SupportTickets.FirstOrDefaultAsync(x => x.Id == id && x.Kind != SupportTicketKind.Support);
+            if (t is null) return Results.NotFound();
+
+            if (t.IsArchived) return Results.NoContent();
+
+            var before = JsonSerializer.Serialize(new { t.IsArchived });
+            t.IsArchived = true;
+            t.ArchivedAt = DateTime.UtcNow;
+            t.ArchivedByAdminId = GetUserId(ctx);
+            t.UpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            await audit.WriteAsync(GetUserId(ctx), "report.archive", "SupportTicket", id.ToString(), before, JsonSerializer.Serialize(new { t.IsArchived }), null, ctx);
+            return Results.NoContent();
+        }).RequireAuthorization(AdminAuthorizationExtensions.PolicyName(PermissionCodes.ReportsManage));
+
+        admReports.MapPost("/{id:guid}/unarchive", async (Guid id, HttpContext ctx, AdminDbContext db, IAuditLogService audit) =>
+        {
+            var t = await db.SupportTickets.FirstOrDefaultAsync(x => x.Id == id && x.Kind != SupportTicketKind.Support);
+            if (t is null) return Results.NotFound();
+
+            if (!t.IsArchived) return Results.NoContent();
+
+            var before = JsonSerializer.Serialize(new { t.IsArchived });
+            t.IsArchived = false;
+            t.ArchivedAt = null;
+            t.ArchivedByAdminId = null;
+            t.UpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            await audit.WriteAsync(GetUserId(ctx), "report.unarchive", "SupportTicket", id.ToString(), before, JsonSerializer.Serialize(new { t.IsArchived }), null, ctx);
+            return Results.NoContent();
+        }).RequireAuthorization(AdminAuthorizationExtensions.PolicyName(PermissionCodes.ReportsManage));
     }
 
     private static string? TrimOrNull(string? value) =>
@@ -417,7 +456,7 @@ public static class SupportTicketsEndpoints
     private static string TrimOrDefault(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
 
-    private static bool TryParseReportKind(string? value, out SupportTicketKind kind)
+    internal static bool TryParseReportKind(string? value, out SupportTicketKind kind)
     {
         switch (value?.Trim().ToLowerInvariant())
         {

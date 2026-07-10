@@ -72,6 +72,19 @@ Lease flow:
 - If lease already became `Active`, stuck application state must reconcile to `LeaseActive`.
 - Tax registration is a lease flow with document extraction, not a free text toggle.
 
+Embedded signing:
+- Default signing method is embedded in-browser signing via `ISigningProvider` abstraction.
+- Two providers implemented: `DocumensoSigningProvider` (self-hosted, primary) and `DocuSealSigningProvider` (cloud, fallback/QES path).
+- Active provider is config-driven: `ElectronicSignature:Provider` (`"Documenso"` or `"DocuSeal"`).
+- `SigningProviderService` orchestrates: creates document in provider with all signers in sequence, gets embedded URL, handles webhook completion.
+- `DocumentSigningPinService` sends a 6-digit PIN via user's preferred channel (Telegram/WhatsApp/email) before returning the embedded signing URL. Reuses `WhatsAppOneTimeCodes` with `Purpose = "document_signing"`.
+- Webhook is source of truth: provider fires `DOCUMENT_SIGNED`/`DOCUMENT_COMPLETED` (Documenso) or `form.completed` (DocuSeal) → backend verifies HMAC, downloads signed PDF, updates `LeaseSignature`, transitions status.
+- New endpoints: `POST /api/leases/{leaseId}/request-signing-pin`, `POST /api/leases/{leaseId}/verify-signing-pin`, `POST /api/leases/signature-webhook/{provider}`. Guest guarantor variants under `/api/guarantor-guest/{token}/lease/`.
+- `Lease.SignatureProvider` and `Lease.ExternalSigningRequestId` track provider state. `LeaseSignature.ExternalSignerId` tracks per-signer provider ID.
+- Legacy upload path (`UploadSignedContractAsync`) is preserved as "modo avançado" fallback. Do not remove it.
+- Legacy CMD mock (`DigitalSignatureService`) is dead code. Do not wire new features to it.
+- Email template `leases.document_signing_code` sends the PIN via email when messaging channels are unavailable. Seeded in `CommunicationCatalog`, admin-editable in backoffice.
+
 Payments and legal flows:
 - Rent payments use Stripe PaymentIntents.
 - Payment method setup uses SetupIntent and supports `card` and `revolut_pay`.
@@ -93,8 +106,24 @@ Admin and ops:
 - Admin auth uses separate JWT scheme, CSRF, RBAC, audit, and MFA expectations.
 - Admin manages moderation, reference data, settings, communications, jobs, support tickets, reports, and staging access.
 - Reports may be anonymous and carry technical metadata.
+- Reports support archiving: `IsArchived`/`ArchivedAt`/`ArchivedByAdminId` on `SupportTicket`. Admin list accepts `?archived=true|false` (omitted = active only). Archive/unarchive are audited mutations gated by `reports.manage`.
 - Admin detail endpoints must project flat DTOs. Do not return raw EF graphs.
 - Simulate endpoints stay dev/staging only. Never leak prod access.
+
+Agent API (Hermes):
+- Read-only reports API for automated agents lives at `/api/agent/reports` (list + detail with messages and metadata).
+- Auth is a single `X-Api-Key` request header checked against `Hermes:ApiKey` config. No admin session, no CSRF, no DB tables.
+- When `Hermes:ApiKey` is unset/empty, the endpoints return 404 (`Agent API desativado.`) — the surface is invisible until configured.
+- On invalid/missing header, returns 401 (`API key inválida.`).
+- Endpoints are defined in `AgentReportsEndpoints.cs`; wired in `Program.cs` via `app.MapAgentReportsEndpoints()`.
+- This is intentionally read-only. Agents analyse reports; admins act on them.
+
+Railway and config:
+- `WebApplication.CreateBuilder(args)` loads `appsettings.json`, environment-specific appsettings, and environment variables (standard ASP.NET Core order).
+- Nested config keys map to env vars with `__` (double underscore): `Hermes:ApiKey` -> `Hermes__ApiKey`, `Gemini:ApiKey` -> `Gemini__ApiKey`, `ConnectionStrings:PostgresConnection` -> `ConnectionStrings__PostgresConnection`.
+- Railway is detected via `PORT` and `DOTNET_RUNNING_IN_CONTAINER` env vars; the app then listens on `http://0.0.0.0:8080` (and the Railway-provided `PORT`). See `Program.cs`.
+- Set secrets as Railway variables, never in committed `appsettings.json`. The `appsettings.json` placeholders (`COLOCA_NO_FICHEIRO_DEVELOPMENT_OU_SECRETS`) are markers only.
+- `ASPNETCORE_ENVIRONMENT=Production` disables `/simulate-*` dev endpoints. Never deploy with `Development`.
 
 Tests:
 - xUnit + FluentAssertions + Moq + EF InMemory.
