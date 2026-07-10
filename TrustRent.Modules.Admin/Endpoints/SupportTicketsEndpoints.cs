@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using System.Security.Claims;
 using System.Text.Json;
 using TrustRent.Modules.Admin.Authorization;
@@ -134,7 +135,7 @@ public static class SupportTicketsEndpoints
 
         var reports = app.MapGroup("/api/reports");
 
-        reports.MapPost("/", async ([FromBody] CreateReportRequest req, HttpContext ctx, AdminDbContext db) =>
+        reports.MapPost("/", async ([FromBody] CreateReportRequest req, HttpContext ctx, AdminDbContext db, IConfiguration config) =>
         {
             if (!TryParseReportKind(req.Type, out var kind) || kind == SupportTicketKind.Support)
                 return Results.BadRequest(new { error = "Tipo de report inválido." });
@@ -142,7 +143,11 @@ public static class SupportTicketsEndpoints
             if (string.IsNullOrWhiteSpace(req.Subject) || string.IsNullOrWhiteSpace(req.Body))
                 return Results.BadRequest(new { error = "Assunto e descrição obrigatórios." });
 
-            if (kind == SupportTicketKind.ErrorReport && !req.DiagnosticsConsent)
+            var autoCaptureEnabled = IsFlagEnabled(config["ErrorReporting:AutoCaptureEnabled"], defaultValue: true);
+            var isAutoCapture = string.Equals(TrimOrNull(req.SourceChannel), "auto-capture", StringComparison.OrdinalIgnoreCase);
+            var consentEffective = req.DiagnosticsConsent || (isAutoCapture && autoCaptureEnabled);
+
+            if (kind == SupportTicketKind.ErrorReport && !consentEffective)
                 return Results.BadRequest(new { error = "É obrigatório consentimento para partilha dos dados técnicos no report de erro." });
 
             var openedByUserId = TryGetUserId(ctx);
@@ -162,7 +167,7 @@ public static class SupportTicketsEndpoints
                 ClientBrowser = TrimOrNull(req.Browser),
                 ClientOs = TrimOrNull(req.OperatingSystem),
                 ClientDevice = TrimOrNull(req.DeviceType),
-                DiagnosticsConsent = kind == SupportTicketKind.ErrorReport && req.DiagnosticsConsent,
+                DiagnosticsConsent = kind == SupportTicketKind.ErrorReport && consentEffective,
                 MetadataJson = SerializeReportMetadata(req, ctx, openedByUserId, createdAt),
                 CreatedAt = createdAt
             };
@@ -455,6 +460,12 @@ public static class SupportTicketsEndpoints
 
     private static string TrimOrDefault(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+
+    private static bool IsFlagEnabled(string? raw, bool defaultValue)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return defaultValue;
+        return string.Equals(raw.Trim(), "true", StringComparison.OrdinalIgnoreCase) || raw.Trim() == "1";
+    }
 
     internal static bool TryParseReportKind(string? value, out SupportTicketKind kind)
     {
