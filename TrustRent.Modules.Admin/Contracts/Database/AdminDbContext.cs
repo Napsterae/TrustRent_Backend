@@ -20,6 +20,7 @@ public class AdminDbContext : DbContext
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
     public DbSet<SupportTicketMessage> SupportTicketMessages => Set<SupportTicketMessage>();
     public DbSet<PaymentOperation> PaymentOperations => Set<PaymentOperation>();
+    public DbSet<ConsentRecord> ConsentRecords => Set<ConsentRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -166,6 +167,24 @@ public class AdminDbContext : DbContext
             b.Property(x => x.Reason).HasMaxLength(500);
             b.Property(x => x.StripeObjectId).HasMaxLength(200);
             b.Property(x => x.Amount).HasColumnType("numeric(18,2)");
+        });
+
+        modelBuilder.Entity<ConsentRecord>(b =>
+        {
+            b.ToTable("ConsentRecords");
+            b.HasKey(x => x.Id);
+            b.HasIndex(x => x.OpenedByUserId);
+            b.HasIndex(x => x.SessionId);
+            b.HasIndex(x => x.CreatedAt).IsDescending();
+            b.Property(x => x.ConsentStatus).IsRequired().HasMaxLength(20);
+            b.Property(x => x.Mechanism).IsRequired().HasMaxLength(50);
+            b.Property(x => x.PurposesJson).HasColumnType("jsonb");
+            b.Property(x => x.BannerVersion).HasMaxLength(50);
+            b.Property(x => x.PrivacyPolicyVersion).HasMaxLength(50);
+            b.Property(x => x.SourceUrl).HasMaxLength(500);
+            b.Property(x => x.Language).HasMaxLength(10);
+            b.Property(x => x.UserAgent).HasMaxLength(500);
+            b.Property(x => x.IpAddress).HasMaxLength(45);
         });
 
         base.OnModelCreating(modelBuilder);

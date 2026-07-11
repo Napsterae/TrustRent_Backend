@@ -643,6 +643,12 @@ public static class CommunicationCatalog
                 <h3 style="margin:0 0 8px;font-size:18px;color:#0f172a">8. Contacto</h3>
                 <p style="margin:0;font-size:15px;line-height:1.8;color:#475569">Para qualquer assunto relacionado com esta política, contacta {Token("SupportEmail")} ou consulta {Token("WebsiteUrl")}. Esta versão mantém-se em vigor até publicação de nova revisão.</p>
             </div>
+            <div>
+                <h3 style="margin:0 0 8px;font-size:18px;color:#0f172a">9. Recolha de dados técnicos e consentimento</h3>
+                <p style="margin:0 0 10px;font-size:15px;line-height:1.8;color:#475569">Para detetar e corrigir erros da aplicação, recolhemos dados técnicos (browser, sistema operativo, dispositivo, página e stack trace de erros) com o seu consentimento. O consentimento é registado de forma auditável e imutável no nosso servidor, incluindo a data, hora, versão do banner e versão da política de privacidade apresentados no momento do consentimento.</p>
+                <p style="margin:0 0 10px;font-size:15px;line-height:1.8;color:#475569">Cookie de consentimento: armazenado no seu navegador por 6 meses, após os quais voltamos a solicitar o seu consentimento. Registos de consentimento no servidor: conservados por 5 anos para cumprimento da obrigação legal de demonstração de consentimento (Art.º 6.º(1)(a) e Art.º 7.º(1) do RGPD).</p>
+                <p style="margin:0;font-size:15px;line-height:1.8;color:#475569">Pode retirar o seu consentimento a qualquer momento através da ligação "Definições de consentimento" no rodapé da página. A retirada de consentimento é registada com a mesma robustez que a aceitação.</p>
+            </div>
         </section>
         """;
 
