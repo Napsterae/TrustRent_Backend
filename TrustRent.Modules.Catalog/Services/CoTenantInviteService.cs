@@ -8,6 +8,7 @@ using TrustRent.Modules.Catalog.Models;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Shared.Communications;
 using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Shared.Security;
 using TrustRent.Shared.Models;
 
 namespace TrustRent.Modules.Catalog.Services;
@@ -94,7 +95,7 @@ public class CoTenantInviteService : ICoTenantInviteService
             Status = CoTenantInviteStatus.Pending,
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddDays(InviteValidityDays),
-            CreatedFromIp = sourceIp
+            CreatedFromIp = IpHashHelper.Hash(sourceIp)
         };
 
         _context.ApplicationCoTenantInvites.Add(invite);

@@ -216,11 +216,11 @@ public class LeasingDbContext : DbContext
             builder.HasKey(l => l.Id);
             builder.Property(l => l.CommunicationType).IsRequired().HasMaxLength(100);
             builder.Property(l => l.Content).IsRequired();
-            builder.Property(l => l.SenderIpAddress).IsRequired().HasMaxLength(45);
+            builder.Property(l => l.SenderIpAddress).IsRequired().HasMaxLength(128);
             builder.Property(l => l.SenderUserAgent).HasMaxLength(500);
-            builder.Property(l => l.ViewerIpAddress).HasMaxLength(45);
+            builder.Property(l => l.ViewerIpAddress).HasMaxLength(128);
             builder.Property(l => l.ViewerUserAgent).HasMaxLength(500);
-            builder.Property(l => l.AcknowledgerIpAddress).HasMaxLength(45);
+            builder.Property(l => l.AcknowledgerIpAddress).HasMaxLength(128);
             builder.Property(l => l.EmailRecipientAddress).HasMaxLength(320);
             builder.Property(l => l.ContentHash).HasMaxLength(64);
             builder.HasIndex(l => l.LeaseId);
@@ -240,7 +240,7 @@ public class LeasingDbContext : DbContext
             builder.Property(s => s.SignedFilePath).HasMaxLength(500);
             builder.Property(s => s.SignedFileHash).HasMaxLength(128);
             builder.Property(s => s.SignatureCertSubject).HasMaxLength(500);
-            builder.Property(s => s.SigningIp).HasMaxLength(45);
+            builder.Property(s => s.SigningIp).HasMaxLength(128);
             builder.Property(s => s.SigningUserAgent).HasMaxLength(500);
             builder.Property(s => s.ChallengeId).HasMaxLength(100);
             builder.Property(s => s.VerificationError).HasMaxLength(500);
@@ -266,7 +266,7 @@ public class LeasingDbContext : DbContext
             builder.HasKey(t => t.Id);
             builder.Property(t => t.Role).HasConversion<int>();
             builder.Property(t => t.AcceptedDocumentHash).HasMaxLength(128);
-            builder.Property(t => t.IpAddress).HasMaxLength(45);
+            builder.Property(t => t.IpAddress).HasMaxLength(128);
             builder.Property(t => t.UserAgent).HasMaxLength(500);
 
             builder.HasOne(t => t.Lease)

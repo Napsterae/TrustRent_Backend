@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -47,7 +48,8 @@ public class TelegramMessagingPlatformServiceTests
         user.PendingPhoneNumber = "+351912345678";
         user.PendingPhoneContactPlatform = PhoneContactPlatforms.Telegram;
         user.TelegramChatId = "123456789";
-        user.TelegramPendingVerificationToken = "token123";
+        var tokenHash = HashToken("token123");
+        user.TelegramPendingVerificationToken = tokenHash;
         user.TelegramPendingExpectedPhoneNumber = "+351912345678";
         user.TelegramPendingVerificationExpiresAt = DateTime.UtcNow.AddMinutes(10);
 
@@ -77,7 +79,8 @@ public class TelegramMessagingPlatformServiceTests
                 user.PendingPhoneCountryCode = "PT";
                 user.PendingPhoneNumber = "+351912345678";
                 user.PendingPhoneContactPlatform = PhoneContactPlatforms.Telegram;
-                user.TelegramPendingVerificationToken = "token123";
+                var tokenHash = HashToken("token123");
+                user.TelegramPendingVerificationToken = tokenHash;
                 user.TelegramPendingExpectedPhoneNumber = "+351912345678";
                 user.TelegramPendingVerificationExpiresAt = DateTime.UtcNow.AddMinutes(10);
 
@@ -143,6 +146,9 @@ public class TelegramMessagingPlatformServiceTests
             new PlatformSetting { Key = "telegram.bot_username", Value = "test_bot" });
         await adminDb.SaveChangesAsync();
     }
+
+    private static string HashToken(string rawToken)
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken))).ToLowerInvariant();
 
     private static User CreateUser()
         => new()

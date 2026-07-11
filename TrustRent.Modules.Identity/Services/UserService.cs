@@ -186,8 +186,11 @@ public class UserService : IUserService
 
         user.Name = normalizedName;
         user.Email = normalizedEmail;
+        user.EmailBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeEmail(normalizedEmail));
         user.Nif = normalizedNif;
+        user.NifBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeNif(normalizedNif));
         user.CitizenCardNumber = normalizedCitizenCardNumber;
+        user.CitizenCardNumberBlindIndex = EncryptionHelperV2.ComputeBlindIndex(normalizedCitizenCardNumber);
         user.Address = normalizedAddress;
         user.PostalCode = normalizedPostalCode;
 
@@ -195,6 +198,7 @@ public class UserService : IUserService
         {
             user.PhoneCountryCode = null;
             user.PhoneNumber = null;
+            user.PhoneNumberBlindIndex = null;
             user.PhoneContactPlatform = normalizedPhoneContactPlatform;
             user.IsPhoneNumberVerified = false;
             user.PhoneNumberVerifiedAt = null;
@@ -471,8 +475,10 @@ public class UserService : IUserService
             // SUBSTITUIÇÃO DOS CAMPOS
             user.Name = extractedName;
             user.Nif = extractedNif;
+            user.NifBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeNif(extractedNif));
             user.CitizenCardNumber = extractedCc;
-            
+            user.CitizenCardNumberBlindIndex = EncryptionHelperV2.ComputeBlindIndex(extractedCc);
+
             user.IsIdentityVerified = true;
             user.IdentityExpiryDate = ParseDate(cc.ExpiryDate);
             user.TrustScore += 20;
@@ -830,6 +836,7 @@ public class UserService : IUserService
         {
             user.PhoneCountryCode = user.PendingPhoneCountryCode;
             user.PhoneNumber = user.PendingPhoneNumber;
+            user.PhoneNumberBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizePhone(user.PendingPhoneNumber));
             user.PhoneContactPlatform = NormalizePhoneContactPlatform(user.PendingPhoneContactPlatform, phoneContactPlatform, throwOnUnsupported: false);
             ClearPendingPhone(user);
             return;

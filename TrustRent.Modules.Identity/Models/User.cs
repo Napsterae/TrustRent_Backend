@@ -23,10 +23,14 @@ public class User
     public string? TelegramChatId { get; set; }
     public string? TelegramUsername { get; set; }
     public DateTime? TelegramLinkedAt { get; set; }
-    public string? TelegramPendingVerificationToken { get; set; }
+    public string? TelegramPendingVerificationToken { get; set; } // Stores SHA256 hash of the verification token, not the raw token
     public string? TelegramPendingExpectedPhoneNumber { get; set; }
     public DateTime? TelegramPendingVerificationExpiresAt { get; set; }
     public string? TelegramPendingVerificationError { get; set; }
+    public string? EmailBlindIndex { get; set; }
+    public string? NifBlindIndex { get; set; }
+    public string? CitizenCardNumberBlindIndex { get; set; }
+    public string? PhoneNumberBlindIndex { get; set; }
     public string? ProfilePictureUrl { get; set; }
     public bool EmailNotificationsEnabled { get; set; } = true;
     public bool WhatsAppNotificationsEnabled { get; set; } = false;

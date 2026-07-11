@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Shared.Security;
 using TrustRent.Modules.Identity.Models;
 using TrustRent.Shared.Contracts.Interfaces;
 
@@ -41,8 +42,9 @@ public class WhatsAppCodeService : IWhatsAppCodeService
         var normalizedPhoneNumber = NormalizePhoneNumber(phoneNumber);
         var now = DateTime.UtcNow;
 
+        var phoneBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizePhone(normalizedPhoneNumber));
         var canReceiveLoginCode = await _db.Users.AnyAsync(
-            user => user.PhoneNumber == normalizedPhoneNumber && user.IsPhoneNumberVerified,
+            user => user.PhoneNumberBlindIndex == phoneBlindIndex && user.IsPhoneNumberVerified,
             ct);
 
         if (!canReceiveLoginCode)
@@ -63,9 +65,10 @@ public class WhatsAppCodeService : IWhatsAppCodeService
     private async Task<WhatsAppCodeDispatchResult> SendCodeAsync(Guid? userId, string phoneNumber, string purpose, string? sourceIp, string? userAgent, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
+        var phoneBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizePhone(phoneNumber));
 
         var latestActiveCode = await _db.WhatsAppOneTimeCodes
-            .Where(x => x.PhoneNumber == phoneNumber
+            .Where(x => x.PhoneNumberBlindIndex == phoneBlindIndex
                         && x.Purpose == purpose
                         && x.UserId == userId
                         && x.VerifiedAt == null
@@ -78,7 +81,7 @@ public class WhatsAppCodeService : IWhatsAppCodeService
             throw new InvalidOperationException("Ainda enviámos um código recentemente. Aguarda um minuto e tenta novamente.");
 
         foreach (var pendingCode in await _db.WhatsAppOneTimeCodes
-                     .Where(x => x.PhoneNumber == phoneNumber
+                     .Where(x => x.PhoneNumberBlindIndex == phoneBlindIndex
                                  && x.Purpose == purpose
                                  && x.UserId == userId
                                  && x.VerifiedAt == null
@@ -95,12 +98,13 @@ public class WhatsAppCodeService : IWhatsAppCodeService
             Id = Guid.NewGuid(),
             UserId = userId,
             PhoneNumber = phoneNumber,
+            PhoneNumberBlindIndex = phoneBlindIndex,
             Purpose = purpose,
             CodeHash = HashCode(phoneNumber, purpose, code),
             RequestedAt = now,
             ExpiresAt = now.AddMinutes(CodeTtlMinutes),
-            RequestedFromIp = sourceIp,
-            RequestedUserAgent = userAgent
+            RequestedFromIp = IpHashHelper.Hash(sourceIp),
+            RequestedUserAgent = UserAgentHelper.Simplify(userAgent)
         };
 
         _db.WhatsAppOneTimeCodes.Add(oneTimeCode);
@@ -132,8 +136,9 @@ public class WhatsAppCodeService : IWhatsAppCodeService
         if (sanitizedCode.Length != CodeDigits || sanitizedCode.Any(ch => !char.IsDigit(ch)))
             throw new UnauthorizedAccessException("Código inválido ou expirado.");
 
+        var phoneBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizePhone(phoneNumber));
         var loginCode = await _db.WhatsAppOneTimeCodes
-            .Where(x => x.PhoneNumber == phoneNumber
+            .Where(x => x.PhoneNumberBlindIndex == phoneBlindIndex
                         && x.Purpose == purpose
                         && x.UserId == userId
                         && x.VerifiedAt == null

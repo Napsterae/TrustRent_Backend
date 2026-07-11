@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Modules.Catalog.Models.ReferenceData;
+using TrustRent.Shared.Security;
 
 namespace TrustRent.Modules.Catalog.Contracts.Database;
 
@@ -40,11 +41,38 @@ public class CatalogDbContext : DbContext
                    .HasForeignKey(i => i.PropertyId)
                    .OnDelete(DeleteBehavior.Cascade);
 
-            builder.Property(p => p.MatrixArticle).HasMaxLength(100);
+            builder.Property(p => p.MatrixArticle).HasMaxLength(400)
+                .HasConversion(
+                    v => v == null ? null : EncryptionHelperV2.Encrypt(v),
+                    v => v == null ? null : EncryptionHelperV2.Decrypt(v)
+                );
             builder.Property(p => p.PropertyFraction).HasMaxLength(10);
             builder.Property(p => p.EnergyClass).HasMaxLength(5);
-            builder.Property(p => p.EnergyCertificateNumber).HasMaxLength(100);
-            builder.Property(p => p.AtRegistrationNumber).HasMaxLength(100);
+            builder.Property(p => p.EnergyCertificateNumber).HasMaxLength(400)
+                .HasConversion(
+                    v => v == null ? null : EncryptionHelperV2.Encrypt(v),
+                    v => v == null ? null : EncryptionHelperV2.Decrypt(v)
+                );
+            builder.Property(p => p.AtRegistrationNumber).HasMaxLength(400)
+                .HasConversion(
+                    v => v == null ? null : EncryptionHelperV2.Encrypt(v),
+                    v => v == null ? null : EncryptionHelperV2.Decrypt(v)
+                );
+            builder.Property(p => p.PermanentCertNumber).HasMaxLength(400)
+                .HasConversion(
+                    v => v == null ? null : EncryptionHelperV2.Encrypt(v),
+                    v => v == null ? null : EncryptionHelperV2.Decrypt(v)
+                );
+            builder.Property(p => p.PermanentCertOffice).HasMaxLength(400)
+                .HasConversion(
+                    v => v == null ? null : EncryptionHelperV2.Encrypt(v),
+                    v => v == null ? null : EncryptionHelperV2.Decrypt(v)
+                );
+            builder.Property(p => p.UsageLicenseNumber).HasMaxLength(400)
+                .HasConversion(
+                    v => v == null ? null : EncryptionHelperV2.Encrypt(v),
+                    v => v == null ? null : EncryptionHelperV2.Decrypt(v)
+                );
             builder.Property(p => p.AdvanceRentMonths).HasDefaultValue(0);
             builder.Property(p => p.GuarantorPolicyNote).HasMaxLength(500);
         });
@@ -106,7 +134,7 @@ public class CatalogDbContext : DbContext
             builder.Property(i => i.InviteeEmail).IsRequired().HasMaxLength(320);
             builder.Property(i => i.Status).HasConversion<int>();
             builder.Property(i => i.DeclineReason).HasMaxLength(500);
-            builder.Property(i => i.CreatedFromIp).HasMaxLength(45);
+            builder.Property(i => i.CreatedFromIp).HasMaxLength(128);
 
             builder.HasIndex(i => new { i.InviteeUserId, i.Status, i.ExpiresAt });
             // Apenas 1 convite Pending por (Application, Email)
@@ -126,12 +154,26 @@ public class CatalogDbContext : DbContext
             builder.HasKey(g => g.Id);
             builder.Property(g => g.InviteStatus).HasConversion<int>();
             builder.Property(g => g.UserId).IsRequired(false);
-            builder.Property(g => g.GuestEmail).IsRequired().HasMaxLength(320);
-            builder.Property(g => g.GuestName).HasMaxLength(200);
-            builder.Property(g => g.GuestPhoneNumber).HasMaxLength(30);
+            builder.Property(g => g.GuestEmail).IsRequired().HasMaxLength(400)
+                .HasConversion(
+                    v => v == null ? null : EncryptionHelperV2.Encrypt(v),
+                    v => v == null ? null : EncryptionHelperV2.Decrypt(v)
+                );
+            builder.Property(g => g.GuestEmailBlindIndex).HasMaxLength(128);
+            builder.Property(g => g.GuestName).HasMaxLength(400)
+                .HasConversion(
+                    v => v == null ? null : EncryptionHelperV2.Encrypt(v),
+                    v => v == null ? null : EncryptionHelperV2.Decrypt(v)
+                );
+            builder.Property(g => g.GuestPhoneNumber).HasMaxLength(400)
+                .HasConversion(
+                    v => v == null ? null : EncryptionHelperV2.Encrypt(v),
+                    v => v == null ? null : EncryptionHelperV2.Decrypt(v)
+                );
+
             builder.Property(g => g.GuestPostalCode).HasMaxLength(20);
             builder.Property(g => g.GuestAccessToken).IsRequired().HasMaxLength(128);
-            builder.Property(g => g.CreatedFromIp).HasMaxLength(45);
+            builder.Property(g => g.CreatedFromIp).HasMaxLength(128);
             builder.Property(g => g.EmploymentType).HasConversion<int>();
             builder.Property(g => g.IncomeValidationMethod).HasConversion<int>();
             builder.Property(g => g.LandlordRequestNote).HasMaxLength(500);
@@ -148,7 +190,8 @@ public class CatalogDbContext : DbContext
 
             builder.HasIndex(g => new { g.UserId, g.InviteStatus });
             builder.HasIndex(g => g.GuestAccessToken).IsUnique();
-            builder.HasIndex(g => new { g.GuestEmail, g.InviteStatus });
+            builder.HasIndex(g => g.GuestEmailBlindIndex);
+            builder.HasIndex(g => new { g.GuestEmailBlindIndex, g.InviteStatus });
             // Apenas 1 fiador "ativo" por candidatura (Pending/Accepted)
             builder.HasIndex(g => g.ApplicationId)
                    .IsUnique()

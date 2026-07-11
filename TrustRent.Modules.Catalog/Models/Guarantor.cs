@@ -17,6 +17,7 @@ public class Guarantor
     public Guid InvitedByUserId { get; set; }     // candidato principal que convidou
 
     public string GuestEmail { get; set; } = string.Empty;
+    public string? GuestEmailBlindIndex { get; set; }
     public string? GuestName { get; set; }
     public string? GuestPhoneNumber { get; set; }
     public string? GuestAddress { get; set; }

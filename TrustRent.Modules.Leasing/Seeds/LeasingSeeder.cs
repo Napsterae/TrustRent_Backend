@@ -7,6 +7,7 @@ using QuestPDF.Infrastructure;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Models;
 using TrustRent.Shared.Models;
+using TrustRent.Shared.Security;
 
 namespace TrustRent.Modules.Leasing.Seeds;
 
@@ -645,7 +646,7 @@ public static class LeasingSeeder
             DeadlineDate = DateTime.UtcNow.AddDays(11),
             LandlordResponse = "Renew",
             LandlordRespondedAt = DateTime.UtcNow.AddDays(-2),
-            LandlordResponseIpAddress = "203.0.113.42",
+            LandlordResponseIpAddress = IpHashHelper.Hash("203.0.113.42"),
             TenantResponse = null,
             TenantRespondedAt = null,
             TenantResponseIpAddress = null,
@@ -675,10 +676,10 @@ public static class LeasingSeeder
             RenewalNotificationId = renewal1Id,
             ContentHash = ComputeSha256(renewalMsgLandlord),
             ViewedAt = DateTime.UtcNow.AddDays(-2).AddHours(-1),
-            ViewerIpAddress = "203.0.113.42",
+            ViewerIpAddress = IpHashHelper.Hash("203.0.113.42"),
             ViewerUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             AcknowledgedAt = DateTime.UtcNow.AddDays(-2).AddHours(-1),
-            AcknowledgerIpAddress = "203.0.113.42"
+            AcknowledgerIpAddress = IpHashHelper.Hash("203.0.113.42")
         });
 
         // Log 2: Sistema envia notificacao de renovacao ao inquilino
@@ -695,7 +696,7 @@ public static class LeasingSeeder
             RenewalNotificationId = renewal1Id,
             ContentHash = ComputeSha256(renewalMsgTenant),
             ViewedAt = DateTime.UtcNow.AddDays(-1),
-            ViewerIpAddress = "198.51.100.23",
+            ViewerIpAddress = IpHashHelper.Hash("198.51.100.23"),
             ViewerUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
             // Tenant viewed but has NOT acknowledged yet
         });
@@ -710,12 +711,12 @@ public static class LeasingSeeder
             RecipientId = TenantId,
             Content = renewResponseMsg,
             SentAt = DateTime.UtcNow.AddDays(-2),
-            SenderIpAddress = "203.0.113.42",
+            SenderIpAddress = IpHashHelper.Hash("203.0.113.42"),
             SenderUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             RenewalNotificationId = renewal1Id,
             ContentHash = ComputeSha256(renewResponseMsg),
             ViewedAt = DateTime.UtcNow.AddDays(-1),
-            ViewerIpAddress = "198.51.100.23",
+            ViewerIpAddress = IpHashHelper.Hash("198.51.100.23"),
             ViewerUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"
         });
 
@@ -777,7 +778,7 @@ public static class LeasingSeeder
             Role = role,
             AcceptedAt = acceptedAt,
             AcceptedDocumentHash = acceptedDocumentHash,
-            IpAddress = "203.0.113.20",
+            IpAddress = IpHashHelper.Hash("203.0.113.20"),
             UserAgent = "TrustRent seed data"
         });
     }

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
+using TrustRent.Shared.Security;
 using TrustRent.Modules.Identity.Models;
 
 namespace TrustRent.Modules.Identity.Services;
@@ -98,9 +99,10 @@ public sealed class PhoneLoginCodeService : IPhoneLoginCodeService
     private async Task<PhoneLoginCodeDispatchResult> SendTelegramCodeAsync(User user, string phoneNumber, string? sourceIp, string? userAgent, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
+        var phoneBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizePhone(phoneNumber));
 
         var latestActiveCode = await _db.WhatsAppOneTimeCodes
-            .Where(x => x.PhoneNumber == phoneNumber
+            .Where(x => x.PhoneNumberBlindIndex == phoneBlindIndex
                         && x.Purpose == TelegramLoginPurpose
                         && x.UserId == user.Id
                         && x.VerifiedAt == null
@@ -113,7 +115,7 @@ public sealed class PhoneLoginCodeService : IPhoneLoginCodeService
             throw new InvalidOperationException("Ainda enviámos um código recentemente. Aguarda um minuto e tenta novamente.");
 
         foreach (var pendingCode in await _db.WhatsAppOneTimeCodes
-                     .Where(x => x.PhoneNumber == phoneNumber
+                     .Where(x => x.PhoneNumberBlindIndex == phoneBlindIndex
                                  && x.Purpose == TelegramLoginPurpose
                                  && x.UserId == user.Id
                                  && x.VerifiedAt == null
@@ -130,12 +132,13 @@ public sealed class PhoneLoginCodeService : IPhoneLoginCodeService
             Id = Guid.NewGuid(),
             UserId = user.Id,
             PhoneNumber = phoneNumber,
+            PhoneNumberBlindIndex = phoneBlindIndex,
             Purpose = TelegramLoginPurpose,
             CodeHash = HashCode(phoneNumber, TelegramLoginPurpose, code),
             RequestedAt = now,
             ExpiresAt = now.AddMinutes(CodeTtlMinutes),
-            RequestedFromIp = sourceIp,
-            RequestedUserAgent = userAgent
+            RequestedFromIp = IpHashHelper.Hash(sourceIp),
+            RequestedUserAgent = UserAgentHelper.Simplify(userAgent)
         };
 
         _db.WhatsAppOneTimeCodes.Add(oneTimeCode);
@@ -164,8 +167,9 @@ public sealed class PhoneLoginCodeService : IPhoneLoginCodeService
         if (sanitizedCode.Length != CodeDigits || sanitizedCode.Any(ch => !char.IsDigit(ch)))
             throw new UnauthorizedAccessException("Código inválido ou expirado.");
 
+        var phoneBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizePhone(phoneNumber));
         var loginCode = await _db.WhatsAppOneTimeCodes
-            .Where(x => x.PhoneNumber == phoneNumber
+            .Where(x => x.PhoneNumberBlindIndex == phoneBlindIndex
                         && x.Purpose == TelegramLoginPurpose
                         && x.UserId == userId
                         && x.VerifiedAt == null

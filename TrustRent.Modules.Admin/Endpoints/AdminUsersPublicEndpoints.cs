@@ -9,6 +9,7 @@ using TrustRent.Modules.Admin.Authorization;
 using TrustRent.Modules.Admin.Contracts;
 using TrustRent.Modules.Admin.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Contracts.Database;
+using TrustRent.Shared.Security;
 
 namespace TrustRent.Modules.Admin.Endpoints;
 
@@ -118,15 +119,31 @@ public static class AdminUsersPublicEndpoints
             if (u is null) return Results.NotFound();
             if (u.AnonymizedAt.HasValue) return Results.BadRequest(new { error = "Já anonimizado." });
             var before = JsonSerializer.Serialize(new { u.Name, u.Email, u.Nif, u.PhoneNumber });
-            var anonId = $"anon-{id:N}";
-            u.Name = "Utilizador anonimizado";
-            u.Email = $"{anonId}@anonymous.local";
+            var anonId = $"deleted-{id:N}";
+            u.Name = "Utilizador Anónimo";
+            u.Email = $"{anonId}@trustrent.pt";
+            u.EmailBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeEmail(u.Email));
             u.Nif = null;
+            u.NifBlindIndex = null;
             u.CitizenCardNumber = null;
+            u.CitizenCardNumberBlindIndex = null;
             u.Address = null;
             u.PostalCode = null;
             u.PhoneCountryCode = null;
             u.PhoneNumber = null;
+            u.PhoneNumberBlindIndex = null;
+            u.IsPhoneNumberVerified = false;
+            u.PhoneNumberVerifiedAt = null;
+            u.PendingPhoneNumber = null;
+            u.PendingPhoneCountryCode = null;
+            u.PendingPhoneContactPlatform = null;
+            u.TelegramChatId = null;
+            u.TelegramUsername = null;
+            u.TelegramPendingVerificationToken = null;
+            u.TelegramPendingExpectedPhoneNumber = null;
+            u.TelegramPendingVerificationError = null;
+            u.TelegramPendingVerificationExpiresAt = null;
+            u.StripeCustomerId = null;
             u.ProfilePictureUrl = null;
             u.AnonymizedAt = DateTime.UtcNow;
             u.AnonymizedByAdminId = GetAdminId(ctx);
@@ -135,7 +152,7 @@ public static class AdminUsersPublicEndpoints
             u.SuspendedReason = u.SuspendedReason ?? "Anonimizado (RGPD)";
             await db.SaveChangesAsync();
             await audit.WriteAsync(GetAdminId(ctx), "user.anonymize", "User", id.ToString(), before, null, req.Reason, ctx);
-            return Results.NoContent();
+            return Results.Ok(new { message = "Utilizador anonimizado com sucesso." });
         }).RequireAuthorization(AdminAuthorizationExtensions.PolicyName(PermissionCodes.UsersAnonymize));
     }
 }

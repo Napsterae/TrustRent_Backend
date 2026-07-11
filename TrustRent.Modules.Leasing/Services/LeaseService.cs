@@ -164,7 +164,7 @@ public class LeaseService : ILeaseService
                 CommunicationEmailTemplateKeys.LeaseGuarantorContractStarted,
                 new Dictionary<string, string?>
                 {
-                    ["GuestAccessUrl"] = BuildGuestUrl(appContext.GuarantorGuestAccessToken),
+                    ["GuestAccessUrl"] = null,
                     ["MessageBody"] = "O processo de arrendamento em que és fiador avançou para contrato."
                 });
 
@@ -979,7 +979,7 @@ public class LeaseService : ILeaseService
                                     CommunicationEmailTemplateKeys.LeaseGuarantorContractUpdated,
                                     new Dictionary<string, string?>
                                     {
-                                        ["GuestAccessUrl"] = BuildGuestUrl(appContext.GuarantorGuestAccessToken),
+                                        ["GuestAccessUrl"] = null,
                                         ["MessageBody"] = message
                                     });
                                 await _emailService.SendEmailAsync(appContext.GuarantorGuestEmail, renderedTemplate.Subject, renderedTemplate.BodyHtml);
@@ -998,7 +998,7 @@ public class LeaseService : ILeaseService
                                     CommunicationEmailTemplateKeys.LeaseGuarantorSignaturePending,
                                     new Dictionary<string, string?>
                                     {
-                                        ["GuestAccessUrl"] = BuildGuestUrl(appContext.GuarantorGuestAccessToken),
+                                        ["GuestAccessUrl"] = null,
                                         ["MessageBody"] = message
                                     });
                                 await _emailService.SendEmailAsync(appContext.GuarantorGuestEmail, renderedTemplate.Subject, renderedTemplate.BodyHtml);

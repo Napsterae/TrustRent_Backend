@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Admin.Contracts.Database;
 using TrustRent.Modules.Admin.Services;
+using TrustRent.Shared.Security;
 
 namespace TrustRent.Tests.Admin;
 
@@ -32,8 +33,8 @@ public class AuditLogServiceTests
         log.EntityType.Should().Be("User");
         log.EntityId.Should().Be("u-1");
         log.Reason.Should().Be("abuso");
-        log.Ip.Should().Be("10.0.0.5");
-        log.UserAgent.Should().Be("Mozilla/5.0");
+        log.Ip.Should().Be(IpHashHelper.Hash("10.0.0.5"));
+        log.UserAgent.Should().Be(UserAgentHelper.Simplify("Mozilla/5.0"));
         log.CorrelationId.Should().Be("trace-abc");
         log.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
     }

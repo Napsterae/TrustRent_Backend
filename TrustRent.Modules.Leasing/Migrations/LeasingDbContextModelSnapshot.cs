@@ -337,8 +337,8 @@ namespace TrustRent.Modules.Leasing.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.Property<string>("SigningIp")
-                        .HasMaxLength(45)
-                        .HasColumnType("character varying(45)");
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<string>("SigningUserAgent")
                         .HasMaxLength(500)
@@ -387,8 +387,8 @@ namespace TrustRent.Modules.Leasing.Migrations
                         .HasColumnType("character varying(128)");
 
                     b.Property<string>("IpAddress")
-                        .HasMaxLength(45)
-                        .HasColumnType("character varying(45)");
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<Guid>("LeaseId")
                         .HasColumnType("uuid");
@@ -498,8 +498,8 @@ namespace TrustRent.Modules.Leasing.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("AcknowledgerIpAddress")
-                        .HasMaxLength(45)
-                        .HasColumnType("character varying(45)");
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<string>("CommunicationType")
                         .IsRequired()
@@ -541,8 +541,8 @@ namespace TrustRent.Modules.Leasing.Migrations
 
                     b.Property<string>("SenderIpAddress")
                         .IsRequired()
-                        .HasMaxLength(45)
-                        .HasColumnType("character varying(45)");
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<string>("SenderUserAgent")
                         .HasMaxLength(500)
@@ -555,8 +555,8 @@ namespace TrustRent.Modules.Leasing.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ViewerIpAddress")
-                        .HasMaxLength(45)
-                        .HasColumnType("character varying(45)");
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<string>("ViewerUserAgent")
                         .HasMaxLength(500)

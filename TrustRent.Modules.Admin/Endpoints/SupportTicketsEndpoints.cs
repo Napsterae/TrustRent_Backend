@@ -13,6 +13,7 @@ using TrustRent.Modules.Admin.Contracts;
 using TrustRent.Modules.Admin.Contracts.Database;
 using TrustRent.Modules.Admin.Contracts.Interfaces;
 using TrustRent.Modules.Admin.Models;
+using TrustRent.Shared.Security;
 
 namespace TrustRent.Modules.Admin.Endpoints;
 
@@ -527,8 +528,8 @@ public static class SupportTicketsEndpoints
             {
                 receivedAtUtc = createdAt,
                 traceId = ctx.TraceIdentifier,
-                remoteIp = ctx.Connection.RemoteIpAddress?.ToString(),
-                userAgent = ctx.Request.Headers.UserAgent.ToString(),
+                remoteIp = IpHashHelper.Hash(ctx.Connection.RemoteIpAddress?.ToString()),
+                userAgent = UserAgentHelper.Simplify(ctx.Request.Headers.UserAgent.ToString()),
                 referer = ctx.Request.Headers.Referer.ToString(),
                 acceptLanguage = ctx.Request.Headers.AcceptLanguage.ToString(),
                 openedByUserId,

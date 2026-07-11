@@ -23,9 +23,11 @@ using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Repositories;
 using TrustRent.Modules.Identity.Services;
+using TrustRent.Modules.Identity.Jobs;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Services;
 using TrustRent.Api.Services;
+using TrustRent.Api.Jobs;
 using TrustRent.Modules.Identity.Seeds;
 using TrustRent.Modules.Catalog.Seeds;
 using TrustRent.Modules.Leasing.Contracts.Database;
@@ -199,6 +201,9 @@ builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.ITicke
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.IReviewService, TrustRent.Modules.Leasing.Services.ReviewService>();
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Jobs.IContractGenerationJob, TrustRent.Modules.Leasing.Jobs.ContractGenerationJob>();
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Jobs.IDailyMaintenanceJob, TrustRent.Modules.Leasing.Jobs.DailyMaintenanceJob>();
+builder.Services.AddScoped<DataRetentionJob>();
+builder.Services.AddScoped<GuarantorTokenCleanupJob>();
+builder.Services.AddScoped<TrustRent.Api.Jobs.KeyRotationJob>();
 
 /* ELECTRONIC SIGNATURE PROVIDER */
 var esigProvider = builder.Configuration["ElectronicSignature:Provider"] ?? "Documenso";
@@ -498,7 +503,8 @@ var migrateOnly = Array.Exists(args, arg => string.Equals(arg, "--migrate-only",
 var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
 
 // Initialize encryption keys from configuration
-EncryptionHelper.Initialize(builder.Configuration);
+EncryptionHelperV2.Initialize(builder.Configuration);
+IpHashHelper.Initialize(builder.Configuration);
 
 // QuestPDF license must be set globally BEFORE any Hangfire job can use it.
 // Without this, QuestPDF calls Environment.Exit(1) and kills the process silently.
@@ -770,6 +776,16 @@ app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<TrustRent.Mo
     "daily-maintenance",
     job => job.ExecuteAsync(),
     Cron.Daily(2, 0));
+
+app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<DataRetentionJob>(
+    "data-retention-cleanup",
+    job => job.RunCleanupAsync(),
+    "0 3 * * *");  // Daily at 3 AM UTC
+
+app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<GuarantorTokenCleanupJob>(
+    "guarantor-token-cleanup",
+    job => job.RunCleanupAsync(),
+    "0 4 * * *");  // Daily at 4 AM UTC
 
 app.Run();
 

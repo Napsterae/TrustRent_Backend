@@ -359,8 +359,8 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CreatedFromIp")
-                        .HasMaxLength(45)
-                        .HasColumnType("character varying(45)");
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<string>("DeclineReason")
                         .HasMaxLength(500)
@@ -450,8 +450,8 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CreatedFromIp")
-                        .HasMaxLength(45)
-                        .HasColumnType("character varying(45)");
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<string>("DeclineReason")
                         .HasMaxLength(500)
@@ -484,16 +484,20 @@ namespace TrustRent.Modules.Catalog.Migrations
 
                     b.Property<string>("GuestEmail")
                         .IsRequired()
-                        .HasMaxLength(320)
-                        .HasColumnType("character varying(320)");
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
+
+                    b.Property<string>("GuestEmailBlindIndex")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<string>("GuestName")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
 
                     b.Property<string>("GuestPhoneNumber")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
 
                     b.Property<string>("GuestPostalCode")
                         .HasMaxLength(20)
@@ -559,9 +563,11 @@ namespace TrustRent.Modules.Catalog.Migrations
                     b.HasIndex("GuestAccessToken")
                         .IsUnique();
 
+                    b.HasIndex("GuestEmailBlindIndex");
+
                     b.HasIndex("IncomeRangeId");
 
-                    b.HasIndex("GuestEmail", "InviteStatus");
+                    b.HasIndex("GuestEmailBlindIndex", "InviteStatus");
 
                     b.HasIndex("UserId", "InviteStatus");
 
@@ -592,8 +598,8 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasColumnType("numeric");
 
                     b.Property<string>("AtRegistrationNumber")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
 
                     b.Property<int>("Bathrooms")
                         .HasColumnType("integer");
@@ -637,8 +643,8 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("EnergyCertificateNumber")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
 
                     b.Property<string>("EnergyClass")
                         .HasMaxLength(5)
@@ -699,8 +705,8 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasColumnType("double precision");
 
                     b.Property<string>("MatrixArticle")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
 
                     b.Property<DateTime?>("ModeratedAt")
                         .HasColumnType("timestamp with time zone");
@@ -730,10 +736,12 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("PermanentCertNumber")
-                        .HasColumnType("text");
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
 
                     b.Property<string>("PermanentCertOffice")
-                        .HasColumnType("text");
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
 
                     b.Property<string>("PostalCode")
                         .IsRequired()
@@ -778,7 +786,8 @@ namespace TrustRent.Modules.Catalog.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("UsageLicenseNumber")
-                        .HasColumnType("text");
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
 
                     b.Property<string>("WaterPaidBy")
                         .IsRequired()

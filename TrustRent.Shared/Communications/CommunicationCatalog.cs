@@ -302,7 +302,7 @@ public static class CommunicationCatalog
             "Default 2026",
             $"Fiador aprovado — {Token("AppName")}",
             StatusEmailHtml("Fiador aprovado", "O senhorio aprovou os teus dados de fiador. Avisamos-te novamente quando o contrato estiver pronto para assinatura."),
-            $"Os teus dados de fiador foram aprovados. Consulta a tua área segura em {Token("GuestAccessUrl")}.",
+            $"Os teus dados de fiador foram aprovados. Inicia sessão na plataforma TrustRent para acederes aos teus contratos.",
             ["AppName", "GuestAccessUrl"]),
         new(
             CommunicationEmailTemplateKeys.ApplicationGuarantorRejected,
@@ -313,7 +313,7 @@ public static class CommunicationCatalog
             "Default 2026",
             $"Fiador não aprovado — {Token("AppName")}",
             StatusEmailHtml("Fiador não aprovado", "O senhorio não aprovou a proposta de fiador para esta candidatura."),
-            $"A proposta de fiador não foi aprovada. Consulta a tua área segura em {Token("GuestAccessUrl")}.",
+            $"A proposta de fiador não foi aprovada. Inicia sessão na plataforma TrustRent para acederes aos teus contratos.",
             ["AppName", "GuestAccessUrl"]),
         new(
             CommunicationEmailTemplateKeys.ReviewPending,
@@ -356,7 +356,7 @@ public static class CommunicationCatalog
             "Default 2026",
             $"Contrato iniciado — {Token("AppName")}",
             GuestLeaseEmailHtml("Contrato iniciado", Token("MessageBody")),
-            $"{Token("MessageBody")} Abre {Token("GuestAccessUrl")}.",
+            $"{Token("MessageBody")} Inicia sessão na plataforma TrustRent para acederes aos teus contratos.",
             ["AppName", "GuestAccessUrl", "MessageBody"]),
         new(
             CommunicationEmailTemplateKeys.LeaseGuarantorContractUpdated,
@@ -367,7 +367,7 @@ public static class CommunicationCatalog
             "Default 2026",
             $"Atualização do contrato — {Token("AppName")}",
             GuestLeaseEmailHtml("Atualização do contrato", Token("MessageBody")),
-            $"{Token("MessageBody")} Abre {Token("GuestAccessUrl")}.",
+            $"{Token("MessageBody")} Inicia sessão na plataforma TrustRent para acederes aos teus contratos.",
             ["AppName", "GuestAccessUrl", "MessageBody"]),
         new(
             CommunicationEmailTemplateKeys.LeaseGuarantorSignaturePending,
@@ -378,7 +378,7 @@ public static class CommunicationCatalog
             "Default 2026",
             $"Assinatura pendente — {Token("AppName")}",
             GuestLeaseEmailHtml("Assinatura pendente", Token("MessageBody")),
-            $"{Token("MessageBody")} Abre {Token("GuestAccessUrl")}.",
+            $"{Token("MessageBody")} Inicia sessão na plataforma TrustRent para acederes aos teus contratos.",
             ["AppName", "GuestAccessUrl", "MessageBody"]),
         new(
             CommunicationEmailTemplateKeys.PaymentInitialRequired,
@@ -704,18 +704,14 @@ public static class CommunicationCatalog
         => $"""
         <p style="margin:0 0 10px;font-size:12px;line-height:1.4;letter-spacing:1.8px;text-transform:uppercase;font-weight:700;color:#a65710">{title}</p>
         <p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#334155">{message}</p>
-        {AccentPanel("Área segura", "Podes consultar o estado atualizado através da tua área segura de convidado.")}
-        {ActionButton("GuestAccessUrl", "Consultar candidatura")}
-        {FallbackLink("GuestAccessUrl")}
+        <p style="margin:0;font-size:14px;line-height:1.7;color:#475569">Inicia sessão na plataforma TrustRent para acederes aos teus contratos.</p>
         """;
 
     private static string GuestLeaseEmailHtml(string title, string message)
         => $"""
         <p style="margin:0 0 10px;font-size:12px;line-height:1.4;letter-spacing:1.8px;text-transform:uppercase;font-weight:700;color:#a65710">{title}</p>
         <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#334155">{message}</p>
-        {AccentPanel("Área segura de fiador", "Abre a tua área segura para acompanhar o estado do contrato e concluir o próximo passo.")}
-        {ActionButton("GuestAccessUrl", "Abrir área de fiador")}
-        {FallbackLink("GuestAccessUrl")}
+        <p style="margin:0;font-size:14px;line-height:1.7;color:#475569">Inicia sessão na plataforma TrustRent para acederes aos teus contratos.</p>
         """;
 
     private static string PaymentStatusEmailHtml(string title, string intro, string guidance, string statusVariableKey)

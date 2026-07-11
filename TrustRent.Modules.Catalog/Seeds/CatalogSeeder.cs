@@ -1,9 +1,12 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Catalog.Contracts.Database;
 using TrustRent.Modules.Catalog.Models;
 using TrustRent.Modules.Identity.Seeds;
 using TrustRent.Shared.Models;
+using TrustRent.Shared.Security;
 
 namespace TrustRent.Modules.Catalog.Seeds;
 
@@ -704,7 +707,7 @@ public static class CatalogSeeder
             Status = CoTenantInviteStatus.Pending,
             CreatedAt = coTenantPendingApp.CreatedAt.AddHours(2),
             ExpiresAt = DateTime.UtcNow.AddDays(6),
-            CreatedFromIp = "203.0.113.10"
+            CreatedFromIp = IpHashHelper.Hash("203.0.113.10")
         });
         applications.Add(coTenantPendingApp);
 
@@ -738,8 +741,9 @@ public static class CatalogSeeder
             UserId = IdentitySeeder.TenantId,
             InvitedByUserId = IdentitySeeder.Tenant2Id,
             GuestEmail = "ana.ferreira@email.pt",
+            GuestEmailBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeEmail("ana.ferreira@email.pt")),
             GuestName = "Ana Ferreira",
-            GuestAccessToken = "seed-pending-guarantor-ana",
+            GuestAccessToken = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("seed-pending-guarantor-ana"))).ToLowerInvariant(),
             GuestTokenIssuedAt = guarantorPendingApp.CreatedAt.AddDays(1).AddHours(3),
             InviteStatus = GuarantorInviteStatus.Pending,
             CreatedAt = guarantorPendingApp.CreatedAt.AddDays(1).AddHours(3),
@@ -781,8 +785,9 @@ public static class CatalogSeeder
             UserId = IdentitySeeder.Tenant2Id,
             InvitedByUserId = IdentitySeeder.TenantId,
             GuestEmail = "miguel.costa@email.pt",
+            GuestEmailBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeEmail("miguel.costa@email.pt")),
             GuestName = "Miguel Costa",
-            GuestAccessToken = "seed-review-guarantor-miguel",
+            GuestAccessToken = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("seed-review-guarantor-miguel"))).ToLowerInvariant(),
             GuestTokenIssuedAt = guarantorReviewApp.CreatedAt.AddDays(1).AddHours(2),
             GuestTokenLastUsedAt = guarantorReviewApp.CreatedAt.AddDays(3),
             InviteStatus = GuarantorInviteStatus.Accepted,
@@ -898,8 +903,9 @@ public static class CatalogSeeder
                 UserId = IdentitySeeder.LandlordId,
                 InvitedByUserId = jointApp.TenantId,
                 GuestEmail = "carlos.mendes@email.pt",
+                GuestEmailBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeEmail("carlos.mendes@email.pt")),
                 GuestName = "Carlos Mendes",
-                GuestAccessToken = "seed-approved-guarantor-carlos",
+                GuestAccessToken = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("seed-approved-guarantor-carlos"))).ToLowerInvariant(),
                 GuestTokenIssuedAt = jointApp.CreatedAt.AddDays(1).AddHours(4),
                 GuestTokenLastUsedAt = jointApp.CreatedAt.AddDays(2),
                 InviteStatus = GuarantorInviteStatus.Accepted,

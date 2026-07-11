@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using TrustRent.Modules.Admin.Contracts.Database;
 using TrustRent.Modules.Admin.Contracts.Interfaces;
+using TrustRent.Shared.Security;
 using TrustRent.Modules.Admin.Models;
 
 namespace TrustRent.Modules.Admin.Services;
@@ -73,7 +74,7 @@ public class AdminAuthService : IAdminAuthService
         admin.FailedAttempts = 0;
         admin.LockedUntil = null;
         admin.LastLoginAt = DateTime.UtcNow;
-        admin.LastLoginIp = ip;
+        admin.LastLoginIp = IpHashHelper.Hash(ip);
 
         var perms = await _permissions.GetEffectivePermissionsAsync(admin.Id, ct);
 
@@ -91,7 +92,7 @@ public class AdminAuthService : IAdminAuthService
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = expiresAt,
             Ip = ip,
-            UserAgent = userAgent
+            UserAgent = UserAgentHelper.Simplify(userAgent)
         };
         _db.Sessions.Add(session);
         await _db.SaveChangesAsync(ct);

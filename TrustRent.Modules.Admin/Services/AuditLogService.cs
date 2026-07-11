@@ -1,5 +1,6 @@
 using TrustRent.Modules.Admin.Contracts.Database;
 using TrustRent.Modules.Admin.Contracts.Interfaces;
+using TrustRent.Shared.Security;
 using TrustRent.Modules.Admin.Models;
 
 namespace TrustRent.Modules.Admin.Services;
@@ -24,8 +25,8 @@ public class AuditLogService : IAuditLogService
             BeforeJson = MaskSensitive(beforeJson),
             AfterJson = MaskSensitive(afterJson),
             Reason = reason,
-            Ip = ip,
-            UserAgent = userAgent,
+            Ip = IpHashHelper.Hash(ip),
+            UserAgent = UserAgentHelper.Simplify(userAgent),
             CorrelationId = correlationId,
             CreatedAt = DateTime.UtcNow
         };

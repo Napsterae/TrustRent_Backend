@@ -585,8 +585,8 @@ public static class PropertyEndpoints
                 property.District,
 
                 // Coordenadas mascaradas — só mostra exactas ao proprietário ou com visita aceite
-                Latitude = showFullAddress ? property.Latitude : Math.Round(property.Latitude, 2),
-                Longitude = showFullAddress ? property.Longitude : Math.Round(property.Longitude, 2),
+                Latitude = showFullAddress ? property.Latitude : Math.Round(property.Latitude, 3),
+                Longitude = showFullAddress ? property.Longitude : Math.Round(property.Longitude, 3),
 
                 // Dados de documentos — visíveis ao proprietário e inquilinos com candidatura aceite ou arrendamento activo
                 MatrixArticle = canSeeDocuments ? property.MatrixArticle : null,

@@ -17,6 +17,7 @@ using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Shared.Communications;
 using TrustRent.Shared.Contracts.Interfaces;
+using TrustRent.Shared.Security;
 using TrustRent.Shared.Models.DocumentExtraction;
 using TrustRent.Shared.Models;
 using TrustRent.Shared.Services;
@@ -393,8 +394,8 @@ public static class LeaseEndpoints
                     }
                 }
 
-                var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var userAgent = httpContext.Request.Headers.UserAgent.ToString();
+                var ipAddress = IpHashHelper.Hash(httpContext.Connection.RemoteIpAddress?.ToString()) ?? "unknown";
+                var userAgent = UserAgentHelper.Simplify(httpContext.Request.Headers.UserAgent.ToString());
                 var recipientId = Guid.Empty;
 
                 if (userId == lease.LandlordId)
@@ -614,8 +615,8 @@ public static class LeaseEndpoints
                 if (log.ViewedAt == null)
                 {
                     log.ViewedAt = DateTime.UtcNow;
-                    log.ViewerIpAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                    log.ViewerUserAgent = httpContext.Request.Headers.UserAgent.ToString();
+                    log.ViewerIpAddress = IpHashHelper.Hash(httpContext.Connection.RemoteIpAddress?.ToString()) ?? "unknown";
+                    log.ViewerUserAgent = UserAgentHelper.Simplify(httpContext.Request.Headers.UserAgent.ToString());
                     await db.SaveChangesAsync();
                 }
 
@@ -636,14 +637,14 @@ public static class LeaseEndpoints
                 if (log.AcknowledgedAt == null)
                 {
                     log.AcknowledgedAt = DateTime.UtcNow;
-                    log.AcknowledgerIpAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                    log.AcknowledgerIpAddress = IpHashHelper.Hash(httpContext.Connection.RemoteIpAddress?.ToString()) ?? "unknown";
 
                     // Marcar como visualizada também se ainda não foi
                     if (log.ViewedAt == null)
                     {
                         log.ViewedAt = DateTime.UtcNow;
                         log.ViewerIpAddress = log.AcknowledgerIpAddress;
-                        log.ViewerUserAgent = httpContext.Request.Headers.UserAgent.ToString();
+                        log.ViewerUserAgent = UserAgentHelper.Simplify(httpContext.Request.Headers.UserAgent.ToString());
                     }
 
                     await db.SaveChangesAsync();
@@ -767,8 +768,8 @@ public static class LeaseEndpoints
                 if (existingRequest)
                     return Results.BadRequest("Já existe um pedido de denúncia antecipada pendente para este contrato.");
 
-                var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var userAgent = httpContext.Request.Headers.UserAgent.ToString();
+                var ipAddress = IpHashHelper.Hash(httpContext.Connection.RemoteIpAddress?.ToString()) ?? "unknown";
+                var userAgent = UserAgentHelper.Simplify(httpContext.Request.Headers.UserAgent.ToString());
 
                 // Cálculos legais
                 var oneThirdDays = lease.DurationMonths * 30.44 / 3;
@@ -1031,8 +1032,8 @@ public static class LeaseEndpoints
                 if (hasPending)
                     return Results.BadRequest("Já existe um pedido de aumento de renda pendente.");
 
-                var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var userAgent = httpContext.Request.Headers.UserAgent.ToString();
+                var ipAddress = IpHashHelper.Hash(httpContext.Connection.RemoteIpAddress?.ToString()) ?? "unknown";
+                var userAgent = UserAgentHelper.Simplify(httpContext.Request.Headers.UserAgent.ToString());
 
                 // Calcular coeficiente
                 decimal coefficient;
@@ -1160,8 +1161,8 @@ public static class LeaseEndpoints
                 if (string.IsNullOrWhiteSpace(dto.Reason))
                     return Results.BadRequest("O motivo da contestação é obrigatório.");
 
-                var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var userAgent = httpContext.Request.Headers.UserAgent.ToString();
+                var ipAddress = IpHashHelper.Hash(httpContext.Connection.RemoteIpAddress?.ToString()) ?? "unknown";
+                var userAgent = UserAgentHelper.Simplify(httpContext.Request.Headers.UserAgent.ToString());
 
                 request.Status = "Contested";
                 request.Contested = true;

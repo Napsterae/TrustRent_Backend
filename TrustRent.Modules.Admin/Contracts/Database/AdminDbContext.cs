@@ -184,7 +184,7 @@ public class AdminDbContext : DbContext
             b.Property(x => x.SourceUrl).HasMaxLength(500);
             b.Property(x => x.Language).HasMaxLength(10);
             b.Property(x => x.UserAgent).HasMaxLength(500);
-            b.Property(x => x.IpAddress).HasMaxLength(45);
+            b.Property(x => x.IpAddress).HasMaxLength(128);
         });
 
         base.OnModelCreating(modelBuilder);
