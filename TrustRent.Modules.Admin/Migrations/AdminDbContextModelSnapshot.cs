@@ -310,8 +310,8 @@ namespace TrustRent.Modules.Admin.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("IpAddress")
-                        .HasMaxLength(45)
-                        .HasColumnType("character varying(45)");
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<string>("Language")
                         .HasMaxLength(10)

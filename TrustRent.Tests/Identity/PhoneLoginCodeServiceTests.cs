@@ -7,6 +7,7 @@ using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Models;
 using TrustRent.Modules.Identity.Repositories;
 using TrustRent.Modules.Identity.Services;
+using TrustRent.Shared.Security;
 
 namespace TrustRent.Tests.Identity;
 
@@ -27,6 +28,7 @@ public class PhoneLoginCodeServiceTests
             Email = "teste@example.com",
             PasswordHash = string.Empty,
             PhoneNumber = "+351912345678",
+            PhoneNumberBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizePhone("+351912345678")),
             PhoneCountryCode = "PT",
             IsPhoneNumberVerified = true,
             PhoneContactPlatform = PhoneContactPlatforms.Telegram,
@@ -79,6 +81,7 @@ public class PhoneLoginCodeServiceTests
             Email = "teste@example.com",
             PasswordHash = string.Empty,
             PhoneNumber = "+351912345678",
+            PhoneNumberBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizePhone("+351912345678")),
             PhoneCountryCode = "PT",
             IsPhoneNumberVerified = true,
             PhoneContactPlatform = PhoneContactPlatforms.Telegram,

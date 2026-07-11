@@ -35,6 +35,7 @@ public class AuthService : IAuthService
                 Id = Guid.NewGuid(),
                 Name = BuildDefaultName(normalizedEmail),
                 Email = normalizedEmail,
+                EmailBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeEmail(normalizedEmail)),
                 PasswordHash = string.Empty
             };
 

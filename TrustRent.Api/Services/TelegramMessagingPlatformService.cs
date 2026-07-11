@@ -1,4 +1,6 @@
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using TrustRent.Modules.Admin.Contracts.Database;
@@ -6,6 +8,7 @@ using TrustRent.Modules.Admin.Models;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Models;
+using TrustRent.Shared.Security;
 
 namespace TrustRent.Api.Services;
 
@@ -55,7 +58,8 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
 
         var now = DateTime.UtcNow;
         var normalizedPhoneNumber = NormalizePhoneNumber(phoneNumber);
-        user.TelegramPendingVerificationToken = Guid.NewGuid().ToString("N");
+        var rawToken = Guid.NewGuid().ToString("N");
+        user.TelegramPendingVerificationToken = HashToken(rawToken);
         user.TelegramPendingExpectedPhoneNumber = normalizedPhoneNumber;
         user.TelegramPendingVerificationExpiresAt = now.AddMinutes(VerificationTtlMinutes);
         user.TelegramPendingVerificationError = null;
@@ -76,7 +80,7 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         return new TelegramPhoneVerificationStartResult(
             "Abre o bot no Telegram, inicia a conversa e partilha o teu contacto para validar este número.",
             user.TelegramPendingVerificationExpiresAt!.Value,
-            BuildDeepLink(settings.BotUsername, user.TelegramPendingVerificationToken!),
+            BuildDeepLink(settings.BotUsername, rawToken),
             settings.BotUsername,
             false);
     }
@@ -112,9 +116,9 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         var hasStartedConversation = !string.IsNullOrWhiteSpace(user.TelegramChatId);
         isCurrentPhoneVerified = !HasPendingPhone(user) && user.IsPhoneNumberVerified;
         var awaitingContactShare = hasPendingVerification && hasStartedConversation && !isCurrentPhoneVerified;
-        var deepLinkUrl = hasPendingVerification && !hasStartedConversation && !string.IsNullOrWhiteSpace(user.TelegramPendingVerificationToken)
-            ? BuildDeepLink(settings.BotUsername, user.TelegramPendingVerificationToken)
-            : null;
+        // Deep link URL cannot be reconstructed from the stored hash.
+        // The user must start a new verification if they lose the original link.
+        string? deepLinkUrl = null;
         if (syncResult.IsFatal)
         {
             awaitingContactShare = false;
@@ -259,8 +263,9 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         User? user;
         if (!string.IsNullOrWhiteSpace(payload))
         {
+            var payloadHash = HashToken(payload);
             user = await _identityDb.Users.SingleOrDefaultAsync(
-                x => x.TelegramPendingVerificationToken == payload
+                x => x.TelegramPendingVerificationToken == payloadHash
                      && x.TelegramPendingVerificationExpiresAt.HasValue
                      && x.TelegramPendingVerificationExpiresAt > now,
                 ct);
@@ -575,6 +580,7 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
 
         user.PhoneCountryCode = user.PendingPhoneCountryCode;
         user.PhoneNumber = user.PendingPhoneNumber;
+        user.PhoneNumberBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizePhone(user.PendingPhoneNumber));
         user.PhoneContactPlatform = PhoneContactPlatforms.Normalize(user.PendingPhoneContactPlatform, PhoneContactPlatforms.Telegram);
         user.PendingPhoneCountryCode = null;
         user.PendingPhoneNumber = null;
@@ -587,6 +593,11 @@ public sealed class TelegramMessagingPlatformService : ITelegramMessagingPlatfor
         user.TelegramPendingExpectedPhoneNumber = null;
         user.TelegramPendingVerificationExpiresAt = null;
         user.TelegramPendingVerificationError = null;
+    }
+
+    private static string HashToken(string rawToken)
+    {
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken))).ToLowerInvariant();
     }
 
     private static string NormalizePhoneNumber(string phoneNumber)

@@ -20,7 +20,8 @@ public class UserRepository : IUserRepository
     {
         if (!EmailHelper.TryNormalizeEmail(email, out var normalized))
             return null;
-        return await _context.Users.SingleOrDefaultAsync(u => u.Email == normalized);
+        var blindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeEmail(normalized));
+        return await _context.Users.SingleOrDefaultAsync(u => u.EmailBlindIndex == blindIndex);
     }
 
     public async Task<User?> GetByPhoneNumberAsync(string phoneNumber)
@@ -28,14 +29,16 @@ public class UserRepository : IUserRepository
         if (string.IsNullOrWhiteSpace(phoneNumber))
             return null;
 
-        return await _context.Users.SingleOrDefaultAsync(u => u.PhoneNumber == phoneNumber);
+        var blindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizePhone(phoneNumber));
+        return await _context.Users.SingleOrDefaultAsync(u => u.PhoneNumberBlindIndex == blindIndex);
     }
 
     public async Task<bool> IsEmailUniqueAsync(string email, Guid excludeUserId)
     {
         if (!EmailHelper.TryNormalizeEmail(email, out var normalized))
             return false;
-        return !await _context.Users.AnyAsync(u => u.Email == normalized && u.Id != excludeUserId);
+        var blindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeEmail(normalized));
+        return !await _context.Users.AnyAsync(u => u.EmailBlindIndex == blindIndex && u.Id != excludeUserId);
     }
 
     public async Task<bool> IsPhoneNumberUniqueAsync(string phoneNumber, Guid excludeUserId)
@@ -43,8 +46,9 @@ public class UserRepository : IUserRepository
         if (string.IsNullOrWhiteSpace(phoneNumber))
             return false;
 
+        var blindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizePhone(phoneNumber));
         return !await _context.Users.AnyAsync(
-            u => (u.PhoneNumber == phoneNumber || u.PendingPhoneNumber == phoneNumber) && u.Id != excludeUserId);
+            u => u.PhoneNumberBlindIndex == blindIndex && u.Id != excludeUserId);
     }
 
     public async Task AddAsync(User user)
@@ -54,12 +58,15 @@ public class UserRepository : IUserRepository
 
     public async Task<bool> IsNifUniqueAsync(string nif, Guid excludeUserId)
     {
-        return !await _context.Users.AnyAsync(u => u.Nif == nif && u.Id != excludeUserId);
+        var blindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeNif(nif));
+        return !await _context.Users.AnyAsync(u => u.NifBlindIndex == blindIndex && u.Id != excludeUserId);
     }
 
     public async Task<bool> IsCcUniqueAsync(string cc, Guid excludeUserId)
     {
-        return !await _context.Users.AnyAsync(u => u.CitizenCardNumber == cc && u.Id != excludeUserId);
+        var normalized = new string(cc.Where(char.IsDigit).ToArray());
+        var blindIndex = EncryptionHelperV2.ComputeBlindIndex(normalized);
+        return !await _context.Users.AnyAsync(u => u.CitizenCardNumberBlindIndex == blindIndex && u.Id != excludeUserId);
     }
 }
 

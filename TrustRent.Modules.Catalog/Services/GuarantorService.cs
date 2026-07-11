@@ -1,8 +1,10 @@
 using System.Net;
 using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Shared.Security;
 using TrustRent.Modules.Catalog.Contracts.DTOs;
 using TrustRent.Modules.Catalog.Contracts.Interfaces;
 using TrustRent.Modules.Catalog.Mappers;
@@ -141,15 +143,17 @@ public class GuarantorService : IGuarantorService
 
         var existingUser = await _userRepository.GetByEmailAsync(email);
 
+        var rawToken = GenerateGuestToken();
         var guarantor = new Guarantor
         {
             Id = Guid.NewGuid(),
             ApplicationId = applicationId,
             UserId = existingUser?.Id,
             GuestEmail = email,
-            GuestAccessToken = GenerateGuestToken(),
+            GuestEmailBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeEmail(email)),
+            GuestAccessToken = HashToken(rawToken),
             GuestTokenIssuedAt = DateTime.UtcNow,
-            CreatedFromIp = sourceIp,
+            CreatedFromIp = IpHashHelper.Hash(sourceIp),
             InvitedByUserId = invitingUserId,
             InviteStatus = GuarantorInviteStatus.Pending,
             CreatedAt = DateTime.UtcNow,
@@ -170,7 +174,7 @@ public class GuarantorService : IGuarantorService
                 $"{inviter.Name} convidou-te para seres fiador de uma candidatura.", applicationId);
         }
 
-        var guestUrl = BuildGuestUrl(guarantor.GuestAccessToken);
+        var guestUrl = BuildGuestUrl(rawToken);
         var inviteTemplate = await _communicationContentService.RenderEmailTemplateAsync(
             CommunicationEmailTemplateKeys.ApplicationGuarantorInvite,
             new Dictionary<string, string?>
@@ -388,7 +392,7 @@ public class GuarantorService : IGuarantorService
             CommunicationEmailTemplateKeys.ApplicationGuarantorApproved,
             new Dictionary<string, string?>
             {
-                ["GuestAccessUrl"] = BuildGuestUrl(guarantor.GuestAccessToken)
+                ["GuestAccessUrl"] = null
             });
         await _emailService.SendEmailAsync(guarantor.GuestEmail, approvedTemplate.Subject, approvedTemplate.BodyHtml);
         await _notificationService.SendNotificationAsync(app.TenantId,
@@ -423,7 +427,7 @@ public class GuarantorService : IGuarantorService
             CommunicationEmailTemplateKeys.ApplicationGuarantorRejected,
             new Dictionary<string, string?>
             {
-                ["GuestAccessUrl"] = BuildGuestUrl(guarantor.GuestAccessToken)
+                ["GuestAccessUrl"] = null
             });
         await _emailService.SendEmailAsync(guarantor.GuestEmail, rejectedTemplate.Subject, rejectedTemplate.BodyHtml);
         await _notificationService.SendNotificationAsync(app.TenantId,
@@ -487,10 +491,12 @@ public class GuarantorService : IGuarantorService
         if (string.IsNullOrWhiteSpace(token))
             throw new UnauthorizedAccessException("Token inválido.");
 
+        var hashedToken = HashToken(token);
+
         return await _context.Guarantors
             .Include(g => g.Application).ThenInclude(a => a!.Property)
             .Include(g => g.IncomeRange)
-            .FirstOrDefaultAsync(g => g.GuestAccessToken == token)
+            .FirstOrDefaultAsync(g => g.GuestAccessToken == hashedToken)
            ?? throw new UnauthorizedAccessException("Token inválido.");
     }
 
@@ -556,7 +562,7 @@ public class GuarantorService : IGuarantorService
             GuestPhoneNumber = guarantor.GuestPhoneNumber,
             GuestAddress = guarantor.GuestAddress,
             GuestPostalCode = guarantor.GuestPostalCode,
-            GuestAccessUrl = BuildGuestUrl(guarantor.GuestAccessToken),
+            GuestAccessUrl = null,
             PropertyTitle = property?.Title,
             PropertyAddress = FormatAddress(property),
             MonthlyRent = property?.Price,
@@ -609,6 +615,11 @@ public class GuarantorService : IGuarantorService
     {
         var bytes = RandomNumberGenerator.GetBytes(32);
         return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
+
+    private static string HashToken(string rawToken)
+    {
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken))).ToLowerInvariant();
     }
 
     private static string? FormatAddress(Property? property)

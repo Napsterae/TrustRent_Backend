@@ -29,12 +29,25 @@ public static class IdentitySeeder
         var users = new List<User>();
         var passwordHash = BCrypt.Net.BCrypt.HashPassword("TrustRent2026!");
 
+        static string? BlindEmail(string? email) =>
+            EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeEmail(email));
+        static string? BlindNif(string? nif) =>
+            EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeNif(nif));
+        static string? BlindCc(string? cc) =>
+            EncryptionHelperV2.ComputeBlindIndex(cc); // Citizen card numbers are already canonical
+        static string? BlindPhone(string? phone) =>
+            EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizePhone(phone));
+
         // 1. Adicionar os 4 Core Users (todos completos)
         users.Add(new User
         {
-            Id = LandlordId, Name = "Carlos Mendes", Email = "carlos.mendes@email.pt", PasswordHash = passwordHash,
-            Nif = "123456789", CitizenCardNumber = "12345678", Address = "Rua Augusta 45, 2º Esq", PostalCode = "1100-048",
-            PhoneCountryCode = "PT", PhoneNumber = "+351912345678",
+            Id = LandlordId, Name = "Carlos Mendes", Email = "carlos.mendes@email.pt",
+            EmailBlindIndex = BlindEmail("carlos.mendes@email.pt"),
+            PasswordHash = passwordHash,
+            Nif = "123456789", NifBlindIndex = BlindNif("123456789"),
+            CitizenCardNumber = "12345678", CitizenCardNumberBlindIndex = BlindCc("12345678"),
+            Address = "Rua Augusta 45, 2º Esq", PostalCode = "1100-048",
+            PhoneCountryCode = "PT", PhoneNumber = "+351912345678", PhoneNumberBlindIndex = BlindPhone("+351912345678"),
             ProfilePictureUrl = "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=256&q=80",
             IsIdentityVerified = true, IdentityExpiryDate = DateTime.UtcNow.AddYears(3),
             IsNoDebtVerified = true, NoDebtExpiryDate = DateTime.UtcNow.AddMonths(6),
@@ -42,9 +55,13 @@ public static class IdentitySeeder
         });
         users.Add(new User
         {
-            Id = TenantId, Name = "Ana Ferreira", Email = "ana.ferreira@email.pt", PasswordHash = passwordHash,
-            Nif = "987654321", CitizenCardNumber = "87654321", Address = "Avenida da Liberdade 120, 5º Dto", PostalCode = "1250-146",
-            PhoneCountryCode = "PT", PhoneNumber = "+351923456789",
+            Id = TenantId, Name = "Ana Ferreira", Email = "ana.ferreira@email.pt",
+            EmailBlindIndex = BlindEmail("ana.ferreira@email.pt"),
+            PasswordHash = passwordHash,
+            Nif = "987654321", NifBlindIndex = BlindNif("987654321"),
+            CitizenCardNumber = "87654321", CitizenCardNumberBlindIndex = BlindCc("87654321"),
+            Address = "Avenida da Liberdade 120, 5º Dto", PostalCode = "1250-146",
+            PhoneCountryCode = "PT", PhoneNumber = "+351923456789", PhoneNumberBlindIndex = BlindPhone("+351923456789"),
             ProfilePictureUrl = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=256&q=80",
             IsIdentityVerified = true, IdentityExpiryDate = DateTime.UtcNow.AddYears(2),
             IsNoDebtVerified = false,
@@ -52,9 +69,13 @@ public static class IdentitySeeder
         });
         users.Add(new User
         {
-            Id = Tenant2Id, Name = "Miguel Costa", Email = "miguel.costa@email.pt", PasswordHash = passwordHash,
-            Nif = "456789123", CitizenCardNumber = "45678912", Address = "Rua de Santa Catarina 200, 3º", PostalCode = "4000-442",
-            PhoneCountryCode = "PT", PhoneNumber = "+351934567890",
+            Id = Tenant2Id, Name = "Miguel Costa", Email = "miguel.costa@email.pt",
+            EmailBlindIndex = BlindEmail("miguel.costa@email.pt"),
+            PasswordHash = passwordHash,
+            Nif = "456789123", NifBlindIndex = BlindNif("456789123"),
+            CitizenCardNumber = "45678912", CitizenCardNumberBlindIndex = BlindCc("45678912"),
+            Address = "Rua de Santa Catarina 200, 3º", PostalCode = "4000-442",
+            PhoneCountryCode = "PT", PhoneNumber = "+351934567890", PhoneNumberBlindIndex = BlindPhone("+351934567890"),
             ProfilePictureUrl = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80",
             IsIdentityVerified = true, IdentityExpiryDate = DateTime.UtcNow.AddYears(4),
             IsNoDebtVerified = true, NoDebtExpiryDate = DateTime.UtcNow.AddMonths(3),
@@ -62,9 +83,13 @@ public static class IdentitySeeder
         });
         users.Add(new User
         {
-            Id = Landlord2Id, Name = "Sofia Rodrigues", Email = "sofia.rodrigues@email.pt", PasswordHash = passwordHash,
-            Nif = "789123456", CitizenCardNumber = "78912345", Address = "Praça do Comércio 5, 1º", PostalCode = "1100-148",
-            PhoneCountryCode = "PT", PhoneNumber = "+351945678901",
+            Id = Landlord2Id, Name = "Sofia Rodrigues", Email = "sofia.rodrigues@email.pt",
+            EmailBlindIndex = BlindEmail("sofia.rodrigues@email.pt"),
+            PasswordHash = passwordHash,
+            Nif = "789123456", NifBlindIndex = BlindNif("789123456"),
+            CitizenCardNumber = "78912345", CitizenCardNumberBlindIndex = BlindCc("78912345"),
+            Address = "Praça do Comércio 5, 1º", PostalCode = "1100-148",
+            PhoneCountryCode = "PT", PhoneNumber = "+351945678901", PhoneNumberBlindIndex = BlindPhone("+351945678901"),
             ProfilePictureUrl = "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&q=80",
             IsIdentityVerified = true, IdentityExpiryDate = DateTime.UtcNow.AddYears(5),
             IsNoDebtVerified = true, NoDebtExpiryDate = DateTime.UtcNow.AddMonths(9),
@@ -107,13 +132,15 @@ public static class IdentitySeeder
                 Id = Guid.NewGuid(),
                 Name = fullName,
                 Email = email,
+                EmailBlindIndex = BlindEmail(email),
                 PasswordHash = passwordHash,
                 Nif = nif,
-                CitizenCardNumber = cc,
+                NifBlindIndex = BlindNif(nif),
+                CitizenCardNumber = cc, CitizenCardNumberBlindIndex = BlindCc(cc),
                 Address = address,
                 PostalCode = postal,
                 PhoneCountryCode = phoneCode,
-                PhoneNumber = phone,
+                PhoneNumber = phone, PhoneNumberBlindIndex = BlindPhone(phone),
                 ProfilePictureUrl = pic,
                 IsIdentityVerified = isIdVerified,
                 IdentityExpiryDate = isIdVerified ? DateTime.UtcNow.AddYears(random.Next(1, 5)) : null,

@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text.Json;
 using TrustRent.Modules.Admin.Authorization;
+using TrustRent.Shared.Security;
 using TrustRent.Modules.Admin.Contracts;
 using TrustRent.Modules.Admin.Contracts.Database;
 using TrustRent.Modules.Admin.Models;
@@ -63,8 +64,8 @@ public static class ConsentEndpoints
                 PrivacyPolicyVersion = TrimOrNull(req.PrivacyPolicyVersion),
                 SourceUrl = TrimOrNull(req.SourceUrl),
                 Language = TrimOrNull(req.Language),
-                UserAgent = TrimOrNull(ctx.Request.Headers.UserAgent.ToString()),
-                IpAddress = ctx.Connection.RemoteIpAddress?.ToString(),
+                UserAgent = UserAgentHelper.Simplify(ctx.Request.Headers.UserAgent.ToString()),
+                IpAddress = IpHashHelper.Hash(ctx.Connection.RemoteIpAddress?.ToString()),
                 CreatedAt = now
             };
 

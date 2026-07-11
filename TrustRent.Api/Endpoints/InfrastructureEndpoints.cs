@@ -6,6 +6,7 @@ using TrustRent.Modules.Communications.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Shared.Infrastructure;
+using TrustRent.Shared.Security;
 
 namespace TrustRent.Api.Endpoints;
 
@@ -52,8 +53,9 @@ public static class InfrastructureEndpoints
 
         var configCheck = CheckConfiguration(configuration);
         var storageCheck = CheckStorage(configuration, environment);
+        var encryptionCheck = CheckEncryption(configuration);
 
-        var checks = new[] { configCheck, storageCheck }
+        var checks = new[] { configCheck, storageCheck, encryptionCheck }
             .Concat(dbChecks)
             .ToArray();
 
@@ -119,8 +121,8 @@ public static class InfrastructureEndpoints
             "ConnectionStrings:PostgresConnection",
             "JwtSettings:SecretKey",
             "AdminJwtSettings:SecretKey",
-            "Encryption:Key",
-            "Encryption:IV",
+            "Encryption:V2:DataKey",
+            "Encryption:V2:BlindIndexKey",
         };
 
         var recommendedKeys = new[]
@@ -197,6 +199,56 @@ public static class InfrastructureEndpoints
                 "unhealthy",
                 ex.Message,
                 new { path = fullPath });
+        }
+    }
+
+    private static HealthCheckResult CheckEncryption(IConfiguration configuration)
+    {
+        try
+        {
+            var hasV2Key = !string.IsNullOrWhiteSpace(configuration["Encryption:V2:DataKey"]);
+            var hasPreviousKey = !string.IsNullOrWhiteSpace(configuration["Encryption:V2:DataKeyPrevious"]);
+            var hasBlindIndexKey = !string.IsNullOrWhiteSpace(configuration["Encryption:V2:BlindIndexKey"]);
+
+            var details = new Dictionary<string, object>
+            {
+                ["currentKeyVersion"] = EncryptionHelperV2.CurrentKeyVersion,
+                ["hasPreviousKey"] = hasPreviousKey,
+                ["dataKeyConfigured"] = hasV2Key,
+                ["blindIndexKeyConfigured"] = hasBlindIndexKey,
+            };
+
+            if (!hasV2Key || !hasBlindIndexKey)
+            {
+                return new HealthCheckResult(
+                    "encryption",
+                    "degraded",
+                    "V2 encryption keys are not fully configured.",
+                    details);
+            }
+
+            if (hasPreviousKey)
+            {
+                details["rotationInProgress"] = true;
+                return new HealthCheckResult(
+                    "encryption",
+                    "degraded",
+                    "Key rotation window is open. Run the re-encryption job, then remove Encryption:V2:DataKeyPrevious.",
+                    details);
+            }
+
+            return new HealthCheckResult(
+                "encryption",
+                "healthy",
+                "Encryption keys are configured with no rotation in progress.",
+                details);
+        }
+        catch (Exception ex)
+        {
+            return new HealthCheckResult(
+                "encryption",
+                "unhealthy",
+                $"Encryption check failed: {ex.Message}");
         }
     }
 

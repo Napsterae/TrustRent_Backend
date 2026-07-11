@@ -44,9 +44,10 @@ public class LoginCodeService : ILoginCodeService
     {
         var normalizedEmail = EmailHelper.NormalizeEmail(email);
         var now = DateTime.UtcNow;
+        var emailBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeEmail(normalizedEmail));
 
         var latestActiveCode = await _db.EmailLoginCodes
-            .Where(x => x.Email == normalizedEmail && x.VerifiedAt == null && x.InvalidatedAt == null && x.ExpiresAt > now)
+            .Where(x => x.EmailBlindIndex == emailBlindIndex && x.VerifiedAt == null && x.InvalidatedAt == null && x.ExpiresAt > now)
             .OrderByDescending(x => x.RequestedAt)
             .FirstOrDefaultAsync(ct);
 
@@ -54,7 +55,7 @@ public class LoginCodeService : ILoginCodeService
             throw new InvalidOperationException("Ainda enviámos um código recentemente. Aguarda um minuto e tenta novamente.");
 
         foreach (var pendingCode in await _db.EmailLoginCodes
-                     .Where(x => x.Email == normalizedEmail && x.VerifiedAt == null && x.InvalidatedAt == null && x.ExpiresAt > now)
+                     .Where(x => x.EmailBlindIndex == emailBlindIndex && x.VerifiedAt == null && x.InvalidatedAt == null && x.ExpiresAt > now)
                      .ToListAsync(ct))
         {
             pendingCode.InvalidatedAt = now;
@@ -65,11 +66,12 @@ public class LoginCodeService : ILoginCodeService
         {
             Id = Guid.NewGuid(),
             Email = normalizedEmail,
+            EmailBlindIndex = emailBlindIndex,
             CodeHash = HashCode(normalizedEmail, code),
             RequestedAt = now,
             ExpiresAt = now.AddMinutes(CodeTtlMinutes),
-            RequestedFromIp = sourceIp,
-            RequestedUserAgent = userAgent
+            RequestedFromIp = IpHashHelper.Hash(sourceIp),
+            RequestedUserAgent = UserAgentHelper.Simplify(userAgent)
         };
 
         _db.EmailLoginCodes.Add(loginCode);
@@ -115,8 +117,9 @@ public class LoginCodeService : ILoginCodeService
         if (sanitizedCode.Length != CodeDigits || sanitizedCode.Any(ch => !char.IsDigit(ch)))
             throw new UnauthorizedAccessException("Código inválido ou expirado.");
 
+        var emailBlindIndex = EncryptionHelperV2.ComputeBlindIndex(EncryptionHelperV2.NormalizeEmail(normalizedEmail));
         var loginCode = await _db.EmailLoginCodes
-            .Where(x => x.Email == normalizedEmail && x.VerifiedAt == null && x.InvalidatedAt == null)
+            .Where(x => x.EmailBlindIndex == emailBlindIndex && x.VerifiedAt == null && x.InvalidatedAt == null)
             .OrderByDescending(x => x.RequestedAt)
             .FirstOrDefaultAsync(ct);
 

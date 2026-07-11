@@ -4,6 +4,7 @@ public class EmailLoginCode
 {
     public Guid Id { get; set; }
     public string Email { get; set; } = string.Empty;
+    public string? EmailBlindIndex { get; set; }
     public string CodeHash { get; set; } = string.Empty;
     public DateTime RequestedAt { get; set; } = DateTime.UtcNow;
     public DateTime ExpiresAt { get; set; }

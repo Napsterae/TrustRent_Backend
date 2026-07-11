@@ -12,11 +12,13 @@ internal static class TestAssemblyBootstrap
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Encryption:Key"] = "12345678901234567890123456789012",
-                ["Encryption:IV"] = "1234567890123456"
+                // 32-byte keys Base64-encoded for EncryptionHelperV2 (AES-256-GCM + HMAC-SHA256)
+                ["Encryption:V2:DataKey"] = Convert.ToBase64String(new byte[32]),
+                ["Encryption:V2:BlindIndexKey"] = Convert.ToBase64String(new byte[32])
             })
             .Build();
 
-        EncryptionHelper.Initialize(configuration);
+        EncryptionHelperV2.Initialize(configuration);
+        IpHashHelper.Initialize(configuration);
     }
 }

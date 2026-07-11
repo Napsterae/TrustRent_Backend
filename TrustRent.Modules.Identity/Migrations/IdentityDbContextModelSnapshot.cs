@@ -39,8 +39,12 @@ namespace TrustRent.Modules.Identity.Migrations
 
                     b.Property<string>("Email")
                         .IsRequired()
-                        .HasMaxLength(320)
-                        .HasColumnType("character varying(320)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("EmailBlindIndex")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
@@ -66,7 +70,7 @@ namespace TrustRent.Modules.Identity.Migrations
 
                     b.HasIndex("ExpiresAt");
 
-                    b.HasIndex("Email", "RequestedAt");
+                    b.HasIndex("EmailBlindIndex", "RequestedAt");
 
                     b.ToTable("EmailLoginCodes", "identity");
                 });
@@ -151,12 +155,20 @@ namespace TrustRent.Modules.Identity.Migrations
                     b.Property<string>("CitizenCardNumber")
                         .HasColumnType("text");
 
+                    b.Property<string>("CitizenCardNumberBlindIndex")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("EmailBlindIndex")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<bool>("EmailNotificationsEnabled")
                         .HasColumnType("boolean");
@@ -186,6 +198,10 @@ namespace TrustRent.Modules.Identity.Migrations
                     b.Property<string>("Nif")
                         .HasColumnType("text");
 
+                    b.Property<string>("NifBlindIndex")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<DateTime?>("NoDebtExpiryDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -211,6 +227,10 @@ namespace TrustRent.Modules.Identity.Migrations
 
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("text");
+
+                    b.Property<string>("PhoneNumberBlindIndex")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<DateTime?>("PhoneNumberVerifiedAt")
                         .HasColumnType("timestamp with time zone");
@@ -262,16 +282,16 @@ namespace TrustRent.Modules.Identity.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CitizenCardNumber")
+                    b.HasIndex("CitizenCardNumberBlindIndex")
                         .IsUnique();
 
-                    b.HasIndex("Email")
+                    b.HasIndex("EmailBlindIndex")
                         .IsUnique();
 
-                    b.HasIndex("Nif")
+                    b.HasIndex("NifBlindIndex")
                         .IsUnique();
 
-                    b.HasIndex("PhoneNumber")
+                    b.HasIndex("PhoneNumberBlindIndex")
                         .IsUnique();
 
                     b.ToTable("Users", "identity");
@@ -299,8 +319,12 @@ namespace TrustRent.Modules.Identity.Migrations
 
                     b.Property<string>("PhoneNumber")
                         .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("PhoneNumberBlindIndex")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<string>("Purpose")
                         .IsRequired()
@@ -328,9 +352,9 @@ namespace TrustRent.Modules.Identity.Migrations
 
                     b.HasIndex("ExpiresAt");
 
-                    b.HasIndex("PhoneNumber", "Purpose", "RequestedAt");
-
                     b.HasIndex("UserId", "Purpose", "RequestedAt");
+
+                    b.HasIndex("PhoneNumberBlindIndex", "Purpose", "UserId", "RequestedAt");
 
                     b.ToTable("WhatsAppOneTimeCodes", "identity");
                 });
