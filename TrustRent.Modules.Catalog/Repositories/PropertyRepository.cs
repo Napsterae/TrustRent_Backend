@@ -60,10 +60,45 @@ public class PropertyRepository : IPropertyRepository
         if (excludedPropertyIds is { Count: > 0 })
             q = q.Where(p => !excludedPropertyIds.Contains(p.Id));
 
+        // --- Full-text search ---
+        // On PostgreSQL: use websearch_to_tsquery with Portuguese stemming + ranking via SearchVector.
+        // On InMemory (tests): fall back to case-insensitive Contains on Title + District + Municipality + Parish.
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
-            q = q.Where(p => 
-            p.Title.ToLower().Contains(query.SearchTerm.ToLower()) ||
-            p.District.ToLower().Contains(query.SearchTerm.ToLower()));
+        {
+            if (IsNpgsqlProvider)
+            {
+                var tsQuery = EF.Functions.WebSearchToTsQuery("portuguese", query.SearchTerm);
+                q = q.Where(p => p.SearchVector!.Matches(tsQuery));
+            }
+            else
+            {
+                var term = query.SearchTerm.ToLower();
+                q = q.Where(p =>
+                    p.Title.ToLower().Contains(term) ||
+                    p.District.ToLower().Contains(term) ||
+                    p.Municipality.ToLower().Contains(term) ||
+                    p.Parish.ToLower().Contains(term));
+            }
+        }
+
+        // --- Geo radius search (bounding box approximation) ---
+        // Works with both PostgreSQL and InMemory. Uses simple lat/lng range filter.
+        // Accurate enough for thousands of properties; can upgrade to PostGIS later if needed.
+        if (query.Latitude.HasValue && query.Longitude.HasValue && query.RadiusKm.HasValue)
+        {
+            var lat = query.Latitude.Value;
+            var lng = query.Longitude.Value;
+            var radiusKm = query.RadiusKm.Value;
+
+            // 1 degree of latitude ≈ 111 km. Convert radius to degree range.
+            var latDelta = radiusKm / 111.0;
+            // Longitude degrees shrink as latitude approaches the poles.
+            var lngDelta = radiusKm / (111.0 * Math.Cos(lat * Math.PI / 180.0));
+
+            q = q.Where(p =>
+                p.Latitude >= lat - latDelta && p.Latitude <= lat + latDelta &&
+                p.Longitude >= lng - lngDelta && p.Longitude <= lng + lngDelta);
+        }
 
         if (!string.IsNullOrWhiteSpace(query.Type) && query.Type != "Todos")
             q = q.Where(p => p.PropertyType == query.Type);
@@ -98,18 +133,40 @@ public class PropertyRepository : IPropertyRepository
 
         var totalCount = await q.CountAsync();
 
-        var orderedQuery = query.EffectiveSort switch
+        // On PostgreSQL with FTS, sort by relevance (ts_rank) when no explicit sort is requested.
+        // Otherwise fall back to the existing sort logic.
+        var effectiveSort = query.EffectiveSort;
+        if (effectiveSort == "recent" && !string.IsNullOrWhiteSpace(query.SearchTerm) && IsNpgsqlProvider)
+        {
+            var tsQuery = EF.Functions.WebSearchToTsQuery("portuguese", query.SearchTerm!);
+            var orderedQuery = q
+                .Select(p => new { Property = p, Rank = p.SearchVector!.Rank(tsQuery) })
+                .OrderByDescending(x => x.Rank)
+                .ThenByDescending(x => x.Property.CreatedAt)
+                .Select(x => x.Property);
+
+            var items = await orderedQuery
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return (items, totalCount);
+        }
+
+        var sortedQuery = effectiveSort switch
         {
             "price_asc" => q.OrderBy(p => p.Price).ThenByDescending(p => p.CreatedAt),
             "price_desc" => q.OrderByDescending(p => p.Price).ThenByDescending(p => p.CreatedAt),
             _ => q.OrderByDescending(p => p.CreatedAt)
         };
 
-        // Aplica a Paginação
-        var items = await orderedQuery.Skip((page - 1) * pageSize)
-                                      .Take(pageSize)
-                                      .ToListAsync();
+        var results = await sortedQuery.Skip((page - 1) * pageSize)
+                                       .Take(pageSize)
+                                       .ToListAsync();
 
-        return (items, totalCount);
+        return (results, totalCount);
     }
+
+    private bool IsNpgsqlProvider =>
+        _context.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL";
 }

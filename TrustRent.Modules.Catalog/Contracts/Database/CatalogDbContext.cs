@@ -32,6 +32,11 @@ public class CatalogDbContext : DbContext
     {
         modelBuilder.HasDefaultSchema("catalog");
 
+        // PostgreSQL extensions for full-text search and fuzzy matching.
+        // These are no-ops on InMemory/test providers.
+        modelBuilder.HasPostgresExtension("pg_trgm");
+        modelBuilder.HasPostgresExtension("unaccent");
+
         modelBuilder.Entity<Property>(builder =>
         {
             builder.HasKey(p => p.Id);
@@ -40,6 +45,26 @@ public class CatalogDbContext : DbContext
                    .WithOne()
                    .HasForeignKey(i => i.PropertyId)
                    .OnDelete(DeleteBehavior.Cascade);
+
+            // Weighted tsvector computed column: Title (A) > Description (B) > location fields (C).
+            // Only configured for PostgreSQL — ignored on InMemory/test providers.
+            if (Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+            {
+                builder.Property(p => p.SearchVector)
+                       .HasComputedColumnSql(
+                           @"setweight(to_tsvector(COALESCE(current_setting('app.search_config', true), 'portuguese'), coalesce(""Title"", '')), 'A') || ' ' ||
+                             setweight(to_tsvector(COALESCE(current_setting('app.search_config', true), 'portuguese'), coalesce(""Description"", '')), 'B') || ' ' ||
+                             setweight(to_tsvector(COALESCE(current_setting('app.search_config', true), 'portuguese'), coalesce(""Municipality"", '') || ' ' || coalesce(""District"", '') || ' ' || coalesce(""Parish"", '')), 'C')",
+                           stored: true);
+
+                builder.HasIndex(p => p.SearchVector)
+                       .HasMethod("GIN");
+            }
+            else
+            {
+                // InMemory/test providers: ignore the SearchVector property entirely
+                builder.Ignore(p => p.SearchVector);
+            }
 
             builder.Property(p => p.MatrixArticle).HasMaxLength(400)
                 .HasConversion(
