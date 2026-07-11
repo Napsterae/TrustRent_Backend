@@ -747,6 +747,7 @@ app.MapAdminPropertiesEndpoints();
 app.MapAdminLeasingEndpoints();
 app.MapAdminTicketsReviewsEndpoints();
 app.MapSupportTicketsEndpoints();
+app.MapConsentEndpoints();
 app.MapAgentReportsEndpoints();
 app.MapAdminCommunicationsEndpoints();
 app.MapAdminJobsEndpoints();
