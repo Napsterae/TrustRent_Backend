@@ -1,3 +1,4 @@
+using NpgsqlTypes;
 using TrustRent.Shared.Models;
 
 namespace TrustRent.Modules.Catalog.Models;
@@ -11,6 +12,9 @@ public class Property
     // Informações Básicas
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+
+    // Full-text search vector (computed by PostgreSQL, null on InMemory/test providers)
+    public NpgsqlTsVector? SearchVector { get; set; }
     public decimal Price { get; set; }
     public string PropertyType { get; set; } = string.Empty;
     public string Typology { get; set; } = string.Empty;

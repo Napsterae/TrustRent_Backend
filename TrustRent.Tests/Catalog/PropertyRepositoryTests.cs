@@ -24,7 +24,12 @@ public class PropertyRepositoryTests
         bool isPublic = true,
         bool isUnderMaintenance = false,
         bool isBlocked = false,
-        Guid? tenantId = null)
+        Guid? tenantId = null,
+        double latitude = 0,
+        double longitude = 0,
+        string? district = null,
+        string? municipality = null,
+        string? parish = null)
     {
         return new Property
         {
@@ -34,14 +39,16 @@ public class PropertyRepositoryTests
             Price = price,
             PropertyType = "Apartamento",
             Typology = "T2",
-            District = "Lisboa",
-            Municipality = "Lisboa",
-            Parish = "Avenidas Novas",
+            District = district ?? "Lisboa",
+            Municipality = municipality ?? "Lisboa",
+            Parish = parish ?? "Avenidas Novas",
             IsPublic = isPublic,
             IsUnderMaintenance = isUnderMaintenance,
             IsBlocked = isBlocked,
             TenantId = tenantId,
             CreatedAt = createdAt,
+            Latitude = latitude,
+            Longitude = longitude,
         };
     }
 
@@ -135,5 +142,121 @@ public class PropertyRepositoryTests
         Assert.Equal(1, result.TotalCount);
         Assert.Single(items);
         Assert.Equal(visible.Id, items[0].Id);
+    }
+
+    [Fact]
+    public async Task SearchAsync_SearchTerm_MatchesTitleDistrictMunicipalityAndParish()
+    {
+        await using var context = CreateContext();
+
+        var byTitle = CreateProperty("Apartamento T2 no Porto", 900m, DateTime.UtcNow.AddDays(-1));
+        var byDistrict = CreateProperty("Casa bonita", 800m, DateTime.UtcNow.AddDays(-2), district: "Porto");
+        var byMunicipality = CreateProperty("Loft moderno", 1100m, DateTime.UtcNow.AddDays(-3), municipality: "Vila Nova de Gaia", district: "Porto");
+        var byParish = CreateProperty("Estúdio acolhedor", 700m, DateTime.UtcNow.AddDays(-4), parish: "Cedofeita", district: "Porto", municipality: "Porto");
+        var noMatch = CreateProperty("Moradia em Setúbal", 1500m, DateTime.UtcNow.AddDays(-5), district: "Setúbal", municipality: "Setúbal", parish: "São Sebastião");
+
+        context.Properties.AddRange(byTitle, byDistrict, byMunicipality, byParish, noMatch);
+        await context.SaveChangesAsync();
+
+        var repository = new PropertyRepository(context);
+        var result = await repository.SearchAsync(new PropertySearchQuery { SearchTerm = "porto" });
+        var items = result.Items.ToList();
+
+        Assert.Equal(4, result.TotalCount);
+        Assert.DoesNotContain(items, p => p.Id == noMatch.Id);
+    }
+
+    [Fact]
+    public async Task SearchAsync_GeoRadius_FiltersPropertiesWithinBoundingBox()
+    {
+        await using var context = CreateContext();
+
+        // Porto center: lat 41.15, lng -8.61
+        var nearPorto = CreateProperty("Near Porto", 900m, DateTime.UtcNow.AddDays(-1), latitude: 41.15, longitude: -8.61);
+        var alsoNearPorto = CreateProperty("Also near Porto", 850m, DateTime.UtcNow.AddDays(-2), latitude: 41.16, longitude: -8.60);
+        // Lisbon: lat 38.72, lng -9.14 — ~280km from Porto
+        var inLisbon = CreateProperty("In Lisbon", 1100m, DateTime.UtcNow.AddDays(-3), latitude: 38.72, longitude: -9.14);
+
+        context.Properties.AddRange(nearPorto, alsoNearPorto, inLisbon);
+        await context.SaveChangesAsync();
+
+        var repository = new PropertyRepository(context);
+        var result = await repository.SearchAsync(new PropertySearchQuery
+        {
+            Latitude = 41.15,
+            Longitude = -8.61,
+            RadiusKm = 10.0 // 10km radius
+        });
+        var items = result.Items.ToList();
+
+        Assert.Equal(2, result.TotalCount);
+        Assert.Contains(items, p => p.Id == nearPorto.Id);
+        Assert.Contains(items, p => p.Id == alsoNearPorto.Id);
+        Assert.DoesNotContain(items, p => p.Id == inLisbon.Id);
+    }
+
+    [Fact]
+    public async Task SearchAsync_GeoRadius_ZeroRadius_StillMatchesExactLocation()
+    {
+        await using var context = CreateContext();
+
+        var atCenter = CreateProperty("At center", 900m, DateTime.UtcNow.AddDays(-1), latitude: 41.15, longitude: -8.61);
+        var farAway = CreateProperty("Far away", 850m, DateTime.UtcNow.AddDays(-2), latitude: 41.20, longitude: -8.70);
+
+        context.Properties.AddRange(atCenter, farAway);
+        await context.SaveChangesAsync();
+
+        var repository = new PropertyRepository(context);
+        var result = await repository.SearchAsync(new PropertySearchQuery
+        {
+            Latitude = 41.15,
+            Longitude = -8.61,
+            RadiusKm = 1.0 // 1km — should include atCenter but not farAway (~10km away)
+        });
+
+        Assert.Equal(1, result.TotalCount);
+        Assert.Equal(atCenter.Id, result.Items.First().Id);
+    }
+
+    [Fact]
+    public async Task SearchAsync_GeoRadius_CombinedWithTextSearch()
+    {
+        await using var context = CreateContext();
+
+        var matchingNear = CreateProperty("T2 Porto Centro", 900m, DateTime.UtcNow.AddDays(-1), latitude: 41.15, longitude: -8.61, district: "Porto", municipality: "Porto");
+        var matchingFar = CreateProperty("T2 Porto Lisboa", 900m, DateTime.UtcNow.AddDays(-2), latitude: 38.72, longitude: -9.14, district: "Lisboa", municipality: "Lisboa");
+        var nonMatchingNear = CreateProperty("Moradia Setúbal", 900m, DateTime.UtcNow.AddDays(-3), latitude: 41.15, longitude: -8.61, district: "Setúbal", municipality: "Setúbal");
+
+        context.Properties.AddRange(matchingNear, matchingFar, nonMatchingNear);
+        await context.SaveChangesAsync();
+
+        var repository = new PropertyRepository(context);
+        var result = await repository.SearchAsync(new PropertySearchQuery
+        {
+            SearchTerm = "porto",
+            Latitude = 41.15,
+            Longitude = -8.61,
+            RadiusKm = 15.0
+        });
+
+        Assert.Equal(1, result.TotalCount);
+        Assert.Equal(matchingNear.Id, result.Items.First().Id);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithoutGeoParams_DoesNotFilterByLocation()
+    {
+        await using var context = CreateContext();
+
+        var prop1 = CreateProperty("Prop 1", 900m, DateTime.UtcNow.AddDays(-1), latitude: 41.15, longitude: -8.61);
+        var prop2 = CreateProperty("Prop 2", 900m, DateTime.UtcNow.AddDays(-2), latitude: 38.72, longitude: -9.14);
+
+        context.Properties.AddRange(prop1, prop2);
+        await context.SaveChangesAsync();
+
+        var repository = new PropertyRepository(context);
+        var result = await repository.SearchAsync(new PropertySearchQuery());
+
+        Assert.Equal(2, result.TotalCount);
     }
 }

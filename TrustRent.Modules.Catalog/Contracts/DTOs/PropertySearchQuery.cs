@@ -11,6 +11,11 @@ public class PropertySearchQuery
     public decimal? MaxPrice { get; set; }
     public string? Locations { get; set; }
 
+    // Geo search: filter properties within a radius (km) of a point
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public double? RadiusKm { get; set; }
+
     // Comodidades
     public bool? HasElevator { get; set; }
     public bool? HasAirConditioning { get; set; }
