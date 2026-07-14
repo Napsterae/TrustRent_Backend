@@ -61,13 +61,16 @@ public class PropertyRepository : IPropertyRepository
             q = q.Where(p => !excludedPropertyIds.Contains(p.Id));
 
         // --- Full-text search ---
-        // On PostgreSQL: use websearch_to_tsquery with Portuguese stemming + ranking via SearchVector.
+        // On PostgreSQL: use websearch_to_tsquery with configurable language stemming + ranking via SearchVector.
         // On InMemory (tests): fall back to case-insensitive Contains on Title + District + Municipality + Parish.
+        // Language is configurable via FTS_LANGUAGE env var, defaults to 'portuguese'.
+        var ftsLanguage = Environment.GetEnvironmentVariable("FTS_LANGUAGE") ?? "portuguese";
+
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
         {
             if (IsNpgsqlProvider)
             {
-                var tsQuery = EF.Functions.WebSearchToTsQuery("portuguese", query.SearchTerm);
+                var tsQuery = EF.Functions.WebSearchToTsQuery(ftsLanguage, query.SearchTerm);
                 q = q.Where(p => p.SearchVector!.Matches(tsQuery));
             }
             else
@@ -138,7 +141,7 @@ public class PropertyRepository : IPropertyRepository
         var effectiveSort = query.EffectiveSort;
         if (effectiveSort == "recent" && !string.IsNullOrWhiteSpace(query.SearchTerm) && IsNpgsqlProvider)
         {
-            var tsQuery = EF.Functions.WebSearchToTsQuery("portuguese", query.SearchTerm!);
+            var tsQuery = EF.Functions.WebSearchToTsQuery(ftsLanguage, query.SearchTerm!);
             var orderedQuery = q
                 .Select(p => new { Property = p, Rank = p.SearchVector!.Rank(tsQuery) })
                 .OrderByDescending(x => x.Rank)
