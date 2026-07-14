@@ -48,13 +48,17 @@ public class CatalogDbContext : DbContext
 
             // Weighted tsvector computed column: Title (A) > Description (B) > location fields (C).
             // Only configured for PostgreSQL — ignored on InMemory/test providers.
+            // Language is configurable via FTS_LANGUAGE env var, defaults to 'portuguese'.
+            // Note: changing the language requires a new migration to recreate the computed column.
             if (Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
             {
+                var ftsLanguage = Environment.GetEnvironmentVariable("FTS_LANGUAGE") ?? "portuguese";
+
                 builder.Property(p => p.SearchVector)
                        .HasComputedColumnSql(
-                           @"setweight(to_tsvector(COALESCE(current_setting('app.search_config', true), 'portuguese'), coalesce(""Title"", '')), 'A') || ' ' ||
-                             setweight(to_tsvector(COALESCE(current_setting('app.search_config', true), 'portuguese'), coalesce(""Description"", '')), 'B') || ' ' ||
-                             setweight(to_tsvector(COALESCE(current_setting('app.search_config', true), 'portuguese'), coalesce(""Municipality"", '') || ' ' || coalesce(""District"", '') || ' ' || coalesce(""Parish"", '')), 'C')",
+                           $@"setweight(to_tsvector('{ftsLanguage}', coalesce(""Title"", '')), 'A') || ' ' ||
+                              setweight(to_tsvector('{ftsLanguage}', coalesce(""Description"", '')), 'B') || ' ' ||
+                              setweight(to_tsvector('{ftsLanguage}', coalesce(""Municipality"", '') || ' ' || coalesce(""District"", '') || ' ' || coalesce(""Parish"", '')), 'C')",
                            stored: true);
 
                 builder.HasIndex(p => p.SearchVector)
@@ -65,6 +69,7 @@ public class CatalogDbContext : DbContext
                 // InMemory/test providers: ignore the SearchVector property entirely
                 builder.Ignore(p => p.SearchVector);
             }
+
 
             builder.Property(p => p.MatrixArticle).HasMaxLength(400)
                 .HasConversion(
