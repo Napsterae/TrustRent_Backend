@@ -767,7 +767,7 @@ namespace TrustRent.Modules.Catalog.Migrations
                     b.Property<NpgsqlTsVector>("SearchVector")
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("tsvector")
-                        .HasComputedColumnSql("setweight(to_tsvector(COALESCE(current_setting('app.search_config', true), 'portuguese'), coalesce(\"Title\", '')), 'A') || ' ' ||\r\n                         setweight(to_tsvector(COALESCE(current_setting('app.search_config', true), 'portuguese'), coalesce(\"Description\", '')), 'B') || ' ' ||\r\n                         setweight(to_tsvector(COALESCE(current_setting('app.search_config', true), 'portuguese'), coalesce(\"Municipality\", '') || ' ' || coalesce(\"District\", '') || ' ' || coalesce(\"Parish\", '')), 'C')", true);
+                        .HasComputedColumnSql("setweight(to_tsvector('portuguese', coalesce(\"Title\", '')), 'A') || ' ' ||\r\n                         setweight(to_tsvector('portuguese', coalesce(\"Description\", '')), 'B') || ' ' ||\r\n                         setweight(to_tsvector('portuguese', coalesce(\"Municipality\", '') || ' ' || coalesce(\"District\", '') || ' ' || coalesce(\"Parish\", '')), 'C')", true);
 
                     b.Property<string>("Street")
                         .IsRequired()
