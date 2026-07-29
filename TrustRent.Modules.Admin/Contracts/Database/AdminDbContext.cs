@@ -21,6 +21,7 @@ public class AdminDbContext : DbContext
     public DbSet<SupportTicketMessage> SupportTicketMessages => Set<SupportTicketMessage>();
     public DbSet<PaymentOperation> PaymentOperations => Set<PaymentOperation>();
     public DbSet<ConsentRecord> ConsentRecords => Set<ConsentRecord>();
+    public DbSet<WebhookEvent> WebhookEvents => Set<WebhookEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -185,6 +186,20 @@ public class AdminDbContext : DbContext
             b.Property(x => x.Language).HasMaxLength(10);
             b.Property(x => x.UserAgent).HasMaxLength(500);
             b.Property(x => x.IpAddress).HasMaxLength(128);
+        });
+
+        modelBuilder.Entity<WebhookEvent>(b =>
+        {
+            b.ToTable("WebhookEvents");
+            b.HasKey(x => x.Id);
+            b.HasIndex(x => x.StripeEventId).IsUnique();
+            b.HasIndex(x => x.EventType);
+            b.HasIndex(x => x.CreatedAt);
+            b.Property(x => x.StripeEventId).IsRequired().HasMaxLength(200);
+            b.Property(x => x.EventType).IsRequired().HasMaxLength(100);
+            b.Property(x => x.Status).IsRequired().HasMaxLength(20);
+            b.Property(x => x.Error).HasMaxLength(2000);
+            b.Property(x => x.PayloadSummary).HasMaxLength(500);
         });
 
         base.OnModelCreating(modelBuilder);

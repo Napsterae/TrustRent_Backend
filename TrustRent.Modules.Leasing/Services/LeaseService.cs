@@ -8,6 +8,7 @@ using TrustRent.Modules.Leasing.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Jobs;
 using TrustRent.Modules.Leasing.Mappers;
 using TrustRent.Modules.Leasing.Models;
+using TrustRent.Shared;
 using TrustRent.Shared.Communications;
 using TrustRent.Shared.Contracts.DTOs;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
@@ -58,6 +59,8 @@ public class LeaseService : ILeaseService
 
     public async Task<LeaseDto> InitiateLeaseProcedureAsync(Guid applicationId, Guid userId, InitiateLeaseProcedureDto dto)
     {
+        using var activity = Telemetry.Source.StartActivity("LeaseStateTransition");
+        activity?.SetTag("lease.application_id", applicationId.ToString());
         var appContext = await _catalogAccess.GetApplicationContextAsync(applicationId)
             ?? throw new KeyNotFoundException("Candidatura não encontrada.");
 
@@ -176,6 +179,8 @@ public class LeaseService : ILeaseService
 
     public async Task<LeaseDto> ConfirmLeaseStartDateAsync(Guid leaseId, Guid userId, ConfirmLeaseStartDateDto dto)
     {
+        using var activity = Telemetry.Source.StartActivity("LeaseStateTransition");
+        activity?.SetTag("lease.id", leaseId.ToString());
         var lease = await _context.Leases
             .Include(l => l.History)
             .Include(l => l.Signatures)
@@ -415,6 +420,8 @@ public class LeaseService : ILeaseService
 
     public async Task<LeaseDto> AcceptLeaseTermsAsync(Guid leaseId, Guid userId, AcceptLeaseTermsDto dto)
     {
+        using var activity = Telemetry.Source.StartActivity("LeaseStateTransition");
+        activity?.SetTag("lease.id", leaseId.ToString());
         var lease = await _context.Leases
             .Include(l => l.History)
             .Include(l => l.Signatures)
@@ -583,6 +590,9 @@ public class LeaseService : ILeaseService
 
     public async Task<LeaseDto> CancelLeaseAsync(Guid leaseId, Guid userId, CancelLeaseDto dto)
     {
+        using var activity = Telemetry.Source.StartActivity("LeaseStateTransition");
+        activity?.SetTag("lease.id", leaseId.ToString());
+        activity?.SetTag("lease.new_status", "Cancelled");
         var lease = await _context.Leases
             .Include(l => l.History)
             .FirstOrDefaultAsync(l => l.Id == leaseId)
@@ -802,6 +812,18 @@ public class LeaseService : ILeaseService
             "O contrato foi aceite por ambas as partes. Efetua o pagamento inicial para ativar o arrendamento.", lease.Id);
         await _notificationService.SendNotificationAsync(lease.LandlordId, "payment",
             "O contrato foi aceite por ambas as partes. Aguarda o pagamento inicial do inquilino.", lease.Id);
+
+        // Check if tenant has a saved payment method — if not, send a dedicated notification
+        var hasPaymentMethod = await _context.TenantPaymentMethods
+            .AnyAsync(pm => pm.UserId == lease.TenantId && pm.IsDefault);
+        if (!hasPaymentMethod)
+        {
+            await _notificationService.SendNotificationAsync(
+                lease.TenantId,
+                "payment",
+                "Adiciona um método de pagamento para que a cobrança da renda mensal seja automática.",
+                lease.Id);
+        }
 
         await TrySendInitialPaymentRequiredEmailAsync(lease, lease.TenantId, initialPaymentAmount, "pendente de pagamento");
         await TrySendInitialPaymentRequiredEmailAsync(lease, lease.LandlordId, initialPaymentAmount, "aguarda pagamento inicial");

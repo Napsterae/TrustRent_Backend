@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Hangfire;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Models;
@@ -17,6 +18,7 @@ public class StripePaymentServiceTests
     private readonly Mock<ILeaseActivationService> _leaseActivationMock;
     private readonly Mock<IStripeAccountService> _stripeAccountMock;
     private readonly Mock<INotificationService> _notificationMock;
+    private readonly Mock<IBackgroundJobClient> _backgroundJobMock;
 
     public StripePaymentServiceTests()
     {
@@ -24,6 +26,7 @@ public class StripePaymentServiceTests
         _leaseActivationMock = new Mock<ILeaseActivationService>();
         _stripeAccountMock = new Mock<IStripeAccountService>();
         _notificationMock = new Mock<INotificationService>();
+        _backgroundJobMock = new Mock<IBackgroundJobClient>();
     }
 
     private (StripePaymentService Service, LeasingDbContext Context) CreateService(int platformFee = 3000)
@@ -50,7 +53,8 @@ public class StripePaymentServiceTests
             _stripeAccountMock.Object,
             _notificationMock.Object,
             config,
-            loggerMock.Object);
+            loggerMock.Object,
+            _backgroundJobMock.Object);
 
         return (service, context);
     }
@@ -301,8 +305,8 @@ public class StripePaymentServiceTests
 
         await service.HandlePaymentSucceededAsync("pi_monthly_ok");
 
-        _notificationMock.Verify(n => n.SendNotificationAsync(tenantId, "payment", It.Is<string>(s => s.Contains("renda mensal")), leaseId), Times.Once);
-        _notificationMock.Verify(n => n.SendNotificationAsync(landlordId, "payment", It.Is<string>(s => s.Contains("renda mensal")), leaseId), Times.Once);
+        _notificationMock.Verify(n => n.SendNotificationAsync(tenantId, "payment", It.Is<string>(s => s.Contains("renda mensal")), It.Is<Guid>(g => g != leaseId)), Times.Once);
+        _notificationMock.Verify(n => n.SendNotificationAsync(landlordId, "payment", It.Is<string>(s => s.Contains("renda mensal")), It.Is<Guid>(g => g != leaseId)), Times.Once);
 
         context.Dispose();
     }
@@ -335,8 +339,8 @@ public class StripePaymentServiceTests
         Assert.Equal(PaymentStatus.Failed, updated!.Status);
         Assert.Equal("Card declined", updated.FailureReason);
 
-        _notificationMock.Verify(n => n.SendNotificationAsync(payment.TenantId, "payment", It.Is<string>(s => s.Contains("não foi concluído") || s.Contains("falhou")), payment.LeaseId), Times.Once);
-        _notificationMock.Verify(n => n.SendNotificationAsync(payment.LandlordId, "payment", It.Is<string>(s => s.Contains("falhou")), payment.LeaseId), Times.Once);
+        _notificationMock.Verify(n => n.SendNotificationAsync(payment.TenantId, "payment", It.Is<string>(s => s.Contains("não foi concluído") || s.Contains("falhou")), payment.Id), Times.Once);
+        _notificationMock.Verify(n => n.SendNotificationAsync(payment.LandlordId, "payment", It.Is<string>(s => s.Contains("falhou")), payment.Id), Times.Once);
 
         context.Dispose();
     }

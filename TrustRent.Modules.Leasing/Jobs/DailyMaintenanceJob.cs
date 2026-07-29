@@ -1,12 +1,15 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Models;
 using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Models;
+using PaymentStatus = TrustRent.Modules.Leasing.Models.PaymentStatus;
+using PaymentType = TrustRent.Modules.Leasing.Models.PaymentType;
 
 namespace TrustRent.Modules.Leasing.Jobs;
 
@@ -20,25 +23,39 @@ public class DailyMaintenanceJob : IDailyMaintenanceJob
     private readonly LeasingDbContext _db;
     private readonly IReviewService _reviewService;
     private readonly INotificationService _notificationService;
+    private readonly IStripePaymentService _paymentService;
+    private readonly IMonthlyRentCollectionJob _monthlyRentCollectionJob;
     private readonly ILogger<DailyMaintenanceJob> _logger;
+    private readonly IConfiguration _configuration;
 
     public DailyMaintenanceJob(
         LeasingDbContext db,
         IReviewService reviewService,
         INotificationService notificationService,
-        ILogger<DailyMaintenanceJob> logger)
+        IStripePaymentService paymentService,
+        IMonthlyRentCollectionJob monthlyRentCollectionJob,
+        ILogger<DailyMaintenanceJob> logger,
+        IConfiguration configuration)
     {
         _db = db;
         _reviewService = reviewService;
         _notificationService = notificationService;
+        _paymentService = paymentService;
+        _monthlyRentCollectionJob = monthlyRentCollectionJob;
         _logger = logger;
+        _configuration = configuration;
     }
 
     public async Task ExecuteAsync()
     {
         _logger.LogInformation("Daily maintenance job started at {Time}", DateTime.UtcNow);
 
+        // G19: Rent collection runs at 6 AM (standalone Hangfire job), daily maintenance at 7 AM.
+        // ProcessLeaseExpirations checks for current-month rent before expiring (G10).
+        // No need to re-run rent collection here — the 6 AM job + idempotency handles it.
+
         await ProcessLeaseExpirations();
+        await ProcessStuckAwaitingPaymentLeases();
         await ProcessLeaseRenewalNotifications();
         await ProcessQuarterlyLeaseReviews();
         await ProcessClosedTicketReviews();
@@ -48,7 +65,27 @@ public class DailyMaintenanceJob : IDailyMaintenanceJob
         await ProcessRentIncreases();
         await ProcessTaxRegistrationAlerts();
 
+        // G6: Send proactive card expiry warnings (only runs on the 1st of each month)
+        await ProcessExpiringPaymentMethods();
+
         _logger.LogInformation("Daily maintenance job completed at {Time}", DateTime.UtcNow);
+    }
+
+    /// <summary>
+    /// G19: Collect due rent before processing lease expirations.
+    /// Delegates to MonthlyRentCollectionJob which handles day-of-month matching
+    /// and split-payment edge cases.
+    /// </summary>
+    private async Task ProcessDueRentCollection()
+    {
+        try
+        {
+            await _monthlyRentCollectionJob.ExecuteAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during pre-expiration rent collection");
+        }
     }
 
     /// <summary>
@@ -62,6 +99,30 @@ public class DailyMaintenanceJob : IDailyMaintenanceJob
 
         foreach (var lease in expiredLeases)
         {
+            // G10: Before expiring, check if the current month's rent was collected.
+            // If not, attempt collection first so the last month's rent is not lost.
+            var today = DateTime.UtcNow.Date;
+            var currentMonthStart = new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var hasCurrentMonthPayment = await _db.Payments.AnyAsync(p =>
+                p.LeaseId == lease.Id && p.Type == PaymentType.MonthlyRent
+                && p.CreatedAt >= currentMonthStart
+                && (p.Status == PaymentStatus.Succeeded
+                    || p.Status == PaymentStatus.Processing
+                    || p.Status == PaymentStatus.Pending));
+
+            if (!hasCurrentMonthPayment)
+            {
+                _logger.LogWarning("Lease {LeaseId} expiring without current month rent collected — attempting collection", lease.Id);
+                try
+                {
+                    await _paymentService.CreateMonthlyRentPaymentAsync(lease.Id, lease.TenantId, today);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to collect last month rent for expiring lease {LeaseId}", lease.Id);
+                }
+            }
+
             lease.Status = LeaseStatus.Expired;
             lease.UpdatedAt = DateTime.UtcNow;
 
@@ -76,6 +137,37 @@ public class DailyMaintenanceJob : IDailyMaintenanceJob
         }
 
         if (expiredLeases.Count > 0)
+            await _db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Notify parties of leases stuck in AwaitingPayment beyond the configured timeout.
+    /// Does NOT auto-cancel — notifies tenant and landlord so they can take action.
+    /// Configurable via Lease:AwaitingPaymentTimeoutDays (default 30).
+    /// </summary>
+    private async Task ProcessStuckAwaitingPaymentLeases()
+    {
+        var timeoutDays = _configuration.GetValue<int>("Lease:AwaitingPaymentTimeoutDays", 30);
+        var cutoff = DateTime.UtcNow.AddDays(-timeoutDays);
+
+        var stuckLeases = await _db.Leases
+            .Where(l => l.Status == LeaseStatus.AwaitingPayment && l.StartDate < cutoff)
+            .ToListAsync();
+
+        foreach (var lease in stuckLeases)
+        {
+            var message = "O contrato ainda não foi ativado. O pagamento inicial deve ser efetuado.";
+
+            await _notificationService.SendNotificationAsync(
+                lease.LandlordId, "LeaseActivationReminder", message, lease.Id);
+            await _notificationService.SendNotificationAsync(
+                lease.TenantId, "LeaseActivationReminder", message, lease.Id);
+
+            _logger.LogInformation("Stuck AwaitingPayment lease {LeaseId} (start {StartDate}) — notified both parties",
+                lease.Id, lease.StartDate);
+        }
+
+        if (stuckLeases.Count > 0)
             await _db.SaveChangesAsync();
     }
 
@@ -578,6 +670,51 @@ public class DailyMaintenanceJob : IDailyMaintenanceJob
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
         return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// G6: Proactive card expiry warning. Runs daily but only sends notifications on the 1st
+    /// of each month to avoid spam. Checks all saved card payment methods and warns if the
+    /// card expires in the current month or the next month.
+    /// </summary>
+    private async Task ProcessExpiringPaymentMethods()
+    {
+        var today = DateTime.UtcNow.Date;
+
+        // Only run on the 1st of each month to avoid daily notification spam
+        if (today.Day != 1) return;
+
+        var expiringMethods = await _db.TenantPaymentMethods
+            .Where(pm => pm.CardExpMonth.HasValue && pm.CardExpYear.HasValue)
+            .ToListAsync();
+
+        var currentMonth = today.Month;
+        var currentYear = today.Year;
+        var nextMonth = currentMonth == 12 ? 1 : currentMonth + 1;
+        var nextMonthYear = currentMonth == 12 ? currentYear + 1 : currentYear;
+
+        var notifiedCount = 0;
+
+        foreach (var method in expiringMethods)
+        {
+            var expiresThisMonth = method.CardExpYear == currentYear && method.CardExpMonth == currentMonth;
+            var expiresNextMonth = method.CardExpYear == nextMonthYear && method.CardExpMonth == nextMonth;
+
+            if (expiresThisMonth || expiresNextMonth)
+            {
+                var last4 = method.CardLast4 ?? "—";
+                var expDate = $"{method.CardExpMonth:D2}/{method.CardExpYear}";
+                var brand = method.CardBrand ?? "cartão";
+                var message = expiresThisMonth
+                    ? $"O teu {brand} •••• {last4} expira este mês ({expDate}). Atualiza o método de pagamento para evitar falhas na cobrança da renda."
+                    : $"O teu {brand} •••• {last4} expira no próximo mês ({expDate}). Atualiza o método de pagamento para evitar falhas na cobrança da renda.";
+
+                await _notificationService.SendNotificationAsync(method.UserId, "payment", message, null);
+                notifiedCount++;
+            }
+        }
+
+        _logger.LogInformation("Processed expiring payment methods: {Total} cards checked, {Notified} notified", expiringMethods.Count, notifiedCount);
     }
 
     /// <summary>

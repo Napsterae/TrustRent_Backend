@@ -40,8 +40,33 @@ using TrustRent.Modules.Admin;
 using TrustRent.Modules.Admin.Endpoints;
 using TrustRent.Modules.Admin.Contracts.Database;
 using TrustRent.Modules.Admin.Seeds;
+using Serilog;
+using Serilog.Events;
+using Serilog.Formatting.Compact;
+using TrustRent.Shared;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Instrumentation.AspNetCore;
+using OpenTelemetry.Instrumentation.Http;
+using OpenTelemetry.Instrumentation.EntityFrameworkCore;
+using OpenTelemetry.Instrumentation.Runtime;
 
-var builder = WebApplication.CreateBuilder(args);
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .Enrich.WithProperty("Application", "WeKaza")
+    .Enrich.WithProperty("Environment", Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production")
+    .WriteTo.Console(new CompactJsonFormatter())
+    .CreateLogger();
+
+try
+{
+    Log.Information("Starting WeKaza API");
+    var builder = WebApplication.CreateBuilder(args);
+    builder.Services.AddSerilog();
 
 var railwayPort = Environment.GetEnvironmentVariable("PORT");
 var runningInContainer = string.Equals(
@@ -201,6 +226,7 @@ builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.ITicke
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Contracts.Interfaces.IReviewService, TrustRent.Modules.Leasing.Services.ReviewService>();
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Jobs.IContractGenerationJob, TrustRent.Modules.Leasing.Jobs.ContractGenerationJob>();
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Jobs.IDailyMaintenanceJob, TrustRent.Modules.Leasing.Jobs.DailyMaintenanceJob>();
+builder.Services.AddScoped<TrustRent.Modules.Leasing.Jobs.IMonthlyRentCollectionJob, TrustRent.Modules.Leasing.Jobs.MonthlyRentCollectionJob>();
 builder.Services.AddScoped<DataRetentionJob>();
 builder.Services.AddScoped<GuarantorTokenCleanupJob>();
 builder.Services.AddScoped<TrustRent.Api.Jobs.KeyRotationJob>();
@@ -498,6 +524,36 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
+// --- OpenTelemetry ---
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource
+        .AddService("WeKaza", serviceVersion: "1.0.0")
+        .AddAttributes(new Dictionary<string, object>
+        {
+            ["deployment.environment"] = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"
+        }))
+    .WithTracing(tracing => tracing
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddEntityFrameworkCoreInstrumentation()
+        .AddSource(Telemetry.Source.Name)
+        .SetSampler(new OpenTelemetry.Trace.ParentBasedSampler(new OpenTelemetry.Trace.TraceIdRatioBasedSampler(0.25)))
+        .AddOtlpExporter(opt =>
+        {
+            opt.Endpoint = new Uri(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT") ?? "http://localhost:4318");
+            opt.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+        }))
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddRuntimeInstrumentation()
+        .AddMeter("WeKaza.*")
+        .AddOtlpExporter(opt =>
+        {
+            opt.Endpoint = new Uri(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT") ?? "http://localhost:4318");
+            opt.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+        }));
+
 var app = builder.Build();
 var migrateOnly = Array.Exists(args, arg => string.Equals(arg, "--migrate-only", StringComparison.OrdinalIgnoreCase));
 var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
@@ -518,6 +574,7 @@ startupLogger.LogInformation(
     app.Configuration["Storage:ContractPath"] ?? "./storage/leases");
 
 app.UseForwardedHeaders();
+app.UseSerilogRequestLogging();
 
 const string requestIdHeaderName = RequestCorrelationHeaders.RequestId;
 
@@ -775,7 +832,7 @@ if (migrateOnly)
 app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<TrustRent.Modules.Leasing.Jobs.IDailyMaintenanceJob>(
     "daily-maintenance",
     job => job.ExecuteAsync(),
-    Cron.Daily(2, 0));
+    Cron.Daily(7, 0));  // 7 AM UTC — runs after monthly-rent-collection (6 AM) so rent is collected before leases expire
 
 app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<DataRetentionJob>(
     "data-retention-cleanup",
@@ -787,7 +844,21 @@ app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<GuarantorTok
     job => job.RunCleanupAsync(),
     "0 4 * * *");  // Daily at 4 AM UTC
 
+app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<TrustRent.Modules.Leasing.Jobs.IMonthlyRentCollectionJob>(
+    "monthly-rent-collection",
+    job => job.ExecuteAsync(),
+    Cron.Daily(6, 0));  // 6 AM UTC daily — checks day-of-month match
+
 app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
 
 static async Task InitializeDatabasesAsync(WebApplication app)
 {

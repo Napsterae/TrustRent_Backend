@@ -31,6 +31,12 @@ public class Payment
     public string? FailureReason { get; set; }
     public string? Metadata { get; set; } // JSON com breakdown para referência
 
+    // Idempotency — prevents duplicate charges if connection drops between Stripe call and DB save
+    public string? IdempotencyKey { get; set; }
+
+    // Retry tracking — 0 = initial attempt, 1-3 = retry attempts
+    public int RetryAttempt { get; set; } = 0;
+
     // Datas
     public DateTime? PaidAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -41,7 +47,8 @@ public enum PaymentType
 {
     InitialPayment,    // Pagamento inicial (renda + antecipada + caução)
     MonthlyRent,       // Renda mensal recorrente
-    DepositRefund      // Reembolso de caução
+    DepositRefund,     // Reembolso de caução
+    MonthlyRentRefund  // Reembolso de renda mensal
 }
 
 public enum PaymentStatus

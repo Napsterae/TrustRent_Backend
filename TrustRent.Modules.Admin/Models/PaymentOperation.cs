@@ -4,7 +4,8 @@ public enum AdminPaymentOperationType
 {
     Refund = 0,
     ManualCharge = 1,
-    ManualMarkPaid = 2
+    ManualMarkPaid = 2,
+    Retry = 3
 }
 
 public enum AdminPaymentOperationStatus

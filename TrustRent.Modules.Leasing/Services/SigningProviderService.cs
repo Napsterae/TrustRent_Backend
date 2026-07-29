@@ -6,6 +6,7 @@ using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Contracts.DTOs;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Models;
+using TrustRent.Shared;
 using TrustRent.Shared.Contracts.DTOs;
 using TrustRent.Shared.Models;
 
@@ -269,6 +270,8 @@ public class SigningProviderService : ISigningProviderService
 
     public async Task HandleWebhookAsync(string providerName, string requestBody, string signatureHeader)
     {
+        using var activity = Telemetry.Source.StartActivity("SigningWebhook");
+        activity?.SetTag("document.provider", providerName);
         // Resolve webhook secret from configuration
         var secret = _configuration[$"ElectronicSignature:{providerName}:WebhookSecret"];
         if (string.IsNullOrEmpty(secret))
