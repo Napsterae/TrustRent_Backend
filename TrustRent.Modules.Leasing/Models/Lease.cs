@@ -27,6 +27,7 @@ public class Lease
     public decimal MonthlyRent { get; set; }
     public decimal? Deposit { get; set; }
     public int AdvanceRentMonths { get; set; }
+    public decimal? TenantSharePercentage { get; set; } // e.g., 50 = 50%, null = 100% (no split)
 
     // Regime e tipo de contrato
     public string? LeaseRegime { get; set; }

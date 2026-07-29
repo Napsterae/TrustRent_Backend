@@ -1,6 +1,9 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Stripe;
+using TrustRent.Modules.Admin.Contracts.Database;
+using TrustRent.Modules.Admin.Models;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Contracts.DTOs;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
@@ -250,6 +253,71 @@ public static class StripeEndpoints
                 catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
             }).RequireAuthorization();
 
+        // POST /api/stripe/payments/{paymentId}/refund — Monthly rent refund
+        payments.MapPost("/{paymentId:guid}/refund",
+            async (Guid paymentId, [FromBody] RefundMonthlyRentRequest dto,
+                   IStripePaymentService paymentService, ClaimsPrincipal user) =>
+            {
+                if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
+                try
+                {
+                    var result = await paymentService.RefundMonthlyRentPaymentAsync(paymentId, dto.Amount, userId);
+                    return Results.Ok(result);
+                }
+                catch (UnauthorizedAccessException) { return Results.Forbid(); }
+                catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
+            }).RequireAuthorization();
+
+        // GET /api/stripe/payments/{paymentId}/receipt — Generate PDF receipt
+        payments.MapGet("/{paymentId:guid}/receipt",
+            async (Guid paymentId, IStripePaymentService paymentService, ClaimsPrincipal user) =>
+            {
+                if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
+                try
+                {
+                    var pdf = await paymentService.GenerateReceiptAsync(paymentId, userId);
+                    return Results.File(pdf, "application/pdf", $"recibo-{paymentId.ToString()[..8]}.pdf");
+                }
+                catch (UnauthorizedAccessException) { return Results.Forbid(); }
+                catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
+            }).RequireAuthorization();
+
+        // POST /api/stripe/payments/monthly-rent/{leaseId}/retry
+        // Tenant-initiated on-demand retry for failed monthly rent payment.
+        // The idempotency + billing-period-wide check in CreateMonthlyRentPaymentAsync
+        // prevents duplicate charges.
+        payments.MapPost("/monthly-rent/{leaseId:guid}/retry",
+            async (Guid leaseId, IStripePaymentService paymentService, ClaimsPrincipal user) =>
+            {
+                if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
+                try
+                {
+                    var result = await paymentService.RetryMonthlyRentPaymentAsync(leaseId, userId);
+                    if (result == null)
+                        return Results.NotFound("Nenhum pagamento de renda mensal encontrado para este contrato.");
+                    return Results.Ok(result);
+                }
+                catch (UnauthorizedAccessException) { return Results.Forbid(); }
+                catch (InvalidOperationException e) { return Results.BadRequest(e.Message); }
+            }).RequireAuthorization();
+
+        // GET /api/stripe/payments/{paymentId}/client-secret
+        // Returns the Stripe PaymentIntent client_secret for 3DS confirmation.
+        // Only returns it for payments that need authentication (status = Pending).
+        payments.MapGet("/{paymentId:guid}/client-secret",
+            async (Guid paymentId, IStripePaymentService paymentService, ClaimsPrincipal user) =>
+            {
+                if (!TryGetUserId(user, out var userId)) return Results.Unauthorized();
+                try
+                {
+                    var clientSecret = await paymentService.GetPaymentClientSecretAsync(paymentId, userId);
+                    return clientSecret == null
+                        ? Results.NotFound()
+                        : Results.Ok(new { clientSecret });
+                }
+                catch (UnauthorizedAccessException) { return Results.Forbid(); }
+            }).RequireAuthorization();
+
         #endregion
 
         #region Webhook
@@ -257,7 +325,8 @@ public static class StripeEndpoints
         // POST /api/stripe/webhook — NÃO requer autenticação JWT
         app.MapPost("/api/stripe/webhook",
             async (HttpContext httpContext, IStripePaymentService paymentService,
-                   IStripeAccountService accountService, IConfiguration configuration) =>
+                   IStripeAccountService accountService, IConfiguration configuration,
+                   AdminDbContext adminDb) =>
             {
                 var json = await new StreamReader(httpContext.Request.Body).ReadToEndAsync();
                 var webhookSecret = configuration["Stripe:WebhookSecret"];
@@ -274,27 +343,95 @@ public static class StripeEndpoints
                     return Results.BadRequest("Assinatura do webhook inválida.");
                 }
 
-                switch (stripeEvent.Type)
+                // Idempotency: check if this Stripe event was already received
+                var existingEvent = await adminDb.WebhookEvents
+                    .FirstOrDefaultAsync(w => w.StripeEventId == stripeEvent.Id);
+                if (existingEvent != null)
                 {
-                    case EventTypes.PaymentIntentSucceeded:
-                        var piSucceeded = stripeEvent.Data.Object as PaymentIntent;
-                        if (piSucceeded != null)
-                            await paymentService.HandlePaymentSucceededAsync(piSucceeded.Id);
-                        break;
-
-                    case EventTypes.PaymentIntentPaymentFailed:
-                        var piFailed = stripeEvent.Data.Object as PaymentIntent;
-                        if (piFailed != null)
-                            await paymentService.HandlePaymentFailedAsync(piFailed.Id,
-                                piFailed.LastPaymentError?.Message);
-                        break;
-
-                    case EventTypes.AccountUpdated:
-                        var account = stripeEvent.Data.Object as Account;
-                        if (account != null)
-                            await accountService.HandleAccountUpdatedWebhookAsync(account.Id);
-                        break;
+                    // Already processed or being processed — return 200 to stop Stripe retries
+                    return Results.Ok();
                 }
+
+                // Extract the actual Stripe object ID for replay purposes
+                string payloadObjectId = "unknown";
+                if (stripeEvent.Data?.Object is PaymentIntent pi)
+                    payloadObjectId = pi.Id;
+                else if (stripeEvent.Data?.Object is Account acct)
+                    payloadObjectId = acct.Id;
+                else if (stripeEvent.Data?.Object is Charge ch)
+                    payloadObjectId = ch.Id;
+
+                // Log webhook event with "received" status (will be updated after processing)
+                var webhookEvent = new TrustRent.Modules.Admin.Models.WebhookEvent
+                {
+                    Id = Guid.NewGuid(),
+                    StripeEventId = stripeEvent.Id,
+                    EventType = stripeEvent.Type,
+                    Status = "received",
+                    PayloadSummary = payloadObjectId,
+                    CreatedAt = DateTime.UtcNow
+                };
+                adminDb.WebhookEvents.Add(webhookEvent);
+                await adminDb.SaveChangesAsync();
+
+                try
+                {
+                    switch (stripeEvent.Type)
+                    {
+                        case EventTypes.PaymentIntentSucceeded:
+                            var piSucceeded = stripeEvent.Data.Object as PaymentIntent;
+                            if (piSucceeded != null)
+                                await paymentService.HandlePaymentSucceededAsync(piSucceeded.Id);
+                            break;
+
+                        case EventTypes.PaymentIntentPaymentFailed:
+                            var piFailed = stripeEvent.Data.Object as PaymentIntent;
+                            if (piFailed != null)
+                                await paymentService.HandlePaymentFailedAsync(piFailed.Id,
+                                    piFailed.LastPaymentError?.Message);
+                            break;
+
+                        case EventTypes.PaymentIntentRequiresAction:
+                            var piAction = stripeEvent.Data.Object as PaymentIntent;
+                            if (piAction != null)
+                                await paymentService.HandlePaymentRequiresActionAsync(piAction.Id);
+                            break;
+
+                        case EventTypes.AccountUpdated:
+                            var account = stripeEvent.Data.Object as Account;
+                            if (account != null)
+                                await accountService.HandleAccountUpdatedWebhookAsync(account.Id);
+                            break;
+
+                        case EventTypes.PaymentIntentProcessing:
+                            var piProcessing = stripeEvent.Data.Object as PaymentIntent;
+                            if (piProcessing != null)
+                                await paymentService.HandlePaymentProcessingAsync(piProcessing.Id);
+                            break;
+
+                        case EventTypes.PaymentIntentCanceled:
+                            var piCanceled = stripeEvent.Data.Object as PaymentIntent;
+                            if (piCanceled != null)
+                                await paymentService.HandlePaymentCanceledAsync(piCanceled.Id);
+                            break;
+
+                        case EventTypes.ChargeRefunded:
+                            var charge = stripeEvent.Data.Object as Charge;
+                            if (charge != null)
+                                await paymentService.HandleChargeRefundedAsync(charge.Id, charge.AmountRefunded);
+                            break;
+                    }
+
+                    webhookEvent.Status = "processed";
+                    webhookEvent.ProcessedAt = DateTime.UtcNow;
+                }
+                catch (Exception ex)
+                {
+                    webhookEvent.Status = "failed";
+                    webhookEvent.Error = ex.Message;
+                }
+
+                await adminDb.SaveChangesAsync();
 
                 return Results.Ok();
             });
@@ -390,3 +527,4 @@ public static class StripeEndpoints
 // Request DTOs para os endpoints
 public record SavePaymentMethodRequest(string StripePaymentMethodId);
 public record RefundDepositRequest(decimal Amount);
+public record RefundMonthlyRentRequest(decimal Amount);

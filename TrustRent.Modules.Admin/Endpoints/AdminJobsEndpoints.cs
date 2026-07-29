@@ -13,7 +13,8 @@ public static class AdminJobsEndpoints
 {
     private static readonly HashSet<string> RunnableRecurringJobs = new(StringComparer.OrdinalIgnoreCase)
     {
-        "daily-maintenance"
+        "daily-maintenance",
+        "monthly-rent-collection"
     };
 
     public static void MapAdminJobsEndpoints(this IEndpointRouteBuilder app)

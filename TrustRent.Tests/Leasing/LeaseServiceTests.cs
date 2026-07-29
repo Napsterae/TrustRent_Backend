@@ -563,7 +563,8 @@ public class LeaseServiceTests
         await task!;
 
         Assert.Equal(LeaseStatus.AwaitingPayment, lease.Status);
-        _notificationMock.Verify(n => n.SendNotificationAsync(tenantId, "payment", It.IsAny<string>(), lease.Id), Times.Once);
+        // Tenant gets 2 notifications: the "payment required" + the "add payment method" prompt (G5)
+        _notificationMock.Verify(n => n.SendNotificationAsync(tenantId, "payment", It.IsAny<string>(), lease.Id), Times.AtLeastOnce);
         _notificationMock.Verify(n => n.SendNotificationAsync(landlordId, "payment", It.IsAny<string>(), lease.Id), Times.Once);
         _notificationMock.Verify(n => n.SendNotificationAsync(coTenantId, "payment", It.Is<string>(s => s.Contains("pagamento inicial")), lease.Id), Times.Once);
         _notificationMock.Verify(n => n.SendNotificationAsync(guarantorId, "payment", It.Is<string>(s => s.Contains("pagamento inicial")), lease.Id), Times.Once);

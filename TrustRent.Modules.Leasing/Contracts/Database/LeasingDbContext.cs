@@ -119,6 +119,8 @@ public class LeasingDbContext : DbContext
             builder.Property(p => p.DepositAmount).HasPrecision(18, 2);
             builder.Property(p => p.AdvanceRentAmount).HasPrecision(18, 2);
             builder.Property(p => p.FailureReason).HasMaxLength(500);
+            builder.Property(p => p.IdempotencyKey).HasMaxLength(200);
+            builder.HasIndex(p => p.IdempotencyKey).IsUnique();
             builder.HasIndex(p => p.LeaseId);
             builder.HasIndex(p => p.StripePaymentIntentId).IsUnique();
             builder.HasIndex(p => p.TenantId);
@@ -166,6 +168,7 @@ public class LeasingDbContext : DbContext
             builder.Property(l => l.TenantSignatureRef).HasMaxLength(200);
             builder.Property(l => l.SignatureProvider).HasMaxLength(50);
             builder.Property(l => l.ExternalSigningRequestId).HasMaxLength(200);
+            builder.Property(l => l.TenantSharePercentage).HasPrecision(5, 2);
 
             builder.HasIndex(l => l.ApplicationId);
             builder.HasIndex(l => l.PropertyId);

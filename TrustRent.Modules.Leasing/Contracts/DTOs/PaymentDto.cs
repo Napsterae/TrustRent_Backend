@@ -16,7 +16,11 @@ public record PaymentDto(
     PaymentStatus Status,
     string? FailureReason,
     DateTime? PaidAt,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    string? StripePaymentIntentId,
+    int RetryAttempt,
+    DateTime? UpdatedAt,
+    string? BillingPeriod
 );
 
 public record PaymentBreakdownDto(
