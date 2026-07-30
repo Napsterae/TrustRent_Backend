@@ -525,34 +525,39 @@ builder.Services.AddRateLimiter(options =>
 });
 
 // --- OpenTelemetry ---
-builder.Services.AddOpenTelemetry()
-    .ConfigureResource(resource => resource
-        .AddService("WeKaza", serviceVersion: "1.0.0")
-        .AddAttributes(new Dictionary<string, object>
-        {
-            ["deployment.environment"] = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"
-        }))
-    .WithTracing(tracing => tracing
-        .AddAspNetCoreInstrumentation()
-        .AddHttpClientInstrumentation()
-        .AddEntityFrameworkCoreInstrumentation()
-        .AddSource(Telemetry.Source.Name)
-        .SetSampler(new OpenTelemetry.Trace.ParentBasedSampler(new OpenTelemetry.Trace.TraceIdRatioBasedSampler(0.25)))
-        .AddOtlpExporter(opt =>
-        {
-            opt.Endpoint = new Uri(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT") ?? "http://localhost:4318");
-            opt.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
-        }))
-    .WithMetrics(metrics => metrics
-        .AddAspNetCoreInstrumentation()
-        .AddHttpClientInstrumentation()
-        .AddRuntimeInstrumentation()
-        .AddMeter("WeKaza.*")
-        .AddOtlpExporter(opt =>
-        {
-            opt.Endpoint = new Uri(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT") ?? "http://localhost:4318");
-            opt.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
-        }));
+// Only enable if a collector endpoint is configured — prevents issues when no collector is running
+var otelEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+if (!string.IsNullOrWhiteSpace(otelEndpoint))
+{
+    builder.Services.AddOpenTelemetry()
+        .ConfigureResource(resource => resource
+            .AddService("WeKaza", serviceVersion: "1.0.0")
+            .AddAttributes(new Dictionary<string, object>
+            {
+                ["deployment.environment"] = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"
+            }))
+        .WithTracing(tracing => tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddEntityFrameworkCoreInstrumentation()
+            .AddSource(Telemetry.Source.Name)
+            .SetSampler(new OpenTelemetry.Trace.ParentBasedSampler(new OpenTelemetry.Trace.TraceIdRatioBasedSampler(0.25)))
+            .AddOtlpExporter(opt =>
+            {
+                opt.Endpoint = new Uri(otelEndpoint);
+                opt.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+            }))
+        .WithMetrics(metrics => metrics
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddRuntimeInstrumentation()
+            .AddMeter("WeKaza.*")
+            .AddOtlpExporter(opt =>
+            {
+                opt.Endpoint = new Uri(otelEndpoint);
+                opt.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+            }));
+}
 
 var app = builder.Build();
 var migrateOnly = Array.Exists(args, arg => string.Equals(arg, "--migrate-only", StringComparison.OrdinalIgnoreCase));
