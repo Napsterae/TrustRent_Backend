@@ -258,6 +258,16 @@ builder.Services.AddSingleton<TrustRent.Modules.Leasing.Contracts.Interfaces.ISi
             logger);
     }
 
+    if (esigProvider == "Mock")
+    {
+        // Development-only deterministic signing provider for local/E2E flows. Refuse to
+        // run with a fake signer outside Development so it can never be used in production.
+        if (!string.Equals(builder.Environment.EnvironmentName, "Development", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("MockSigningProvider is only available in Development.");
+
+        return new TrustRent.Modules.Leasing.Services.MockSigningProvider();
+    }
+
     throw new InvalidOperationException($"Unknown signing provider: {esigProvider}");
 });
 builder.Services.AddScoped<TrustRent.Modules.Leasing.Services.ISigningProviderService, TrustRent.Modules.Leasing.Services.SigningProviderService>();

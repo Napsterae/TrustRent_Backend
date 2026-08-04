@@ -20,6 +20,7 @@ using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Contracts.DTOs;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
+using TrustRent.Modules.Leasing.Services;
 using TrustRent.Shared.Contracts.Interfaces;
 
 namespace TrustRent.Tests.Api;
@@ -122,6 +123,32 @@ public class LeaseEndpointsIntegrationTests
         harness.LeaseService.Verify(service => service.GetSignatureStatusAsync(It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
     }
 
+    [Fact]
+    public async Task SimulateSignatureComplete_WhenNotDevelopment_ReturnsNotFound()
+    {
+        var userId = Guid.NewGuid();
+        await using var harness = await LeaseEndpointHarness.CreateAsync(userId, Environments.Production);
+
+        var response = await harness.Client.PostAsync(
+            $"/api/leases/{Guid.NewGuid()}/simulate-signature-complete", null);
+
+        // StagingSimulationPolicy: enabled only in Development (or staging with override) → 404 outside.
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SimulateSignatureComplete_InDevelopment_WithoutMockProvider_ReturnsBadRequest()
+    {
+        var userId = Guid.NewGuid();
+        await using var harness = await LeaseEndpointHarness.CreateAsync(userId);
+
+        var response = await harness.Client.PostAsync(
+            $"/api/leases/{Guid.NewGuid()}/simulate-signature-complete", null);
+
+        // Dev gate passes, but the active provider is not Mock → refuse simulation.
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     private sealed class LeaseEndpointHarness : IAsyncDisposable
     {
         private readonly WebApplication _app;
@@ -137,11 +164,11 @@ public class LeaseEndpointsIntegrationTests
 
         public Mock<ILeaseService> LeaseService { get; }
 
-        public static async Task<LeaseEndpointHarness> CreateAsync(Guid? userId = null)
+        public static async Task<LeaseEndpointHarness> CreateAsync(Guid? userId = null, string? environmentName = null)
         {
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions
             {
-                EnvironmentName = Environments.Development,
+                EnvironmentName = environmentName ?? Environments.Development,
             });
 
             builder.WebHost.UseTestServer();
@@ -168,6 +195,11 @@ public class LeaseEndpointsIntegrationTests
             builder.Services.AddSingleton(Mock.Of<IUserService>());
             builder.Services.AddSingleton(Mock.Of<IGeminiDocumentService>());
             builder.Services.AddSingleton(Mock.Of<IStagingAccessService>());
+            builder.Services.AddSingleton(Mock.Of<ISigningProviderService>());
+            builder.Services.AddSingleton(Mock.Of<IUserRepository>());
+            builder.Services.AddScoped<DocumentSigningPinService>();
+            // Pin the configured signing provider so dev simulate tests behave deterministically.
+            builder.Configuration["ElectronicSignature:Provider"] = "Documenso";
 
             var app = builder.Build();
             app.UseAuthentication();
