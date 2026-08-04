@@ -94,25 +94,26 @@ public class SigningProviderService : ISigningProviderService
 
             var contractPdf = await _contractGenerationService.GetContractBytesAsync(lease.ContractFilePath);
 
-            // Resolve actual name and email from UserService for each signer
+            // Resolve actual name and email from UserService for each signer.
+            // Sequential awaits are required: UserService reads through the SAME scoped
+            // IdentityDbContext (UnitOfWork -> UserRepository), and EF Core DbContext is
+            // not thread-safe — concurrent GetProfileDtoAsync calls throw "A second operation
+            // was started on this context instance before a previous operation completed".
+            // Signer count is tiny (1-4), so resolving profiles one at a time is negligible
+            // and keeps the exact recipient order.
             var orderedSignatures = lease.Signatures
                 .OrderBy(s => s.SequenceOrder)
                 .ToList();
 
-            var resolvedSignerTasks = orderedSignatures
-                .Select(async s =>
-                {
-                    var user = await _userService.GetProfileDtoAsync(s.UserId);
-                    return new
-                    {
-                        Signature = s,
-                        Email = user?.Email ?? $"{s.UserId}@trustrent.local",
-                        Name = user?.Name ?? $"Signatário #{s.SequenceOrder}"
-                    };
-                })
-                .ToList();
-
-            var resolvedSigners = await Task.WhenAll(resolvedSignerTasks);
+            var resolvedSigners = new List<(LeaseSignature Signature, string Email, string Name)>(orderedSignatures.Count);
+            foreach (var signerSignature in orderedSignatures)
+            {
+                var user = await _userService.GetProfileDtoAsync(signerSignature.UserId);
+                resolvedSigners.Add((
+                    signerSignature,
+                    user?.Email ?? $"{signerSignature.UserId}@trustrent.local",
+                    user?.Name ?? $"Signatário #{signerSignature.SequenceOrder}"));
+            }
 
             var signers = resolvedSigners
                 .Select(rs => new SignerInfo(
