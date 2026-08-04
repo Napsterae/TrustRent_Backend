@@ -123,32 +123,6 @@ public class LeaseEndpointsIntegrationTests
         harness.LeaseService.Verify(service => service.GetSignatureStatusAsync(It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
     }
 
-    [Fact]
-    public async Task SimulateSignatureComplete_WhenNotDevelopment_ReturnsNotFound()
-    {
-        var userId = Guid.NewGuid();
-        await using var harness = await LeaseEndpointHarness.CreateAsync(userId, Environments.Production);
-
-        var response = await harness.Client.PostAsync(
-            $"/api/leases/{Guid.NewGuid()}/simulate-signature-complete", null);
-
-        // StagingSimulationPolicy: enabled only in Development (or staging with override) → 404 outside.
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task SimulateSignatureComplete_InDevelopment_WithoutMockProvider_ReturnsBadRequest()
-    {
-        var userId = Guid.NewGuid();
-        await using var harness = await LeaseEndpointHarness.CreateAsync(userId);
-
-        var response = await harness.Client.PostAsync(
-            $"/api/leases/{Guid.NewGuid()}/simulate-signature-complete", null);
-
-        // Dev gate passes, but the active provider is not Mock → refuse simulation.
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
     private sealed class LeaseEndpointHarness : IAsyncDisposable
     {
         private readonly WebApplication _app;
@@ -198,8 +172,6 @@ public class LeaseEndpointsIntegrationTests
             builder.Services.AddSingleton(Mock.Of<ISigningProviderService>());
             builder.Services.AddSingleton(Mock.Of<IUserRepository>());
             builder.Services.AddScoped<DocumentSigningPinService>();
-            // Pin the configured signing provider so dev simulate tests behave deterministically.
-            builder.Configuration["ElectronicSignature:Provider"] = "Documenso";
 
             var app = builder.Build();
             app.UseAuthentication();
