@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TrustRent.Modules.Leasing.Contracts.Database;
@@ -11,9 +12,11 @@ using TrustRent.Modules.Leasing.Contracts.Database;
 namespace TrustRent.Modules.Leasing.Migrations
 {
     [DbContext(typeof(LeasingDbContext))]
-    partial class LeasingDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260804002921_AddPaymentIdempotency")]
+    partial class AddPaymentIdempotency
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -159,10 +162,6 @@ namespace TrustRent.Modules.Leasing.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
-
-                    b.Property<decimal?>("TenantSharePercentage")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
 
                     b.Property<string>("TenantSignatureCertSubject")
                         .HasColumnType("text");
