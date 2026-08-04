@@ -113,6 +113,24 @@ public class CatalogAccessService : ICatalogAccessService
             Message = message
         });
 
+        // A cancelled/rejected application that previously "rented" the property (its tenant was
+        // assigned on approval, which also delisted it) must release it again. Without this, a
+        // lease cancelled after acceptance would leave the property delisted forever (orphan
+        // delisted property). Only release when this application's tenant is the one currently
+        // assigned to the property, so we never free a property that belongs to another tenant.
+        if (newStatus == (int)ApplicationStatus.Rejected)
+        {
+            var property = await _catalogDb.Properties
+                .FirstOrDefaultAsync(p => p.Id == application.PropertyId);
+
+            if (property != null && property.TenantId == application.TenantId)
+            {
+                property.TenantId = null;
+                property.IsPublic = true;
+                property.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
         await _catalogDb.SaveChangesAsync();
     }
 
