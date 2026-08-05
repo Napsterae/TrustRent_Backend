@@ -142,6 +142,79 @@ public class SigningProviderServiceTests
     }
 
     /// <summary>
+    /// Regression: completing a second signer on the same document used to write the SAME
+    /// SignatureRef ("embedded_{provider}_{externalRequestId}") for every signer, which
+    /// violated the unique index IX_LeaseSignatures_SignatureRef on the real Postgres DB
+    /// ("duplicate key value violates unique constraint"). Asserts the refs stay distinct.
+    /// </summary>
+    [Fact]
+    public async Task HandleSignerCompletedAsync_TwoSigners_ProducesDistinctSignatureRefs()
+    {
+        var landlordId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+        var leaseId = Guid.NewGuid();
+        var pdfBytes = new byte[] { 0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34 };
+
+        var leasingOptions = new DbContextOptionsBuilder<LeasingDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var leasingDb = new LeasingDbContext(leasingOptions);
+
+        // Lease already initiated with the (fake) provider: request id + per-signer recipient ids.
+        var lease = new Lease
+        {
+            Id = leaseId,
+            PropertyId = Guid.NewGuid(),
+            TenantId = tenantId,
+            LandlordId = landlordId,
+            ApplicationId = Guid.NewGuid(),
+            Status = LeaseStatus.PendingLandlordSignature,
+            ContractType = "Official",
+            RequiredSignaturesCount = 2,
+            SignatureProvider = "TestProvider",
+            ExternalSigningRequestId = "test-request-1"
+        };
+        lease.Signatures.AddRange(new[]
+        {
+            new LeaseSignature { Id = Guid.NewGuid(), LeaseId = leaseId, UserId = landlordId, Role = LeaseSignatoryRole.Landlord, SequenceOrder = 1, ExternalSignerId = "rec-1" },
+            new LeaseSignature { Id = Guid.NewGuid(), LeaseId = leaseId, UserId = tenantId, Role = LeaseSignatoryRole.Tenant, SequenceOrder = 2, ExternalSignerId = "rec-2" }
+        });
+        leasingDb.Leases.Add(lease);
+        await leasingDb.SaveChangesAsync();
+
+        var provider = new Mock<ISigningProvider>();
+        provider.Setup(p => p.Name).Returns("TestProvider");
+        provider.Setup(p => p.DownloadSignedDocumentAsync("test-request-1")).ReturnsAsync(pdfBytes);
+
+        var signing = new SigningProviderService(
+            provider.Object,
+            leasingDb,
+            Mock.Of<IContractGenerationService>(),
+            Mock.Of<ILeaseService>(),
+            Mock.Of<IUserService>(),
+            new ConfigurationBuilder().AddInMemoryCollection().Build(),
+            NullLogger<SigningProviderService>.Instance);
+
+        // Two signers complete in order — on the old code both wrote the SAME SignatureRef.
+        await signing.HandleSignerCompletedAsync("test-request-1", "landlord@trustrent.local", "rec-1");
+        await signing.HandleSignerCompletedAsync("test-request-1", "tenant@trustrent.local", "rec-2");
+
+        var stored = await leasingDb.Leases.AsNoTracking().Include(l => l.Signatures).SingleAsync(l => l.Id == leaseId);
+        var landlordSig = stored.Signatures.Single(s => s.UserId == landlordId);
+        var tenantSig = stored.Signatures.Single(s => s.UserId == tenantId);
+
+        Assert.False(string.IsNullOrEmpty(landlordSig.SignatureRef));
+        Assert.False(string.IsNullOrEmpty(tenantSig.SignatureRef));
+        Assert.StartsWith("embedded_TestProvider_", landlordSig.SignatureRef);
+        Assert.StartsWith("embedded_TestProvider_", tenantSig.SignatureRef);
+        // The unique-index invariant: refs must differ per signer.
+        Assert.NotEqual(landlordSig.SignatureRef, tenantSig.SignatureRef);
+
+        Assert.Equal(LeaseStatus.AwaitingPayment, stored.Status);
+        Assert.All(stored.Signatures, s => Assert.True(s.Signed));
+    }
+
+    /// <summary>
     /// Forwards to the real UserService while detecting overlapping GetProfileDtoAsync calls
     /// (the exact condition that used to hit the shared scoped IdentityDbContext concurrently).
     /// </summary>

@@ -226,7 +226,15 @@ public class SigningProviderService : ISigningProviderService
         // 5. Update LeaseSignature
         signature.Signed = true;
         signature.SignedAt = now;
-        signature.SignatureRef = $"embedded_{_provider.Name}_{externalRequestId}";
+        // SignatureRef must be unique per signer: IX_LeaseSignatures_SignatureRef is a unique
+        // index. A document's signers previously all got the same `embedded_{provider}_{requestId}`
+        // value, so the second signer's UPDATE violated the constraint ("duplicate key value
+        // violates unique constraint \"IX_LeaseSignatures_SignatureRef\""). Differentiate with the
+        // provider-scoped recipient id (ExternalSignerId), falling back to role + sequence order.
+        var signatureRefSuffix = !string.IsNullOrEmpty(signature.ExternalSignerId)
+            ? signature.ExternalSignerId
+            : $"{signature.Role}_{signature.SequenceOrder}";
+        signature.SignatureRef = $"embedded_{_provider.Name}_{externalRequestId}_{signatureRefSuffix}";
         signature.SignedFilePath = signedFilePath;
         signature.SignatureVerified = true;
         signature.UpdatedAt = now;
