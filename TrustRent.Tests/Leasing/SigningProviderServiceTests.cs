@@ -2,6 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using TrustRent.Api.Services;
+using TrustRent.Modules.Catalog.Contracts.Database;
+using TrustRent.Modules.Catalog.Models;
 using TrustRent.Modules.Identity.Contracts.Database;
 using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Identity.Models;
@@ -111,6 +114,7 @@ public class SigningProviderServiceTests
             var signing = new SigningProviderService(
                 provider.Object,
                 leasingDb,
+                Mock.Of<ICatalogAccessService>(),
                 contractGen.Object,
                 Mock.Of<ILeaseService>(),
                 observedUserService,
@@ -189,6 +193,7 @@ public class SigningProviderServiceTests
         var signing = new SigningProviderService(
             provider.Object,
             leasingDb,
+            Mock.Of<ICatalogAccessService>(),
             Mock.Of<IContractGenerationService>(),
             Mock.Of<ILeaseService>(),
             Mock.Of<IUserService>(),
@@ -212,6 +217,103 @@ public class SigningProviderServiceTests
 
         Assert.Equal(LeaseStatus.AwaitingPayment, stored.Status);
         Assert.All(stored.Signatures, s => Assert.True(s.Signed));
+    }
+
+    /// <summary>
+    /// Regression: the embedded/webhook completion path transitioned the LEASE to AwaitingPayment
+    /// but never synced the APPLICATION, so the frontend's InitialPaymentPanel (which only renders
+    /// when application.status == "AwaitingPayment") was unreachable through the embedded flow.
+    /// Mirrors the legacy upload path's application sync (LeaseService.ActivateLeaseAsync) and must
+    /// stay idempotent for duplicate webhook events.
+    /// </summary>
+    [Fact]
+    public async Task HandleSignerCompletedAsync_AllSigned_UpdatesApplicationToAwaitingPayment_AndIsIdempotent()
+    {
+        var landlordId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+        var leaseId = Guid.NewGuid();
+        var applicationId = Guid.NewGuid();
+        var pdfBytes = new byte[] { 0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34 };
+
+        // Real Catalog stack: application starts at ContractPendingSignature.
+        var catalogOptions = new DbContextOptionsBuilder<CatalogDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var catalogDb = new CatalogDbContext(catalogOptions);
+        catalogDb.Applications.Add(new Application
+        {
+            Id = applicationId,
+            PropertyId = Guid.NewGuid(),
+            TenantId = tenantId,
+            DurationMonths = 12,
+            Status = ApplicationStatus.ContractPendingSignature
+        });
+        await catalogDb.SaveChangesAsync();
+        var catalogAccess = new CatalogAccessService(catalogDb);
+
+        // Real Leasing stack: initiated 2-signer lease linked to the application.
+        var leasingOptions = new DbContextOptionsBuilder<LeasingDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var leasingDb = new LeasingDbContext(leasingOptions);
+
+        var lease = new Lease
+        {
+            Id = leaseId,
+            PropertyId = Guid.NewGuid(),
+            TenantId = tenantId,
+            LandlordId = landlordId,
+            ApplicationId = applicationId,
+            Status = LeaseStatus.PendingLandlordSignature,
+            ContractType = "Official",
+            RequiredSignaturesCount = 2,
+            SignatureProvider = "TestProvider",
+            ExternalSigningRequestId = "test-request-1"
+        };
+        lease.Signatures.AddRange(new[]
+        {
+            new LeaseSignature { Id = Guid.NewGuid(), LeaseId = leaseId, UserId = landlordId, Role = LeaseSignatoryRole.Landlord, SequenceOrder = 1, ExternalSignerId = "rec-1" },
+            new LeaseSignature { Id = Guid.NewGuid(), LeaseId = leaseId, UserId = tenantId, Role = LeaseSignatoryRole.Tenant, SequenceOrder = 2, ExternalSignerId = "rec-2" }
+        });
+        leasingDb.Leases.Add(lease);
+        await leasingDb.SaveChangesAsync();
+
+        var provider = new Mock<ISigningProvider>();
+        provider.Setup(p => p.Name).Returns("TestProvider");
+        provider.Setup(p => p.DownloadSignedDocumentAsync("test-request-1")).ReturnsAsync(pdfBytes);
+
+        var signing = new SigningProviderService(
+            provider.Object,
+            leasingDb,
+            catalogAccess,
+            Mock.Of<IContractGenerationService>(),
+            Mock.Of<ILeaseService>(),
+            Mock.Of<IUserService>(),
+            new ConfigurationBuilder().AddInMemoryCollection().Build(),
+            NullLogger<SigningProviderService>.Instance);
+
+        // First signer -> still pending; application unchanged.
+        await signing.HandleSignerCompletedAsync("test-request-1", "landlord@trustrent.local", "rec-1");
+        // Second (last) signer -> lease AND application both AwaitingPayment.
+        await signing.HandleSignerCompletedAsync("test-request-1", "tenant@trustrent.local", "rec-2");
+
+        var storedLease = await leasingDb.Leases.AsNoTracking().SingleAsync(l => l.Id == leaseId);
+        var storedApp = await catalogDb.Applications.AsNoTracking().Include(a => a.History).SingleAsync(a => a.Id == applicationId);
+
+        Assert.Equal(LeaseStatus.AwaitingPayment, storedLease.Status);
+        Assert.Equal(ApplicationStatus.AwaitingPayment, storedApp.Status);
+        // The same audit entry the legacy path writes (UpdateApplicationStatusAsync history).
+        Assert.Contains(storedApp.History, h => h.Action == "Aguarda Pagamento");
+
+        // Duplicate DOCUMENT_SIGNED for the last signer: must be a no-op (no throw, no re-transition).
+        await signing.HandleSignerCompletedAsync("test-request-1", "tenant@trustrent.local", "rec-2");
+
+        var afterDuplicateLease = await leasingDb.Leases.AsNoTracking().SingleAsync(l => l.Id == leaseId);
+        var afterDuplicateApp = await catalogDb.Applications.AsNoTracking().Include(a => a.History).SingleAsync(a => a.Id == applicationId);
+        Assert.Equal(LeaseStatus.AwaitingPayment, afterDuplicateLease.Status);
+        Assert.Equal(ApplicationStatus.AwaitingPayment, afterDuplicateApp.Status);
+        // No duplicate audit row: the application status sync ran exactly once.
+        Assert.Single(afterDuplicateApp.History.Where(h => h.Action == "Aguarda Pagamento"));
     }
 
     /// <summary>

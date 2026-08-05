@@ -8,6 +8,7 @@ using TrustRent.Modules.Leasing.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Models;
 using TrustRent.Shared;
 using TrustRent.Shared.Contracts.DTOs;
+using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Models;
 
 namespace TrustRent.Modules.Leasing.Services;
@@ -42,6 +43,7 @@ public class SigningProviderService : ISigningProviderService
 {
     private readonly ISigningProvider _provider;
     private readonly LeasingDbContext _db;
+    private readonly ICatalogAccessService _catalogAccess;
     private readonly IContractGenerationService _contractGenerationService;
     private readonly ILeaseService _leaseService;
     private readonly IUserService _userService;
@@ -51,6 +53,7 @@ public class SigningProviderService : ISigningProviderService
     public SigningProviderService(
         ISigningProvider provider,
         LeasingDbContext db,
+        ICatalogAccessService catalogAccess,
         IContractGenerationService contractGenerationService,
         ILeaseService leaseService,
         IUserService userService,
@@ -59,6 +62,7 @@ public class SigningProviderService : ISigningProviderService
     {
         _provider = provider;
         _db = db;
+        _catalogAccess = catalogAccess;
         _contractGenerationService = contractGenerationService;
         _leaseService = leaseService;
         _userService = userService;
@@ -265,6 +269,17 @@ public class SigningProviderService : ISigningProviderService
                 Action = "AwaitingPayment",
                 Message = "Contrato assinado por todas as partes via assinatura digital integrada. Aguarda pagamento inicial do inquilino."
             });
+
+            // Mirror the legacy upload path (LeaseService.ActivateLeaseAsync): sync the APPLICATION
+            // to AwaitingPayment using the same action/message strings, so the frontend renders the
+            // initial payment panel (which only appears when application.status == "AwaitingPayment").
+            // UpdateApplicationStatusAsync also writes the ApplicationHistory audit row.
+            await _catalogAccess.UpdateApplicationStatusAsync(
+                lease.ApplicationId,
+                (int)ApplicationStatus.AwaitingPayment,
+                Guid.Empty,
+                "Aguarda Pagamento",
+                "Termos aceites por ambas as partes. O inquilino deve efetuar o pagamento inicial para ativar o arrendamento.");
 
             // TODO Phase 2/3: Send notifications to tenant/landlord
         }
