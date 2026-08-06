@@ -1,14 +1,10 @@
-using System;
-using Microsoft.EntityFrameworkCore.Infrastructure;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
-using TrustRent.Modules.Catalog.Contracts.Database;
 
 #nullable disable
 
 namespace TrustRent.Modules.Catalog.Migrations
 {
-    [DbContext(typeof(CatalogDbContext))]
-    [Migration("20260430091000_AddGuarantorAddressVerification")]
     public partial class AddGuarantorAddressVerification : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
