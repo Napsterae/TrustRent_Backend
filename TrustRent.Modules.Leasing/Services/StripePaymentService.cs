@@ -310,7 +310,17 @@ public class StripePaymentService : IStripePaymentService
                 Destination = stripeAccount.StripeAccountId
             },
             Metadata = metadata,
-            PaymentMethodTypes = new List<string> { "card", "mbway", "multibanco", "revolut_pay" }
+            // Let Stripe resolve the enabled payment method types from the account's payment
+            // method configuration instead of hardcoding them. The previous explicit list
+            // ("card", "mbway", "multibanco", "revolut_pay") is serialized by Stripe.net as
+            // indexed params (payment_method_types[0]=card&payment_method_types[1]=mbway&...),
+            // and Stripe rejects "mbway" in that form ("The payment method type \"mbway\" is
+            // invalid...") even when it is activated on the account — the same list succeeds
+            // with bracket-less repeated params, which the SDK does not emit for this option.
+            AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions
+            {
+                Enabled = true
+            }
         };
 
         // Se foi fornecido um paymentMethodId, anexar
@@ -320,7 +330,9 @@ public class StripePaymentService : IStripePaymentService
             piOptions.Confirm = true;
         }
 
-        var paymentIntent = await piService.CreateAsync(piOptions);
+        // Route the create through the testable seam (StripeCreatePaymentIntentAsync), exactly
+        // like the monthly-rent path, so unit tests can inspect the create options.
+        var paymentIntent = await StripeCreatePaymentIntentAsync(piOptions, null);
 
         var payment = new Models.Payment
         {

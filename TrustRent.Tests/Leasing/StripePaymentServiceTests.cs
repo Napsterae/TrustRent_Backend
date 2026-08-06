@@ -3,7 +3,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Hangfire;
+using Stripe;
 using TrustRent.Modules.Leasing.Contracts.Database;
+using TrustRent.Modules.Leasing.Contracts.DTOs;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Models;
 using TrustRent.Modules.Leasing.Services;
@@ -131,6 +133,84 @@ public class StripePaymentServiceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.GetInitialPaymentBreakdownAsync(Guid.NewGuid()));
+
+        context.Dispose();
+    }
+
+    // --- CreateInitialPaymentAsync ---
+
+    [Fact]
+    public async Task CreateInitialPaymentAsync_UsesAutomaticPaymentMethods_NotHardcodedTypeList()
+    {
+        var leaseId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+        var landlordId = Guid.NewGuid();
+        var propertyId = Guid.NewGuid();
+
+        _leaseAccessMock.Setup(l => l.GetLeaseAccessContextAsync(leaseId)).ReturnsAsync(new LeaseAccessContext
+        {
+            LeaseId = leaseId,
+            MonthlyRent = 800m,
+            AdvanceRentMonths = 1,
+            Deposit = 800m,
+            TenantId = tenantId,
+            LandlordId = landlordId,
+            PropertyId = propertyId,
+            LeaseStatus = "AwaitingPayment"
+        });
+
+        var account = new StripeAccountDto(Guid.NewGuid(), landlordId, propertyId, "acct_test",
+            IsOnboardingComplete: true, ChargesEnabled: true, PayoutsEnabled: true, IsDefault: true, DateTime.UtcNow);
+        _stripeAccountMock.Setup(s => s.GetAccountForPropertyAsync(propertyId)).ReturnsAsync(account);
+        _stripeAccountMock.Setup(s => s.GetDefaultAccountAsync(landlordId)).ReturnsAsync(account);
+
+        var options = new DbContextOptionsBuilder<LeasingDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        var context = new LeasingDbContext(options);
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Stripe:SecretKey"] = "sk_test_fake",
+                ["Stripe:PlatformFeePerMonth"] = "3000"
+            })
+            .Build();
+
+        PaymentIntentCreateOptions? captured = null;
+        var service = new TestableStripePaymentService(
+            context,
+            _leaseAccessMock.Object,
+            _leaseActivationMock.Object,
+            _stripeAccountMock.Object,
+            _notificationMock.Object,
+            config,
+            new Mock<ILogger<StripePaymentService>>().Object,
+            _backgroundJobMock.Object);
+        service.SetCreateFunc((piOptions, _) =>
+        {
+            captured = piOptions;
+            return Task.FromResult(new PaymentIntent
+            {
+                Id = "pi_test_initial",
+                ClientSecret = "pi_test_secret",
+                Status = "requires_payment_method",
+                Amount = piOptions.Amount ?? 0,
+                Currency = piOptions.Currency,
+                Metadata = piOptions.Metadata
+            });
+        });
+
+        var result = await service.CreateInitialPaymentAsync(leaseId, tenantId, paymentMethodId: null);
+
+        Assert.NotNull(captured);
+        // Regression: the hardcoded list ("card","mbway","multibanco","revolut_pay") was
+        // serialized by Stripe.net as indexed params, and Stripe rejects "mbway" in that form
+        // even when activated. Stripe's recommended pattern is automatic payment methods.
+        Assert.True(captured!.AutomaticPaymentMethods?.Enabled,
+            "Initial PaymentIntent must enable AutomaticPaymentMethods so Stripe resolves the enabled types from the account.");
+        Assert.Null(captured.PaymentMethodTypes);
+        Assert.NotNull(result.ClientSecret);
 
         context.Dispose();
     }

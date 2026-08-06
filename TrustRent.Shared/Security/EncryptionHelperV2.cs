@@ -127,6 +127,19 @@ public static class EncryptionHelperV2
         var nonceSize = AesGcm.NonceByteSizes.MaxSize; // 12
         var tagSize = AesGcm.TagByteSizes.MaxSize;     // 16
 
+        // Invariant: versioned payloads (1-byte version prefix, CurrentKeyVersion >= 1) can
+        // only exist after a key rotation, and a rotation is only possible when DataKeyPrevious
+        // was configured (Initialize sets CurrentKeyVersion = 0 when it is absent). With no
+        // previous key, Encrypt only ever produces the legacy format (nonce + ciphertext + tag),
+        // so every payload must be treated as legacy (offset 0, _dataKey) — the first-byte
+        // heuristic is skipped entirely. This is required because a legacy random nonce may
+        // legitimately start with 0x01; misclassifying it as versioned made ~1/256 of rows
+        // permanently undecryptable (first try fails, no second key to fall back to).
+        if (_dataKeyPrevious == null)
+        {
+            return DecryptWithKey(combined, 0, _dataKey ?? throw new CryptographicException("No key available for legacy ciphertext."));
+        }
+
         var minVersionedLength = 1 + nonceSize + tagSize; // 29 bytes
         var looksVersioned = combined.Length >= minVersionedLength && combined[0] == 0x01;
 

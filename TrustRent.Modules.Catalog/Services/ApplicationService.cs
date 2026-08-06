@@ -422,6 +422,11 @@ public class ApplicationService : IApplicationService
         if (application.Status == ApplicationStatus.Accepted && property != null)
         {
             property.TenantId = application.TenantId;
+            // Delist on approval: an approved candidate "rents" the property (it stops accepting
+            // new applications), so the property must leave the public listings immediately.
+            // Listing state is restored by the rejection/cancellation path if the deal falls
+            // through (see CatalogAccessService.UpdateApplicationStatusAsync).
+            property.IsPublic = false;
         }
 
         await _context.SaveChangesAsync();

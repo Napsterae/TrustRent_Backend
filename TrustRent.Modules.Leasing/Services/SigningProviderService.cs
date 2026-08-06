@@ -8,6 +8,7 @@ using TrustRent.Modules.Leasing.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Models;
 using TrustRent.Shared;
 using TrustRent.Shared.Contracts.DTOs;
+using TrustRent.Shared.Contracts.Interfaces;
 using TrustRent.Shared.Models;
 
 namespace TrustRent.Modules.Leasing.Services;
@@ -42,6 +43,7 @@ public class SigningProviderService : ISigningProviderService
 {
     private readonly ISigningProvider _provider;
     private readonly LeasingDbContext _db;
+    private readonly ICatalogAccessService _catalogAccess;
     private readonly IContractGenerationService _contractGenerationService;
     private readonly ILeaseService _leaseService;
     private readonly IUserService _userService;
@@ -51,6 +53,7 @@ public class SigningProviderService : ISigningProviderService
     public SigningProviderService(
         ISigningProvider provider,
         LeasingDbContext db,
+        ICatalogAccessService catalogAccess,
         IContractGenerationService contractGenerationService,
         ILeaseService leaseService,
         IUserService userService,
@@ -59,6 +62,7 @@ public class SigningProviderService : ISigningProviderService
     {
         _provider = provider;
         _db = db;
+        _catalogAccess = catalogAccess;
         _contractGenerationService = contractGenerationService;
         _leaseService = leaseService;
         _userService = userService;
@@ -94,25 +98,26 @@ public class SigningProviderService : ISigningProviderService
 
             var contractPdf = await _contractGenerationService.GetContractBytesAsync(lease.ContractFilePath);
 
-            // Resolve actual name and email from UserService for each signer
+            // Resolve actual name and email from UserService for each signer.
+            // Sequential awaits are required: UserService reads through the SAME scoped
+            // IdentityDbContext (UnitOfWork -> UserRepository), and EF Core DbContext is
+            // not thread-safe — concurrent GetProfileDtoAsync calls throw "A second operation
+            // was started on this context instance before a previous operation completed".
+            // Signer count is tiny (1-4), so resolving profiles one at a time is negligible
+            // and keeps the exact recipient order.
             var orderedSignatures = lease.Signatures
                 .OrderBy(s => s.SequenceOrder)
                 .ToList();
 
-            var resolvedSignerTasks = orderedSignatures
-                .Select(async s =>
-                {
-                    var user = await _userService.GetProfileDtoAsync(s.UserId);
-                    return new
-                    {
-                        Signature = s,
-                        Email = user?.Email ?? $"{s.UserId}@trustrent.local",
-                        Name = user?.Name ?? $"Signatário #{s.SequenceOrder}"
-                    };
-                })
-                .ToList();
-
-            var resolvedSigners = await Task.WhenAll(resolvedSignerTasks);
+            var resolvedSigners = new List<(LeaseSignature Signature, string Email, string Name)>(orderedSignatures.Count);
+            foreach (var signerSignature in orderedSignatures)
+            {
+                var user = await _userService.GetProfileDtoAsync(signerSignature.UserId);
+                resolvedSigners.Add((
+                    signerSignature,
+                    user?.Email ?? $"{signerSignature.UserId}@trustrent.local",
+                    user?.Name ?? $"Signatário #{signerSignature.SequenceOrder}"));
+            }
 
             var signers = resolvedSigners
                 .Select(rs => new SignerInfo(
@@ -225,7 +230,15 @@ public class SigningProviderService : ISigningProviderService
         // 5. Update LeaseSignature
         signature.Signed = true;
         signature.SignedAt = now;
-        signature.SignatureRef = $"embedded_{_provider.Name}_{externalRequestId}";
+        // SignatureRef must be unique per signer: IX_LeaseSignatures_SignatureRef is a unique
+        // index. A document's signers previously all got the same `embedded_{provider}_{requestId}`
+        // value, so the second signer's UPDATE violated the constraint ("duplicate key value
+        // violates unique constraint \"IX_LeaseSignatures_SignatureRef\""). Differentiate with the
+        // provider-scoped recipient id (ExternalSignerId), falling back to role + sequence order.
+        var signatureRefSuffix = !string.IsNullOrEmpty(signature.ExternalSignerId)
+            ? signature.ExternalSignerId
+            : $"{signature.Role}_{signature.SequenceOrder}";
+        signature.SignatureRef = $"embedded_{_provider.Name}_{externalRequestId}_{signatureRefSuffix}";
         signature.SignedFilePath = signedFilePath;
         signature.SignatureVerified = true;
         signature.UpdatedAt = now;
@@ -256,6 +269,17 @@ public class SigningProviderService : ISigningProviderService
                 Action = "AwaitingPayment",
                 Message = "Contrato assinado por todas as partes via assinatura digital integrada. Aguarda pagamento inicial do inquilino."
             });
+
+            // Mirror the legacy upload path (LeaseService.ActivateLeaseAsync): sync the APPLICATION
+            // to AwaitingPayment using the same action/message strings, so the frontend renders the
+            // initial payment panel (which only appears when application.status == "AwaitingPayment").
+            // UpdateApplicationStatusAsync also writes the ApplicationHistory audit row.
+            await _catalogAccess.UpdateApplicationStatusAsync(
+                lease.ApplicationId,
+                (int)ApplicationStatus.AwaitingPayment,
+                Guid.Empty,
+                "Aguarda Pagamento",
+                "Termos aceites por ambas as partes. O inquilino deve efetuar o pagamento inicial para ativar o arrendamento.");
 
             // TODO Phase 2/3: Send notifications to tenant/landlord
         }

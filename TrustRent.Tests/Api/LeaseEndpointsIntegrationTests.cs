@@ -20,6 +20,7 @@ using TrustRent.Modules.Identity.Contracts.Interfaces;
 using TrustRent.Modules.Leasing.Contracts.Database;
 using TrustRent.Modules.Leasing.Contracts.DTOs;
 using TrustRent.Modules.Leasing.Contracts.Interfaces;
+using TrustRent.Modules.Leasing.Services;
 using TrustRent.Shared.Contracts.Interfaces;
 
 namespace TrustRent.Tests.Api;
@@ -137,11 +138,11 @@ public class LeaseEndpointsIntegrationTests
 
         public Mock<ILeaseService> LeaseService { get; }
 
-        public static async Task<LeaseEndpointHarness> CreateAsync(Guid? userId = null)
+        public static async Task<LeaseEndpointHarness> CreateAsync(Guid? userId = null, string? environmentName = null)
         {
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions
             {
-                EnvironmentName = Environments.Development,
+                EnvironmentName = environmentName ?? Environments.Development,
             });
 
             builder.WebHost.UseTestServer();
@@ -168,6 +169,9 @@ public class LeaseEndpointsIntegrationTests
             builder.Services.AddSingleton(Mock.Of<IUserService>());
             builder.Services.AddSingleton(Mock.Of<IGeminiDocumentService>());
             builder.Services.AddSingleton(Mock.Of<IStagingAccessService>());
+            builder.Services.AddSingleton(Mock.Of<ISigningProviderService>());
+            builder.Services.AddSingleton(Mock.Of<IUserRepository>());
+            builder.Services.AddScoped<DocumentSigningPinService>();
 
             var app = builder.Build();
             app.UseAuthentication();

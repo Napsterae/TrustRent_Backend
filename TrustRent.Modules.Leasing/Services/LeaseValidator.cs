@@ -26,7 +26,12 @@ public static class LeaseValidator
         if (userId != lease.TenantId && userId != lease.LandlordId)
             throw new UnauthorizedAccessException("Apenas o proprietário ou o inquilino podem confirmar a data de início.");
 
-        if (startDate.Date <= DateTime.UtcNow.Date)
+        // Business rule: a lease start date must not be in the past. The UI sends a date-only
+        // value that is parsed as local midnight; on a UTC+1 host "tomorrow" therefore lands on
+        // today (UTC) after conversion (e.g. 2026-08-04T23:00Z). Rejecting `startDate.Date <=
+        // UtcNow.Date` would wrongly block a lease starting tomorrow in local time, so we reject
+        // only dates strictly before today (UTC) — a lease starting later today (UTC) is valid.
+        if (startDate.Date < DateTime.UtcNow.Date)
             throw new ArgumentException("A data de início deve ser no futuro.");
     }
 

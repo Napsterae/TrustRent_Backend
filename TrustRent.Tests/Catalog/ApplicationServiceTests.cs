@@ -472,6 +472,34 @@ public class ApplicationServiceTests
     }
 
     [Fact]
+    public async Task UpdateVisitStatus_AcceptApplication_AssignsTenantAndDelistsProperty()
+    {
+        var (service, context) = CreateService();
+        var property = CreateTestProperty(); // IsPublic = true
+        context.Properties.Add(property);
+        var tenantId = Guid.NewGuid();
+        var application = new Application
+        {
+            Id = Guid.NewGuid(),
+            PropertyId = property.Id,
+            TenantId = tenantId,
+            Message = "Approve me",
+            DurationMonths = 12,
+            Status = ApplicationStatus.InterestConfirmed
+        };
+        context.Applications.Add(application);
+        await context.SaveChangesAsync();
+
+        await service.UpdateVisitStatusAsync(application.Id, property.LandlordId, new UpdateApplicationVisitDto { Action = "Accepted" });
+
+        var updated = await context.Properties.FindAsync(property.Id);
+        Assert.Equal(tenantId, updated!.TenantId);
+        Assert.False(updated.IsPublic); // approval must delist the property
+
+        context.Dispose();
+    }
+
+    [Fact]
     public async Task GetApplicationByIdAsync_GuarantorAcceptedButNotApproved_ReturnsObserverApplication()
     {
         var (service, context) = CreateService();

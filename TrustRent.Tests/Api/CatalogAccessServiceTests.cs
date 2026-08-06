@@ -146,6 +146,65 @@ public class CatalogAccessServiceTests
     }
 
     [Fact]
+    public async Task UpdateApplicationStatusAsync_Rejected_ReleasesAssignedTenantAndRepublishes()
+    {
+        using var context = CreateContext();
+        var tenantId = Guid.NewGuid();
+        var property = CreateTestProperty();
+        property.TenantId = tenantId;
+        property.IsPublic = false; // property was delisted on approval
+        context.Properties.Add(property);
+
+        var app = new Application
+        {
+            Id = Guid.NewGuid(),
+            PropertyId = property.Id,
+            TenantId = tenantId,
+            Property = property,
+            Status = ApplicationStatus.Accepted
+        };
+        context.Applications.Add(app);
+        await context.SaveChangesAsync();
+
+        var sut = new CatalogAccessService(context);
+        await sut.UpdateApplicationStatusAsync(app.Id, (int)ApplicationStatus.Rejected, Guid.NewGuid(), "Arrendamento Cancelado");
+
+        var updated = await context.Properties.FindAsync(property.Id);
+        Assert.Null(updated!.TenantId);
+        Assert.True(updated.IsPublic); // no orphan delisted property after the deal falls through
+    }
+
+    [Fact]
+    public async Task UpdateApplicationStatusAsync_Rejected_DoesNotReleasePropertyHeldByAnotherTenant()
+    {
+        using var context = CreateContext();
+        var propertyTenant = Guid.NewGuid();
+        var otherTenant = Guid.NewGuid();
+        var property = CreateTestProperty();
+        property.TenantId = propertyTenant;
+        property.IsPublic = false;
+        context.Properties.Add(property);
+
+        var app = new Application
+        {
+            Id = Guid.NewGuid(),
+            PropertyId = property.Id,
+            TenantId = otherTenant, // NOT the tenant holding the property
+            Property = property,
+            Status = ApplicationStatus.Accepted
+        };
+        context.Applications.Add(app);
+        await context.SaveChangesAsync();
+
+        var sut = new CatalogAccessService(context);
+        await sut.UpdateApplicationStatusAsync(app.Id, (int)ApplicationStatus.Rejected, Guid.NewGuid(), "Candidatura Rejeitada");
+
+        var updated = await context.Properties.FindAsync(property.Id);
+        Assert.Equal(propertyTenant, updated!.TenantId); // untouched
+        Assert.False(updated.IsPublic);
+    }
+
+    [Fact]
     public async Task SetPropertyTenantAsync_ValidProperty_UpdatesTenantAndDelists()
     {
         using var context = CreateContext();

@@ -96,6 +96,23 @@ public class LeaseValidatorTests
             LeaseValidator.ValidateConfirmStartDate(lease, lease.TenantId, DateTime.UtcNow.AddDays(-1)));
     }
 
+    [Fact]
+    public void ValidateConfirmStartDate_TodayUtcDate_DoesNotThrow()
+    {
+        var lease = CreateTestLease(LeaseStatus.Pending);
+        // Date-only start values are parsed as local midnight; on a UTC+1 host "tomorrow" lands
+        // on today (UTC). A lease starting later today (UTC) is valid and must not be rejected.
+        LeaseValidator.ValidateConfirmStartDate(lease, lease.TenantId, DateTime.UtcNow.Date);
+    }
+
+    [Fact]
+    public void ValidateConfirmStartDate_Yesterday_ThrowsArgumentException()
+    {
+        var lease = CreateTestLease(LeaseStatus.Pending);
+        Assert.Throws<ArgumentException>(() =>
+            LeaseValidator.ValidateConfirmStartDate(lease, lease.TenantId, DateTime.UtcNow.Date.AddDays(-1)));
+    }
+
     // --- ValidateCounterProposeStartDate ---
 
     [Fact]

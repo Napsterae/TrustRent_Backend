@@ -1,14 +1,10 @@
-using System;
-using Microsoft.EntityFrameworkCore.Infrastructure;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
-using TrustRent.Modules.Identity.Contracts.Database;
 
 #nullable disable
 
 namespace TrustRent.Modules.Identity.Migrations
 {
-    [DbContext(typeof(IdentityDbContext))]
-    [Migration("20260430090000_AddAddressVerificationToUsers")]
     public partial class AddAddressVerificationToUsers : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
