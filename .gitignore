@@ -39,3 +39,7 @@ secrets.json
 .nuget/
 packages/
 *.nupkg
+
+# Artefactos de runtime (contratos/PDFs gerados, storage de leases)
+TrustRent.Api/storage/
+TrustRent.Api/contracts/
